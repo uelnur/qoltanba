@@ -37,6 +37,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/config"
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/crl"
+	"github.com/uelnur/qoltanba/internal/dataref"
 	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/metrics"
@@ -546,6 +547,15 @@ func buildService(cfg config.Config, log *slog.Logger, rec *metrics.Recorder) (*
 	}
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))
+	}
+	if cfg.Input.Enabled() {
+		opts = append(opts, core.WithDataResolver(dataref.New(dataref.Config{
+			AllowLocalPath: cfg.Input.AllowLocalPath,
+			AllowURL:       cfg.Input.AllowURL,
+			AllowedSchemes: cfg.Input.AllowedSchemes,
+			MaxBytes:       int64(cfg.Input.MaxMB) << 20,
+			SpoolDir:       cfg.Input.SpoolDir,
+		})))
 	}
 	svc := core.New(pool, opts...)
 	closer := func() {

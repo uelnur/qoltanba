@@ -80,6 +80,11 @@ func registry() []entry {
 		{key: "jobs.queue-size", flag: "jobs-queue-size", env: "JOBS_QUEUE_SIZE", kind: kindInt, def: 128, usage: "pending-job queue depth before backpressure (503)"},
 		{key: "jobs.max-input-mb", flag: "jobs-max-input-mb", env: "JOBS_MAX_INPUT_MB", kind: kindInt, def: 0, usage: "reject job requests larger than this many MiB (0 = unlimited)"},
 		{key: "jobs.ttl", flag: "jobs-ttl", env: "JOBS_TTL", kind: kindString, def: "1h", usage: "retention for finished jobs, as a Go duration (e.g. 1h)"},
+		{key: "input.allow-local-path", flag: "input-allow-local-path", env: "INPUT_ALLOW_LOCAL_PATH", kind: kindBool, def: false, usage: "accept by-reference data from a local file path (file-read risk; off by default)"},
+		{key: "input.allow-url", flag: "input-allow-url", env: "INPUT_ALLOW_URL", kind: kindBool, def: false, usage: "accept by-reference data from a URL (SSRF risk; off by default)"},
+		{key: "input.allowed-schemes", flag: "input-allowed-schemes", env: "INPUT_ALLOWED_SCHEMES", kind: kindStringSlice, def: []string{"https"}, usage: "URL schemes accepted for by-reference data"},
+		{key: "input.max-mb", flag: "input-max-mb", env: "INPUT_MAX_MB", kind: kindInt, def: 0, usage: "cap a by-reference payload in MiB (0 = unlimited)"},
+		{key: "input.spool-dir", flag: "input-spool-dir", env: "INPUT_SPOOL_DIR", kind: kindString, def: "", usage: "directory for fetched-URL spool files (empty = system temp)"},
 	}
 }
 
@@ -254,6 +259,16 @@ func (l *Loaded) value(e entry) string {
 		return strconv.Itoa(c.Jobs.MaxInputMB)
 	case "jobs.ttl":
 		return c.Jobs.TTL
+	case "input.allow-local-path":
+		return strconv.FormatBool(c.Input.AllowLocalPath)
+	case "input.allow-url":
+		return strconv.FormatBool(c.Input.AllowURL)
+	case "input.allowed-schemes":
+		return strings.Join(c.Input.AllowedSchemes, ",")
+	case "input.max-mb":
+		return strconv.Itoa(c.Input.MaxMB)
+	case "input.spool-dir":
+		return c.Input.SpoolDir
 	default:
 		return ""
 	}

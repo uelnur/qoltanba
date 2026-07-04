@@ -110,6 +110,8 @@ message SignRequest {
   string parent_node = 11;
   string parent_namespace = 12;
   bytes existing_signature = 13;
+  string data_path = 14; // by-reference: local file path (gated by config)
+  string data_url = 15;  // by-reference: URL streamed to a spool file (gated)
 }
 message SignResponse {
   bytes signature = 1;
@@ -129,6 +131,8 @@ message VerifyRequest {
   bool extract_content = 7;
   repeated TrustedCert trusted_certs = 8;
   bool claims = 9; // add OIDC claims per signer
+  string data_path = 10; // by-reference detached source: local path (gated)
+  string data_url = 11;  // by-reference detached source: URL (gated)
 }
 message VerifyResponse {
   bool valid = 1;

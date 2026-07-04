@@ -116,7 +116,13 @@ func (p *Pool) SignCMS(ctx context.Context, req provider.SignRequest) (provider.
 		if req.WithTimestamp {
 			inst.tsaSetURL(req.TSAURL)
 		}
-		sig, err := inst.signData(alias, signCMSFlags(req), req.Data, req.ExistingSignature)
+		// With KC_IN_FILE the library reads the content from a path; the "data" arg
+		// then carries the path bytes and Data is unused (nothing buffered here).
+		data := req.Data
+		if req.Path != "" {
+			data = []byte(req.Path)
+		}
+		sig, err := inst.signData(alias, signCMSFlags(req), data, req.ExistingSignature)
 		if err != nil {
 			return err
 		}
@@ -133,7 +139,11 @@ func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provi
 	var res provider.VerifyResult
 	err := p.submit(ctx, func(inst kalkanInstance) error {
 		flags := verifyCMSFlags(req) // must match the signing flags
-		vo := inst.verifyData("", flags, req.Data, req.Signature, req.SignerIndex)
+		data := req.Data
+		if req.Path != "" {
+			data = []byte(req.Path) // KC_IN_FILE: detached source read from a path
+		}
+		vo := inst.verifyData("", flags, data, req.Signature, req.SignerIndex)
 		res.RawCode = vo.code
 		res.Valid = vo.code == kcrOK
 		res.Info = string(vo.verify)
@@ -464,6 +474,9 @@ func signCMSFlags(req provider.SignRequest) int {
 	if req.WithTimestamp {
 		flags |= kcWithTimestamp
 	}
+	if req.Path != "" {
+		flags |= kcInFile // the library reads the content from the path
+	}
 	return flags
 }
 
@@ -480,6 +493,9 @@ func verifyCMSFlags(req provider.VerifyRequest) int {
 	}
 	if !req.CheckCertTime {
 		flags |= kcNoCheckCertTime
+	}
+	if req.Path != "" {
+		flags |= kcInFile
 	}
 	return flags
 }

@@ -73,6 +73,7 @@ func pbTrusted(in []*pb.TrustedCert) []core.TrustedCert {
 func signInputPB(req *pb.SignRequest) core.SignInput {
 	return core.SignInput{
 		Format: pbFormat(req.GetFormat()), Data: req.GetData(), Key: pbKeySpec(req.GetKey()),
+		DataRef:  core.DataRef{Path: req.GetDataPath(), URL: req.GetDataUrl()},
 		Detached: req.GetDetached(), WithTimestamp: req.WithTimestamp, TSAURL: req.GetTsaUrl(),
 		NoCheckCertTime: req.GetNoCheckCertTime(), InputPEM: req.GetInputPem(), OutputPEM: req.GetOutputPem(),
 		NodeID: req.GetNodeId(), ParentNode: req.GetParentNode(), ParentNS: req.GetParentNamespace(),
@@ -83,6 +84,7 @@ func signInputPB(req *pb.SignRequest) core.SignInput {
 func verifyInputPB(req *pb.VerifyRequest) core.VerifyInput {
 	return core.VerifyInput{
 		Format: pbFormat(req.GetFormat()), Signature: req.GetSignature(), Data: req.GetData(),
+		DataRef:  core.DataRef{Path: req.GetDataPath(), URL: req.GetDataUrl()},
 		Detached: req.GetDetached(), InputPEM: req.GetInputPem(), CheckCertTime: req.GetCheckCertTime(),
 		ExtractContent: req.GetExtractContent(), ExtractClaims: req.GetClaims(),
 		TrustedCerts: pbTrusted(req.GetTrustedCerts()),

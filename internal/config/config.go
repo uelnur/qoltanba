@@ -43,6 +43,7 @@ type Config struct {
 	Log        LogConfig     `koanf:"log"`
 	Metrics    MetricsConfig `koanf:"metrics"`
 	Jobs       JobsConfig    `koanf:"jobs"`
+	Input      InputConfig   `koanf:"input"`
 }
 
 // LibConfig configures the native Kalkan library (BYOL).
@@ -185,6 +186,21 @@ func (c JobsConfig) JobsTTL() time.Duration {
 	}
 	return d
 }
+
+// InputConfig configures by-reference payloads (DataRef path/URL) for large
+// files. Both sources are off by default: a local path is a file-read risk and a
+// URL fetch is an SSRF vector, so each is opt-in.
+type InputConfig struct {
+	AllowLocalPath bool     `koanf:"allow-local-path"`
+	AllowURL       bool     `koanf:"allow-url"`
+	AllowedSchemes []string `koanf:"allowed-schemes"` // default https
+	MaxMB          int      `koanf:"max-mb"`          // 0 = unlimited
+	SpoolDir       string   `koanf:"spool-dir"`       // empty = os.TempDir()
+}
+
+// Enabled reports whether any by-reference source is turned on (so the resolver
+// is worth wiring).
+func (c InputConfig) Enabled() bool { return c.AllowLocalPath || c.AllowURL }
 
 // LogConfig configures logging.
 type LogConfig struct {

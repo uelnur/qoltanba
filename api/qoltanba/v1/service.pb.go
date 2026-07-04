@@ -672,6 +672,8 @@ type SignRequest struct {
 	ParentNode        string                 `protobuf:"bytes,11,opt,name=parent_node,json=parentNode,proto3" json:"parent_node,omitempty"`
 	ParentNamespace   string                 `protobuf:"bytes,12,opt,name=parent_namespace,json=parentNamespace,proto3" json:"parent_namespace,omitempty"`
 	ExistingSignature []byte                 `protobuf:"bytes,13,opt,name=existing_signature,json=existingSignature,proto3" json:"existing_signature,omitempty"`
+	DataPath          string                 `protobuf:"bytes,14,opt,name=data_path,json=dataPath,proto3" json:"data_path,omitempty"` // by-reference: local file path (gated by config)
+	DataUrl           string                 `protobuf:"bytes,15,opt,name=data_url,json=dataUrl,proto3" json:"data_url,omitempty"`    // by-reference: URL streamed to a spool file (gated)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -797,6 +799,20 @@ func (x *SignRequest) GetExistingSignature() []byte {
 	return nil
 }
 
+func (x *SignRequest) GetDataPath() string {
+	if x != nil {
+		return x.DataPath
+	}
+	return ""
+}
+
+func (x *SignRequest) GetDataUrl() string {
+	if x != nil {
+		return x.DataUrl
+	}
+	return ""
+}
+
 type SignResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Signature     []byte                 `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
@@ -883,7 +899,9 @@ type VerifyRequest struct {
 	CheckCertTime  bool                   `protobuf:"varint,6,opt,name=check_cert_time,json=checkCertTime,proto3" json:"check_cert_time,omitempty"`
 	ExtractContent bool                   `protobuf:"varint,7,opt,name=extract_content,json=extractContent,proto3" json:"extract_content,omitempty"`
 	TrustedCerts   []*TrustedCert         `protobuf:"bytes,8,rep,name=trusted_certs,json=trustedCerts,proto3" json:"trusted_certs,omitempty"`
-	Claims         bool                   `protobuf:"varint,9,opt,name=claims,proto3" json:"claims,omitempty"` // add OIDC claims per signer
+	Claims         bool                   `protobuf:"varint,9,opt,name=claims,proto3" json:"claims,omitempty"`                     // add OIDC claims per signer
+	DataPath       string                 `protobuf:"bytes,10,opt,name=data_path,json=dataPath,proto3" json:"data_path,omitempty"` // by-reference detached source: local path (gated)
+	DataUrl        string                 `protobuf:"bytes,11,opt,name=data_url,json=dataUrl,proto3" json:"data_url,omitempty"`    // by-reference detached source: URL (gated)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -979,6 +997,20 @@ func (x *VerifyRequest) GetClaims() bool {
 		return x.Claims
 	}
 	return false
+}
+
+func (x *VerifyRequest) GetDataPath() string {
+	if x != nil {
+		return x.DataPath
+	}
+	return ""
+}
+
+func (x *VerifyRequest) GetDataUrl() string {
+	if x != nil {
+		return x.DataUrl
+	}
+	return ""
 }
 
 type VerifyResponse struct {
@@ -3827,7 +3859,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x06action\x18\x05 \x01(\tR\x06action\"7\n" +
 	"\aWarning\x12\x14\n" +
 	"\x05field\x18\x01 \x01(\tR\x05field\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xf0\x03\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xa8\x04\n" +
 	"\vSignRequest\x124\n" +
 	"\x06format\x18\x01 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\x12&\n" +
@@ -3844,7 +3876,9 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\vparent_node\x18\v \x01(\tR\n" +
 	"parentNode\x12)\n" +
 	"\x10parent_namespace\x18\f \x01(\tR\x0fparentNamespace\x12-\n" +
-	"\x12existing_signature\x18\r \x01(\fR\x11existingSignatureB\x11\n" +
+	"\x12existing_signature\x18\r \x01(\fR\x11existingSignature\x12\x1b\n" +
+	"\tdata_path\x18\x0e \x01(\tR\bdataPath\x12\x19\n" +
+	"\bdata_url\x18\x0f \x01(\tR\adataUrlB\x11\n" +
 	"\x0f_with_timestamp\"\xed\x01\n" +
 	"\fSignResponse\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\x124\n" +
@@ -3852,7 +3886,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\tlib_error\x18\x03 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\x124\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x16.qoltanba.v1.TimestampR\ttimestamp\x12\x1f\n" +
 	"\vcades_level\x18\x05 \x01(\tR\n" +
-	"cadesLevel\"\xd8\x02\n" +
+	"cadesLevel\"\x90\x03\n" +
 	"\rVerifyRequest\x124\n" +
 	"\x06format\x18\x01 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12\x12\n" +
@@ -3862,7 +3896,10 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x0fcheck_cert_time\x18\x06 \x01(\bR\rcheckCertTime\x12'\n" +
 	"\x0fextract_content\x18\a \x01(\bR\x0eextractContent\x12=\n" +
 	"\rtrusted_certs\x18\b \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\x12\x16\n" +
-	"\x06claims\x18\t \x01(\bR\x06claims\"\xa7\x02\n" +
+	"\x06claims\x18\t \x01(\bR\x06claims\x12\x1b\n" +
+	"\tdata_path\x18\n" +
+	" \x01(\tR\bdataPath\x12\x19\n" +
+	"\bdata_url\x18\v \x01(\tR\adataUrl\"\xa7\x02\n" +
 	"\x0eVerifyResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x124\n" +
 	"\x06format\x18\x02 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1a\n" +

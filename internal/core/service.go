@@ -22,6 +22,7 @@ type Service struct {
 	defaultTimestamp bool
 	now              func() time.Time
 	verifyOnly       bool
+	dataResolver     DataResolver
 }
 
 // Option configures a Service.
@@ -52,6 +53,11 @@ func WithCRLSource(c CRLSource) Option { return func(s *Service) { s.crl = c } }
 // WithDefaultTimestamp sets whether signing adds a TSA timestamp when the
 // request does not specify (SignInput.WithTimestamp == nil). Off by default.
 func WithDefaultTimestamp(v bool) Option { return func(s *Service) { s.defaultTimestamp = v } }
+
+// WithDataResolver enables by-reference payloads (DataRef path/URL): the resolver
+// turns a reference into a local path the driver reads directly (KC_IN_FILE). Nil
+// (the default) means only inline data is accepted.
+func WithDataResolver(r DataResolver) Option { return func(s *Service) { s.dataResolver = r } }
 
 // WithChainVerification enables cryptographic chain validation via Kalkan
 // (KC_USE_NOTHING) per signer — the GOST-capable check Go cannot do. Off by
@@ -85,6 +91,15 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 	if in.ExistingSignature != nil && in.Format != FormatCMS {
 		return SignOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("co-sign supported for CMS only")}
 	}
+	if in.DataRef.IsRef() && in.Format != FormatCMS {
+		return SignOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("by-reference data supported for CMS only")}
+	}
+
+	dataPath, releaseData, err := s.resolveData(ctx, op, in.DataRef)
+	if err != nil {
+		return SignOutput{}, err
+	}
+	defer releaseData()
 
 	handle, err := s.resolveKey(ctx, in.Key)
 	if err != nil {
@@ -111,6 +126,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 		res, err = s.prov.SignCMS(ctx, provider.SignRequest{
 			Key:               handle.Ref,
 			Data:              in.Data,
+			Path:              dataPath,
 			Detached:          in.Detached,
 			InputPEM:          in.InputPEM,
 			OutPEM:            in.OutputPEM,
@@ -180,11 +196,21 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 	if !in.Format.Valid() {
 		return VerifyOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("unknown signature format")}
 	}
+	if in.DataRef.IsRef() && in.Format != FormatCMS {
+		return VerifyOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("by-reference data supported for CMS only")}
+	}
+	dataPath, releaseData, err := s.resolveData(ctx, op, in.DataRef)
+	if err != nil {
+		return VerifyOutput{}, err
+	}
+	defer releaseData()
+
 	var w warnings
 	trusted := s.mergedTrusted(in.TrustedCerts)
 	req := provider.VerifyRequest{
 		Signature:     in.Signature,
 		Data:          in.Data,
+		Path:          dataPath,
 		Detached:      in.Detached,
 		InputPEM:      in.InputPEM,
 		OutPEM:        true,
@@ -193,7 +219,6 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 	}
 
 	var res provider.VerifyResult
-	var err error
 	if in.Format == FormatCMS {
 		res, err = s.prov.VerifyCMS(ctx, req)
 	} else {
@@ -460,6 +485,28 @@ func (s *Service) resolveKey(ctx context.Context, spec KeySpec) (KeyHandle, erro
 		return KeyHandle{}, &Error{Kind: KindUnavailable, Op: "resolveKey", err: errors.New("no key source configured")}
 	}
 	return s.keys.Resolve(ctx, spec)
+}
+
+// resolveData turns an optional by-reference payload into a driver-readable path.
+// It returns the path (empty when the payload is inline) and a release func that
+// is always safe to call. A reference with no configured resolver is a clear
+// KindUnavailable error rather than a silent fallback to inline.
+func (s *Service) resolveData(ctx context.Context, op string, ref DataRef) (path string, release func(), err error) {
+	if !ref.IsRef() {
+		return "", func() {}, nil
+	}
+	if s.dataResolver == nil {
+		return "", func() {}, &Error{Kind: KindUnavailable, Op: op, err: errors.New("by-reference data requires a configured data resolver")}
+	}
+	rd, rerr := s.dataResolver.Resolve(ctx, ref)
+	if rerr != nil {
+		var de *Error
+		if errors.As(rerr, &de) {
+			return "", func() {}, rerr // already a classified domain error
+		}
+		return "", func() {}, domainErr(op, rerr)
+	}
+	return rd.Path, rd.Release, nil
 }
 
 // mergedTrusted merges the configured trust anchors with per-request CAs.

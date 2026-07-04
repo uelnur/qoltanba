@@ -17,6 +17,8 @@ import (
 type SignRequest struct {
 	Format            string       `json:"format"`
 	Data              []byte       `json:"data"`
+	DataPath          string       `json:"dataPath,omitempty"` // by-reference: local file path (gated)
+	DataURL           string       `json:"dataUrl,omitempty"`  // by-reference: URL streamed to spool (gated)
 	Key               core.KeySpec `json:"key"`
 	Detached          bool         `json:"detached,omitempty"`
 	WithTimestamp     *bool        `json:"withTimestamp,omitempty"` // omitted → service default
@@ -39,6 +41,7 @@ func (r SignRequest) ToCore() (core.SignInput, error) {
 	return core.SignInput{
 		Format:            f,
 		Data:              r.Data,
+		DataRef:           core.DataRef{Path: r.DataPath, URL: r.DataURL},
 		Key:               r.Key,
 		Detached:          r.Detached,
 		WithTimestamp:     r.WithTimestamp,
@@ -58,6 +61,8 @@ type VerifyRequest struct {
 	Format         string             `json:"format"`
 	Signature      []byte             `json:"signature"`
 	Data           []byte             `json:"data,omitempty"`
+	DataPath       string             `json:"dataPath,omitempty"` // by-reference detached source: local path (gated)
+	DataURL        string             `json:"dataUrl,omitempty"`  // by-reference detached source: URL (gated)
 	Detached       bool               `json:"detached,omitempty"`
 	InputPEM       bool               `json:"inputPem,omitempty"`
 	CheckCertTime  bool               `json:"checkCertTime,omitempty"`
@@ -76,6 +81,7 @@ func (r VerifyRequest) ToCore() (core.VerifyInput, error) {
 		Format:         f,
 		Signature:      r.Signature,
 		Data:           r.Data,
+		DataRef:        core.DataRef{Path: r.DataPath, URL: r.DataURL},
 		Detached:       r.Detached,
 		InputPEM:       r.InputPEM,
 		CheckCertTime:  r.CheckCertTime,

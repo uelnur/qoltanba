@@ -551,6 +551,10 @@ components:
         data:
           contentEncoding: base64
           type: string
+        dataPath:
+          type: string
+        dataUrl:
+          type: string
         detached:
           type: boolean
         existingSignature:
@@ -825,6 +829,10 @@ components:
           type: boolean
         data:
           contentEncoding: base64
+          type: string
+        dataPath:
+          type: string
+        dataUrl:
           type: string
         detached:
           type: boolean
