@@ -1,8 +1,10 @@
 # Окружение для функциональных тестов драйвера против РЕАЛЬНОЙ библиотеки Kalkan.
 # linux/amd64 — нативная либа существует только под эту платформу (на Apple
-# Silicon идёт через эмуляцию: медленно, но работает). Репозиторий и каталог
+# Silicon идёт через эмуляцию: медленно, но работает). Платформа задаётся флагом
+# `docker build --platform=linux/amd64` в run.sh, а не константой в FROM (иначе
+# BuildKit ругается FromPlatformFlagConstDisallowed). Репозиторий и каталог
 # native/ монтируются при запуске (BYOL — в образ не копируются).
-FROM --platform=linux/amd64 golang:1.24-bookworm
+FROM golang:1.25-bookworm
 
 # Рантайм-зависимости libkalkancryptwr (см. .claude/docs/kalkan-api/loading.md).
 # patchelf — на случай стратегии изоляции через soname-копии враппера.
