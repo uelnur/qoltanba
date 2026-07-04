@@ -10,7 +10,7 @@ GOLANGCI_VERSION := v2.12.2
 GOBIN           := $(shell go env GOPATH)/bin
 GOLANGCI        := $(GOBIN)/golangci-lint
 
-.PHONY: build test vet lint fmt tidy check tools openapi openapi-lint check-generated
+.PHONY: build test vet lint fmt tidy check tools openapi openapi-lint check-generated hooks
 
 ## build: compile all packages
 build:
@@ -50,6 +50,11 @@ openapi-lint:
 ## check-generated: fail if the committed OpenAPI/Postman artifacts are stale
 check-generated: openapi
 	git diff --exit-code api/openapi.yaml deploy/postman/qoltanba.postman_collection.json
+
+## hooks: enable the repo's git hooks (.githooks) for this clone
+hooks:
+	git config core.hooksPath .githooks
+	@echo "git hooks enabled (core.hooksPath=.githooks)"
 
 ## tools: install the pinned golangci-lint if absent or outdated
 tools:

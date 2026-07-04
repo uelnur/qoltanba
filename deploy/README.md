@@ -111,7 +111,10 @@ schemas are reflected from `internal/transport/dto` (requests) and `internal/cor
 (responses), so they never drift from the code. Do not hand-edit them; run
 `make openapi` and commit. CI (`make check-generated`) fails a PR whose code
 changed a request/response shape without regenerating, then lints the spec
-(`make openapi-lint`, Redocly).
+(`make openapi-lint`, Redocly). Run `make hooks` once per clone to enable the git hooks (`.githooks/`):
+**pre-commit** applies `gofmt` and blocks on OpenAPI/Postman drift (fast);
+**pre-push** runs the full gate `make check` (build, vet, lint, tests). Both catch
+issues locally before CI; bypass with `--no-verify` in a pinch.
 
 - **OpenAPI 3.1:** `api/openapi.yaml` — import into Swagger UI / Redoc, or generate
   clients. All request and response keys are lowerCamelCase.

@@ -1,0 +1,10 @@
+#!/bin/sh
+# pre-push: the full quality gate before code leaves the machine — build, go vet,
+# golangci-lint and the unit tests (`make check`). Kept out of pre-commit so
+# commits stay fast; this runs once per push. Enable with `make hooks`.
+#
+# Bypass in a pinch with `git push --no-verify` (CI still enforces the gate).
+set -e
+
+echo "pre-push: running full gate (build, vet, lint, tests)…"
+make check

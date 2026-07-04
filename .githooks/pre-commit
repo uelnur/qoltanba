@@ -1,0 +1,42 @@
+#!/bin/sh
+# pre-commit: fast local checks — code style (gofmt) and OpenAPI/Postman drift.
+# The heavier gate (vet, lint, tests) runs on pre-push so commits stay quick.
+# Installed via `make hooks` (sets core.hooksPath — git does not run committed
+# hooks otherwise).
+set -e
+
+# --- code style: gofmt on the staged Go files (auto-fix, then ask to re-stage) ---
+gofiles=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+if [ -n "$gofiles" ]; then
+	# shellcheck disable=SC2086  # intentional word-splitting over the file list
+	unformatted=$(gofmt -l $gofiles)
+	if [ -n "$unformatted" ]; then
+		# shellcheck disable=SC2086
+		gofmt -w $unformatted
+		echo "pre-commit: gofmt reformatted files — stage them and commit again:" >&2
+		echo "$unformatted" | sed 's/^/    git add /' >&2
+		exit 1
+	fi
+fi
+
+# Skip the (slower) regeneration unless the commit touches Go code or the
+# generated artifacts — a docs-only commit shouldn't pay for it.
+if ! git diff --cached --name-only \
+	| grep -qE '\.go$|^api/openapi\.yaml$|^deploy/postman/'; then
+	exit 0
+fi
+
+echo "pre-commit: regenerating OpenAPI/Postman from the Go types…"
+if ! make openapi >/dev/null; then
+	echo "pre-commit: openapi generation failed" >&2
+	exit 1
+fi
+
+if ! git diff --exit-code \
+	api/openapi.yaml deploy/postman/qoltanba.postman_collection.json >/dev/null; then
+	echo >&2
+	echo "pre-commit: generated artifacts were stale — regenerated them for you." >&2
+	echo "  Stage the changes and commit again:" >&2
+	echo "    git add api/openapi.yaml deploy/postman/qoltanba.postman_collection.json" >&2
+	exit 1
+fi
