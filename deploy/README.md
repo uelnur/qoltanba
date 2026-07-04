@@ -107,9 +107,7 @@ served on the HTTP work port; the Service is annotated for Prometheus scraping.
 ## API spec & Postman (try-it-now)
 
 - **OpenAPI 3.1:** `api/openapi.yaml` — import into Swagger UI / Redoc, or generate
-  clients. Note: request bodies use lowerCamelCase; response envelopes use
-  Capitalized top-level keys with lowerCamelCase nested objects (the spec matches
-  the wire format exactly).
+  clients. All request and response keys are lowerCamelCase.
 - **Postman:** import `deploy/postman/qoltanba.postman_collection.json` and the
   `…_environment.json`; set `baseUrl` and the base64/secret variables.
 

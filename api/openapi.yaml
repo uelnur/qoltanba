@@ -5,12 +5,7 @@ info:
   description: >-
     REST/JSON transport for the qoltanba digital-signature service (RK / Kalkan).
     One call handles one item. Binary fields are base64-encoded strings; times are
-    RFC 3339.
-
-    Casing note: request bodies use lowerCamelCase keys. Response envelopes
-    (SignOutput/VerifyOutput/…) use Go-exported (Capitalized) top-level keys, while
-    nested objects (Certificate, Signer, LibError, RevocationStatus, Warning) use
-    lowerCamelCase. The schemas below reflect the wire format exactly.
+    RFC 3339. All request and response keys are lowerCamelCase.
   license:
     name: Proprietary Kalkan library is BYOL; this service is separate.
 servers:
@@ -236,10 +231,10 @@ components:
         keyId: { type: string }
     TrustedCert:
       type: object
-      description: A CA certificate for chain building. Note Capitalized keys (no JSON tags on this type).
+      description: A CA certificate for chain building.
       properties:
-        Cert: { $ref: '#/components/schemas/Bytes' }
-        Intermediate: { type: boolean }
+        cert: { $ref: '#/components/schemas/Bytes' }
+        intermediate: { type: boolean }
     Warning:
       type: object
       properties:
@@ -353,11 +348,11 @@ components:
     SignResponse:
       type: object
       properties:
-        Signature: { $ref: '#/components/schemas/Bytes' }
-        Format: { $ref: '#/components/schemas/Format' }
-        Timestamp: { $ref: '#/components/schemas/Timestamp' }
-        CAdESLevel: { type: string, enum: [BES, T] }
-        LibError: { $ref: '#/components/schemas/LibError' }
+        signature: { $ref: '#/components/schemas/Bytes' }
+        format: { $ref: '#/components/schemas/Format' }
+        timestamp: { $ref: '#/components/schemas/Timestamp' }
+        cadesLevel: { type: string, enum: [BES, T] }
+        libError: { $ref: '#/components/schemas/LibError' }
     VerifyRequest:
       type: object
       required: [format, signature]
@@ -373,13 +368,13 @@ components:
     VerifyResponse:
       type: object
       properties:
-        Valid: { type: boolean }
-        Format: { $ref: '#/components/schemas/Format' }
-        Detached: { type: boolean }
-        Signers: { type: array, items: { $ref: '#/components/schemas/Signer' } }
-        Content: { $ref: '#/components/schemas/Bytes' }
-        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
-        LibError: { $ref: '#/components/schemas/LibError' }
+        valid: { type: boolean }
+        format: { $ref: '#/components/schemas/Format' }
+        detached: { type: boolean }
+        signers: { type: array, items: { $ref: '#/components/schemas/Signer' } }
+        content: { $ref: '#/components/schemas/Bytes' }
+        warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        libError: { $ref: '#/components/schemas/LibError' }
     ExtractRequest:
       type: object
       required: [format, signature]
@@ -390,9 +385,9 @@ components:
     ExtractResponse:
       type: object
       properties:
-        Content: { $ref: '#/components/schemas/Bytes' }
-        Detached: { type: boolean }
-        LibError: { $ref: '#/components/schemas/LibError' }
+        content: { $ref: '#/components/schemas/Bytes' }
+        detached: { type: boolean }
+        libError: { $ref: '#/components/schemas/LibError' }
     CertInfoRequest:
       type: object
       properties:
@@ -406,10 +401,10 @@ components:
     CertInfoResponse:
       type: object
       properties:
-        Certificate: { $ref: '#/components/schemas/Certificate' }
-        Chain: { type: array, items: { $ref: '#/components/schemas/Certificate' } }
-        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
-        LibError: { $ref: '#/components/schemas/LibError' }
+        certificate: { $ref: '#/components/schemas/Certificate' }
+        chain: { type: array, items: { $ref: '#/components/schemas/Certificate' } }
+        warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        libError: { $ref: '#/components/schemas/LibError' }
     ValidateRequest:
       type: object
       required: [cert]
@@ -424,11 +419,11 @@ components:
     ValidateResponse:
       type: object
       properties:
-        Status: { $ref: '#/components/schemas/RevocationStatus' }
-        Info: { type: string }
-        OCSPResponse: { $ref: '#/components/schemas/Bytes' }
-        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
-        LibError: { $ref: '#/components/schemas/LibError' }
+        status: { $ref: '#/components/schemas/RevocationStatus' }
+        info: { type: string }
+        ocspResponse: { $ref: '#/components/schemas/Bytes' }
+        warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        libError: { $ref: '#/components/schemas/LibError' }
     ErrorEnvelope:
       type: object
       properties:

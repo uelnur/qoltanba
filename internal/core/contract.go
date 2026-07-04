@@ -86,11 +86,11 @@ type SignInput struct {
 // SignOutput is the signing result. When a timestamp was added, the parsed TSP
 // token is echoed (CMS) so callers need not re-verify to see it.
 type SignOutput struct {
-	Signature  []byte
-	Format     SignatureFormat
-	Timestamp  *Timestamp // parsed TSP (CMS only); nil otherwise
-	CAdESLevel string     // BES | T
-	LibError   *LibError
+	Signature  []byte          `json:"signature,omitempty"`
+	Format     SignatureFormat `json:"format,omitempty"`
+	Timestamp  *Timestamp      `json:"timestamp,omitempty"` // parsed TSP (CMS only); nil otherwise
+	CAdESLevel string          `json:"cadesLevel,omitempty"`
+	LibError   *LibError       `json:"libError,omitempty"`
 }
 
 // VerifyInput verifies a CMS/XML/WSSE signature and extracts everything available.
@@ -110,13 +110,13 @@ type VerifyInput struct {
 
 // VerifyOutput is the exhaustive verification outcome.
 type VerifyOutput struct {
-	Valid    bool
-	Format   SignatureFormat
-	Detached bool
-	Signers  []Signer
-	Content  []byte // recovered original, if attached and requested
-	Warnings []Warning
-	LibError *LibError
+	Valid    bool            `json:"valid"`
+	Format   SignatureFormat `json:"format,omitempty"`
+	Detached bool            `json:"detached"`
+	Signers  []Signer        `json:"signers,omitempty"`
+	Content  []byte          `json:"content,omitempty"` // recovered original, if attached and requested
+	Warnings []Warning       `json:"warnings,omitempty"`
+	LibError *LibError       `json:"libError,omitempty"`
 }
 
 // ExtractInput recovers the original content from an attached signature.
@@ -128,9 +128,9 @@ type ExtractInput struct {
 
 // ExtractOutput carries the recovered content.
 type ExtractOutput struct {
-	Content  []byte
-	Detached bool
-	LibError *LibError
+	Content  []byte    `json:"content,omitempty"`
+	Detached bool      `json:"detached"`
+	LibError *LibError `json:"libError,omitempty"`
 }
 
 // CertInfoInput fully parses a certificate, optionally building/validating the
@@ -148,10 +148,10 @@ type CertInfoInput struct {
 
 // CertInfoOutput is the parsed certificate plus optional chain.
 type CertInfoOutput struct {
-	Certificate Certificate
-	Chain       []Certificate
-	Warnings    []Warning
-	LibError    *LibError
+	Certificate Certificate   `json:"certificate"`
+	Chain       []Certificate `json:"chain,omitempty"`
+	Warnings    []Warning     `json:"warnings,omitempty"`
+	LibError    *LibError     `json:"libError,omitempty"`
 }
 
 // ValidateInput checks a certificate's revocation status and chain trust.
@@ -171,11 +171,11 @@ type ValidateInput struct {
 
 // ValidateOutput is the status-check outcome.
 type ValidateOutput struct {
-	Status       RevocationStatus
-	Info         string
-	OCSPResponse []byte
-	Warnings     []Warning
-	LibError     *LibError
+	Status       RevocationStatus `json:"status"`
+	Info         string           `json:"info,omitempty"`
+	OCSPResponse []byte           `json:"ocspResponse,omitempty"`
+	Warnings     []Warning        `json:"warnings,omitempty"`
+	LibError     *LibError        `json:"libError,omitempty"`
 }
 
 // CertEncoding is the certificate encoding on input.
@@ -211,6 +211,6 @@ type RevocationStatus struct {
 
 // TrustedCert is a CA certificate to load into the trust store for chain building.
 type TrustedCert struct {
-	Cert         []byte
-	Intermediate bool // true for intermediate, false for a root
+	Cert         []byte `json:"cert"`
+	Intermediate bool   `json:"intermediate,omitempty"` // true for intermediate, false for a root
 }
