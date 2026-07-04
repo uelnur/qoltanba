@@ -80,6 +80,9 @@ type Signer struct {
 	ChainSignaturesVerified bool   `json:"chainSignaturesVerified"`
 	CAdESLevel              string `json:"cadesLevel,omitempty"` // BES | T
 	VerifyInfo              string `json:"verifyInfo,omitempty"` // raw outVerifyInfo
+	// Claims is the OIDC claim set derived from this signer's certificate. Only
+	// populated when the request asks for it (VerifyInput.ExtractClaims).
+	Claims *Claims `json:"claims,omitempty"`
 }
 
 // Timestamp is a TSP token summary attached to a signature.

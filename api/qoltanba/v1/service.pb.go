@@ -883,6 +883,7 @@ type VerifyRequest struct {
 	CheckCertTime  bool                   `protobuf:"varint,6,opt,name=check_cert_time,json=checkCertTime,proto3" json:"check_cert_time,omitempty"`
 	ExtractContent bool                   `protobuf:"varint,7,opt,name=extract_content,json=extractContent,proto3" json:"extract_content,omitempty"`
 	TrustedCerts   []*TrustedCert         `protobuf:"bytes,8,rep,name=trusted_certs,json=trustedCerts,proto3" json:"trusted_certs,omitempty"`
+	Claims         bool                   `protobuf:"varint,9,opt,name=claims,proto3" json:"claims,omitempty"` // add OIDC claims per signer
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -971,6 +972,13 @@ func (x *VerifyRequest) GetTrustedCerts() []*TrustedCert {
 		return x.TrustedCerts
 	}
 	return nil
+}
+
+func (x *VerifyRequest) GetClaims() bool {
+	if x != nil {
+		return x.Claims
+	}
+	return false
 }
 
 type VerifyResponse struct {
@@ -1194,6 +1202,7 @@ type CertInfoRequest struct {
 	Validate      bool                   `protobuf:"varint,5,opt,name=validate,proto3" json:"validate,omitempty"`
 	Method        ValidationMethod       `protobuf:"varint,6,opt,name=method,proto3,enum=qoltanba.v1.ValidationMethod" json:"method,omitempty"`
 	TrustedCerts  []*TrustedCert         `protobuf:"bytes,7,rep,name=trusted_certs,json=trustedCerts,proto3" json:"trusted_certs,omitempty"`
+	Claims        bool                   `protobuf:"varint,8,opt,name=claims,proto3" json:"claims,omitempty"` // add OIDC claims from the certificate
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1277,12 +1286,20 @@ func (x *CertInfoRequest) GetTrustedCerts() []*TrustedCert {
 	return nil
 }
 
+func (x *CertInfoRequest) GetClaims() bool {
+	if x != nil {
+		return x.Claims
+	}
+	return false
+}
+
 type CertInfoResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Certificate   *Certificate           `protobuf:"bytes,1,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	Chain         []*Certificate         `protobuf:"bytes,2,rep,name=chain,proto3" json:"chain,omitempty"`
 	Warnings      []*Warning             `protobuf:"bytes,3,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	LibError      *LibError              `protobuf:"bytes,4,opt,name=lib_error,json=libError,proto3" json:"lib_error,omitempty"`
+	Claims        *Claims                `protobuf:"bytes,5,opt,name=claims,proto3" json:"claims,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1341,6 +1358,13 @@ func (x *CertInfoResponse) GetWarnings() []*Warning {
 func (x *CertInfoResponse) GetLibError() *LibError {
 	if x != nil {
 		return x.LibError
+	}
+	return nil
+}
+
+func (x *CertInfoResponse) GetClaims() *Claims {
+	if x != nil {
+		return x.Claims
 	}
 	return nil
 }
@@ -1978,6 +2002,7 @@ type Signer struct {
 	CadesLevel              string                 `protobuf:"bytes,9,opt,name=cades_level,json=cadesLevel,proto3" json:"cades_level,omitempty"`
 	VerifyInfo              string                 `protobuf:"bytes,10,opt,name=verify_info,json=verifyInfo,proto3" json:"verify_info,omitempty"`
 	ChainSignaturesVerified bool                   `protobuf:"varint,11,opt,name=chain_signatures_verified,json=chainSignaturesVerified,proto3" json:"chain_signatures_verified,omitempty"`
+	Claims                  *Claims                `protobuf:"bytes,12,opt,name=claims,proto3" json:"claims,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -2089,6 +2114,137 @@ func (x *Signer) GetChainSignaturesVerified() bool {
 	return false
 }
 
+func (x *Signer) GetClaims() *Claims {
+	if x != nil {
+		return x.Claims
+	}
+	return nil
+}
+
+type Claims struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sub           string                 `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	GivenName     string                 `protobuf:"bytes,3,opt,name=given_name,json=givenName,proto3" json:"given_name,omitempty"`
+	FamilyName    string                 `protobuf:"bytes,4,opt,name=family_name,json=familyName,proto3" json:"family_name,omitempty"`
+	Email         string                 `protobuf:"bytes,5,opt,name=email,proto3" json:"email,omitempty"`
+	Iin           string                 `protobuf:"bytes,6,opt,name=iin,proto3" json:"iin,omitempty"`
+	Bin           string                 `protobuf:"bytes,7,opt,name=bin,proto3" json:"bin,omitempty"`
+	Organization  string                 `protobuf:"bytes,8,opt,name=organization,proto3" json:"organization,omitempty"`
+	Roles         []string               `protobuf:"bytes,9,rep,name=roles,proto3" json:"roles,omitempty"`
+	OwnerType     string                 `protobuf:"bytes,10,opt,name=owner_type,json=ownerType,proto3" json:"owner_type,omitempty"`
+	Gender        string                 `protobuf:"bytes,11,opt,name=gender,proto3" json:"gender,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Claims) Reset() {
+	*x = Claims{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Claims) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Claims) ProtoMessage() {}
+
+func (x *Claims) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Claims.ProtoReflect.Descriptor instead.
+func (*Claims) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *Claims) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *Claims) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Claims) GetGivenName() string {
+	if x != nil {
+		return x.GivenName
+	}
+	return ""
+}
+
+func (x *Claims) GetFamilyName() string {
+	if x != nil {
+		return x.FamilyName
+	}
+	return ""
+}
+
+func (x *Claims) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *Claims) GetIin() string {
+	if x != nil {
+		return x.Iin
+	}
+	return ""
+}
+
+func (x *Claims) GetBin() string {
+	if x != nil {
+		return x.Bin
+	}
+	return ""
+}
+
+func (x *Claims) GetOrganization() string {
+	if x != nil {
+		return x.Organization
+	}
+	return ""
+}
+
+func (x *Claims) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *Claims) GetOwnerType() string {
+	if x != nil {
+		return x.OwnerType
+	}
+	return ""
+}
+
+func (x *Claims) GetGender() string {
+	if x != nil {
+		return x.Gender
+	}
+	return ""
+}
+
 type RevocationStatus struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Revoked        bool                   `protobuf:"varint,1,opt,name=revoked,proto3" json:"revoked,omitempty"`
@@ -2106,7 +2262,7 @@ type RevocationStatus struct {
 
 func (x *RevocationStatus) Reset() {
 	*x = RevocationStatus{}
-	mi := &file_api_qoltanba_v1_service_proto_msgTypes[21]
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2118,7 +2274,7 @@ func (x *RevocationStatus) String() string {
 func (*RevocationStatus) ProtoMessage() {}
 
 func (x *RevocationStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_qoltanba_v1_service_proto_msgTypes[21]
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2131,7 +2287,7 @@ func (x *RevocationStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevocationStatus.ProtoReflect.Descriptor instead.
 func (*RevocationStatus) Descriptor() ([]byte, []int) {
-	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{21}
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *RevocationStatus) GetRevoked() bool {
@@ -2256,7 +2412,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\tlib_error\x18\x03 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\x124\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x16.qoltanba.v1.TimestampR\ttimestamp\x12\x1f\n" +
 	"\vcades_level\x18\x05 \x01(\tR\n" +
-	"cadesLevel\"\xc0\x02\n" +
+	"cadesLevel\"\xd8\x02\n" +
 	"\rVerifyRequest\x124\n" +
 	"\x06format\x18\x01 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12\x12\n" +
@@ -2265,7 +2421,8 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\tinput_pem\x18\x05 \x01(\bR\binputPem\x12&\n" +
 	"\x0fcheck_cert_time\x18\x06 \x01(\bR\rcheckCertTime\x12'\n" +
 	"\x0fextract_content\x18\a \x01(\bR\x0eextractContent\x12=\n" +
-	"\rtrusted_certs\x18\b \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\"\xa7\x02\n" +
+	"\rtrusted_certs\x18\b \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\x12\x16\n" +
+	"\x06claims\x18\t \x01(\bR\x06claims\"\xa7\x02\n" +
 	"\x0eVerifyResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x124\n" +
 	"\x06format\x18\x02 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1a\n" +
@@ -2281,7 +2438,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x0fExtractResponse\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1a\n" +
 	"\bdetached\x18\x02 \x01(\bR\bdetached\x122\n" +
-	"\tlib_error\x18\x03 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\"\xb7\x02\n" +
+	"\tlib_error\x18\x03 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\"\xcf\x02\n" +
 	"\x0fCertInfoRequest\x12\x12\n" +
 	"\x04cert\x18\x01 \x01(\fR\x04cert\x12&\n" +
 	"\x03key\x18\x02 \x01(\v2\x14.qoltanba.v1.KeySpecR\x03key\x125\n" +
@@ -2290,12 +2447,14 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"buildChain\x12\x1a\n" +
 	"\bvalidate\x18\x05 \x01(\bR\bvalidate\x125\n" +
 	"\x06method\x18\x06 \x01(\x0e2\x1d.qoltanba.v1.ValidationMethodR\x06method\x12=\n" +
-	"\rtrusted_certs\x18\a \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\"\xe4\x01\n" +
+	"\rtrusted_certs\x18\a \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\x12\x16\n" +
+	"\x06claims\x18\b \x01(\bR\x06claims\"\x91\x02\n" +
 	"\x10CertInfoResponse\x12:\n" +
 	"\vcertificate\x18\x01 \x01(\v2\x18.qoltanba.v1.CertificateR\vcertificate\x12.\n" +
 	"\x05chain\x18\x02 \x03(\v2\x18.qoltanba.v1.CertificateR\x05chain\x120\n" +
 	"\bwarnings\x18\x03 \x03(\v2\x14.qoltanba.v1.WarningR\bwarnings\x122\n" +
-	"\tlib_error\x18\x04 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\"\xaa\x02\n" +
+	"\tlib_error\x18\x04 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\x12+\n" +
+	"\x06claims\x18\x05 \x01(\v2\x13.qoltanba.v1.ClaimsR\x06claims\"\xaa\x02\n" +
 	"\x13CertValidateRequest\x12\x12\n" +
 	"\x04cert\x18\x01 \x01(\fR\x04cert\x125\n" +
 	"\bencoding\x18\x02 \x01(\x0e2\x19.qoltanba.v1.CertEncodingR\bencoding\x125\n" +
@@ -2363,7 +2522,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x06policy\x18\x03 \x01(\tR\x06policy\x12\x10\n" +
 	"\x03tsa\x18\x04 \x01(\tR\x03tsa\x12%\n" +
 	"\x0ehash_algorithm\x18\x05 \x01(\tR\rhashAlgorithm\x12\x12\n" +
-	"\x04hash\x18\x06 \x01(\fR\x04hash\"\xe7\x03\n" +
+	"\x04hash\x18\x06 \x01(\fR\x04hash\"\x94\x04\n" +
 	"\x06Signer\x12:\n" +
 	"\vcertificate\x18\x01 \x01(\v2\x18.qoltanba.v1.CertificateR\vcertificate\x12.\n" +
 	"\x05chain\x18\x02 \x03(\v2\x18.qoltanba.v1.CertificateR\x05chain\x12\x14\n" +
@@ -2378,7 +2537,24 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\vverify_info\x18\n" +
 	" \x01(\tR\n" +
 	"verifyInfo\x12:\n" +
-	"\x19chain_signatures_verified\x18\v \x01(\bR\x17chainSignaturesVerified\"\xda\x02\n" +
+	"\x19chain_signatures_verified\x18\v \x01(\bR\x17chainSignaturesVerified\x12+\n" +
+	"\x06claims\x18\f \x01(\v2\x13.qoltanba.v1.ClaimsR\x06claims\"\x99\x02\n" +
+	"\x06Claims\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"given_name\x18\x03 \x01(\tR\tgivenName\x12\x1f\n" +
+	"\vfamily_name\x18\x04 \x01(\tR\n" +
+	"familyName\x12\x14\n" +
+	"\x05email\x18\x05 \x01(\tR\x05email\x12\x10\n" +
+	"\x03iin\x18\x06 \x01(\tR\x03iin\x12\x10\n" +
+	"\x03bin\x18\a \x01(\tR\x03bin\x12\"\n" +
+	"\forganization\x18\b \x01(\tR\forganization\x12\x14\n" +
+	"\x05roles\x18\t \x03(\tR\x05roles\x12\x1d\n" +
+	"\n" +
+	"owner_type\x18\n" +
+	" \x01(\tR\townerType\x12\x16\n" +
+	"\x06gender\x18\v \x01(\tR\x06gender\"\xda\x02\n" +
 	"\x10RevocationStatus\x12\x18\n" +
 	"\arevoked\x18\x01 \x01(\bR\arevoked\x125\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x1d.qoltanba.v1.ValidationMethodR\x06method\x12'\n" +
@@ -2428,7 +2604,7 @@ func file_api_qoltanba_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_api_qoltanba_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_qoltanba_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_api_qoltanba_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_api_qoltanba_v1_service_proto_goTypes = []any{
 	(SignatureFormat)(0),         // 0: qoltanba.v1.SignatureFormat
 	(CertEncoding)(0),            // 1: qoltanba.v1.CertEncoding
@@ -2454,7 +2630,8 @@ var file_api_qoltanba_v1_service_proto_goTypes = []any{
 	(*Certificate)(nil),          // 21: qoltanba.v1.Certificate
 	(*Timestamp)(nil),            // 22: qoltanba.v1.Timestamp
 	(*Signer)(nil),               // 23: qoltanba.v1.Signer
-	(*RevocationStatus)(nil),     // 24: qoltanba.v1.RevocationStatus
+	(*Claims)(nil),               // 24: qoltanba.v1.Claims
+	(*RevocationStatus)(nil),     // 25: qoltanba.v1.RevocationStatus
 }
 var file_api_qoltanba_v1_service_proto_depIdxs = []int32{
 	4,  // 0: qoltanba.v1.KeySpec.inline:type_name -> qoltanba.v1.InlineKey
@@ -2481,34 +2658,36 @@ var file_api_qoltanba_v1_service_proto_depIdxs = []int32{
 	21, // 21: qoltanba.v1.CertInfoResponse.chain:type_name -> qoltanba.v1.Certificate
 	9,  // 22: qoltanba.v1.CertInfoResponse.warnings:type_name -> qoltanba.v1.Warning
 	8,  // 23: qoltanba.v1.CertInfoResponse.lib_error:type_name -> qoltanba.v1.LibError
-	1,  // 24: qoltanba.v1.CertValidateRequest.encoding:type_name -> qoltanba.v1.CertEncoding
-	2,  // 25: qoltanba.v1.CertValidateRequest.method:type_name -> qoltanba.v1.ValidationMethod
-	7,  // 26: qoltanba.v1.CertValidateRequest.trusted_certs:type_name -> qoltanba.v1.TrustedCert
-	24, // 27: qoltanba.v1.CertValidateResponse.status:type_name -> qoltanba.v1.RevocationStatus
-	9,  // 28: qoltanba.v1.CertValidateResponse.warnings:type_name -> qoltanba.v1.Warning
-	8,  // 29: qoltanba.v1.CertValidateResponse.lib_error:type_name -> qoltanba.v1.LibError
-	20, // 30: qoltanba.v1.Certificate.subject:type_name -> qoltanba.v1.Subject
-	20, // 31: qoltanba.v1.Certificate.issuer:type_name -> qoltanba.v1.Subject
-	21, // 32: qoltanba.v1.Signer.certificate:type_name -> qoltanba.v1.Certificate
-	21, // 33: qoltanba.v1.Signer.chain:type_name -> qoltanba.v1.Certificate
-	22, // 34: qoltanba.v1.Signer.timestamp:type_name -> qoltanba.v1.Timestamp
-	2,  // 35: qoltanba.v1.RevocationStatus.method:type_name -> qoltanba.v1.ValidationMethod
-	8,  // 36: qoltanba.v1.RevocationStatus.lib_error:type_name -> qoltanba.v1.LibError
-	10, // 37: qoltanba.v1.SignatureService.Sign:input_type -> qoltanba.v1.SignRequest
-	12, // 38: qoltanba.v1.SignatureService.Verify:input_type -> qoltanba.v1.VerifyRequest
-	14, // 39: qoltanba.v1.SignatureService.Extract:input_type -> qoltanba.v1.ExtractRequest
-	16, // 40: qoltanba.v1.SignatureService.CertInfo:input_type -> qoltanba.v1.CertInfoRequest
-	18, // 41: qoltanba.v1.SignatureService.CertValidate:input_type -> qoltanba.v1.CertValidateRequest
-	11, // 42: qoltanba.v1.SignatureService.Sign:output_type -> qoltanba.v1.SignResponse
-	13, // 43: qoltanba.v1.SignatureService.Verify:output_type -> qoltanba.v1.VerifyResponse
-	15, // 44: qoltanba.v1.SignatureService.Extract:output_type -> qoltanba.v1.ExtractResponse
-	17, // 45: qoltanba.v1.SignatureService.CertInfo:output_type -> qoltanba.v1.CertInfoResponse
-	19, // 46: qoltanba.v1.SignatureService.CertValidate:output_type -> qoltanba.v1.CertValidateResponse
-	42, // [42:47] is the sub-list for method output_type
-	37, // [37:42] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	24, // 24: qoltanba.v1.CertInfoResponse.claims:type_name -> qoltanba.v1.Claims
+	1,  // 25: qoltanba.v1.CertValidateRequest.encoding:type_name -> qoltanba.v1.CertEncoding
+	2,  // 26: qoltanba.v1.CertValidateRequest.method:type_name -> qoltanba.v1.ValidationMethod
+	7,  // 27: qoltanba.v1.CertValidateRequest.trusted_certs:type_name -> qoltanba.v1.TrustedCert
+	25, // 28: qoltanba.v1.CertValidateResponse.status:type_name -> qoltanba.v1.RevocationStatus
+	9,  // 29: qoltanba.v1.CertValidateResponse.warnings:type_name -> qoltanba.v1.Warning
+	8,  // 30: qoltanba.v1.CertValidateResponse.lib_error:type_name -> qoltanba.v1.LibError
+	20, // 31: qoltanba.v1.Certificate.subject:type_name -> qoltanba.v1.Subject
+	20, // 32: qoltanba.v1.Certificate.issuer:type_name -> qoltanba.v1.Subject
+	21, // 33: qoltanba.v1.Signer.certificate:type_name -> qoltanba.v1.Certificate
+	21, // 34: qoltanba.v1.Signer.chain:type_name -> qoltanba.v1.Certificate
+	22, // 35: qoltanba.v1.Signer.timestamp:type_name -> qoltanba.v1.Timestamp
+	24, // 36: qoltanba.v1.Signer.claims:type_name -> qoltanba.v1.Claims
+	2,  // 37: qoltanba.v1.RevocationStatus.method:type_name -> qoltanba.v1.ValidationMethod
+	8,  // 38: qoltanba.v1.RevocationStatus.lib_error:type_name -> qoltanba.v1.LibError
+	10, // 39: qoltanba.v1.SignatureService.Sign:input_type -> qoltanba.v1.SignRequest
+	12, // 40: qoltanba.v1.SignatureService.Verify:input_type -> qoltanba.v1.VerifyRequest
+	14, // 41: qoltanba.v1.SignatureService.Extract:input_type -> qoltanba.v1.ExtractRequest
+	16, // 42: qoltanba.v1.SignatureService.CertInfo:input_type -> qoltanba.v1.CertInfoRequest
+	18, // 43: qoltanba.v1.SignatureService.CertValidate:input_type -> qoltanba.v1.CertValidateRequest
+	11, // 44: qoltanba.v1.SignatureService.Sign:output_type -> qoltanba.v1.SignResponse
+	13, // 45: qoltanba.v1.SignatureService.Verify:output_type -> qoltanba.v1.VerifyResponse
+	15, // 46: qoltanba.v1.SignatureService.Extract:output_type -> qoltanba.v1.ExtractResponse
+	17, // 47: qoltanba.v1.SignatureService.CertInfo:output_type -> qoltanba.v1.CertInfoResponse
+	19, // 48: qoltanba.v1.SignatureService.CertValidate:output_type -> qoltanba.v1.CertValidateResponse
+	44, // [44:49] is the sub-list for method output_type
+	39, // [39:44] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_api_qoltanba_v1_service_proto_init() }
@@ -2529,7 +2708,7 @@ func file_api_qoltanba_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_qoltanba_v1_service_proto_rawDesc), len(file_api_qoltanba_v1_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -52,7 +52,8 @@ func (s *Server) Verify(ctx context.Context, req *pb.VerifyRequest) (*pb.VerifyR
 	out, err := s.svc.Verify(ctx, core.VerifyInput{
 		Format: pbFormat(req.GetFormat()), Signature: req.GetSignature(), Data: req.GetData(),
 		Detached: req.GetDetached(), InputPEM: req.GetInputPem(), CheckCertTime: req.GetCheckCertTime(),
-		ExtractContent: req.GetExtractContent(), TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+		ExtractContent: req.GetExtractContent(), ExtractClaims: req.GetClaims(),
+		TrustedCerts: pbTrusted(req.GetTrustedCerts()),
 	})
 	if err != nil {
 		return nil, grpcError(err)
@@ -77,8 +78,8 @@ func (s *Server) Extract(ctx context.Context, req *pb.ExtractRequest) (*pb.Extra
 func (s *Server) CertInfo(ctx context.Context, req *pb.CertInfoRequest) (*pb.CertInfoResponse, error) {
 	out, err := s.svc.CertInfo(ctx, core.CertInfoInput{
 		Cert: req.GetCert(), Key: pbKeySpec(req.GetKey()), Format: pbEncoding(req.GetEncoding()),
-		BuildChain: req.GetBuildChain(), Validate: req.GetValidate(), Method: pbMethod(req.GetMethod()),
-		TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+		BuildChain: req.GetBuildChain(), Validate: req.GetValidate(), ExtractClaims: req.GetClaims(),
+		Method: pbMethod(req.GetMethod()), TrustedCerts: pbTrusted(req.GetTrustedCerts()),
 	})
 	if err != nil {
 		return nil, grpcError(err)
@@ -86,6 +87,7 @@ func (s *Server) CertInfo(ctx context.Context, req *pb.CertInfoRequest) (*pb.Cer
 	return &pb.CertInfoResponse{
 		Certificate: certPB(out.Certificate), Chain: certsPB(out.Chain),
 		Warnings: warningsPB(out.Warnings), LibError: libErrorPB(out.LibError),
+		Claims: claimsPB(out.Claims),
 	}, nil
 }
 

@@ -103,6 +103,7 @@ type VerifyInput struct {
 
 	CheckCertTime  bool
 	ExtractContent bool // recover the original content (attached)
+	ExtractClaims  bool // populate each signer's OIDC Claims from its certificate
 	// TrustedCerts are extra CAs merged with the configured trust-store to build
 	// the chain. XML verification requires anchors; CMS works without them.
 	TrustedCerts []TrustedCert
@@ -140,16 +141,18 @@ type CertInfoInput struct {
 	Key    KeySpec // when set, the owner certificate is exported from the key store
 	Format CertEncoding
 
-	BuildChain   bool
-	Validate     bool
-	Method       ValidationMethod
-	TrustedCerts []TrustedCert
+	BuildChain    bool
+	Validate      bool
+	ExtractClaims bool // populate Claims from the parsed certificate
+	Method        ValidationMethod
+	TrustedCerts  []TrustedCert
 }
 
 // CertInfoOutput is the parsed certificate plus optional chain.
 type CertInfoOutput struct {
 	Certificate Certificate   `json:"certificate"`
 	Chain       []Certificate `json:"chain,omitempty"`
+	Claims      *Claims       `json:"claims,omitempty"` // set when ExtractClaims requested
 	Warnings    []Warning     `json:"warnings,omitempty"`
 	LibError    *LibError     `json:"libError,omitempty"`
 }

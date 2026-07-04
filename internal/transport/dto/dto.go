@@ -62,6 +62,7 @@ type VerifyRequest struct {
 	InputPEM       bool               `json:"inputPem,omitempty"`
 	CheckCertTime  bool               `json:"checkCertTime,omitempty"`
 	ExtractContent bool               `json:"extractContent,omitempty"`
+	Claims         bool               `json:"claims,omitempty"` // add OIDC claims per signer
 	TrustedCerts   []core.TrustedCert `json:"trustedCerts,omitempty"`
 }
 
@@ -79,6 +80,7 @@ func (r VerifyRequest) ToCore() (core.VerifyInput, error) {
 		InputPEM:       r.InputPEM,
 		CheckCertTime:  r.CheckCertTime,
 		ExtractContent: r.ExtractContent,
+		ExtractClaims:  r.Claims,
 		TrustedCerts:   r.TrustedCerts,
 	}, nil
 }
@@ -106,6 +108,7 @@ type CertInfoRequest struct {
 	Encoding     string             `json:"encoding,omitempty"` // pem|der|base64
 	BuildChain   bool               `json:"buildChain,omitempty"`
 	Validate     bool               `json:"validate,omitempty"`
+	Claims       bool               `json:"claims,omitempty"` // add OIDC claims from the certificate
 	Method       string             `json:"method,omitempty"` // ocsp|crl
 	TrustedCerts []core.TrustedCert `json:"trustedCerts,omitempty"`
 }
@@ -113,13 +116,14 @@ type CertInfoRequest struct {
 // ToCore converts to the domain input.
 func (r CertInfoRequest) ToCore() core.CertInfoInput {
 	return core.CertInfoInput{
-		Cert:         r.Cert,
-		Key:          r.Key,
-		Format:       parseEncoding(r.Encoding),
-		BuildChain:   r.BuildChain,
-		Validate:     r.Validate,
-		Method:       parseMethod(r.Method),
-		TrustedCerts: r.TrustedCerts,
+		Cert:          r.Cert,
+		Key:           r.Key,
+		Format:        parseEncoding(r.Encoding),
+		BuildChain:    r.BuildChain,
+		Validate:      r.Validate,
+		ExtractClaims: r.Claims,
+		Method:        parseMethod(r.Method),
+		TrustedCerts:  r.TrustedCerts,
 	}
 }
 

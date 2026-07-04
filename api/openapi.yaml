@@ -301,6 +301,24 @@ components:
         hashAlgorithm: { type: string }
         hash: { $ref: '#/components/schemas/Bytes' }
         tsa: { type: string }
+    Claims:
+      type: object
+      description: >-
+        OIDC-style claim set derived from the certificate subject. Standard claims
+        (sub, name, given_name, family_name, email) plus RK-specific ones. sub is
+        the IIN when present, else the BIN.
+      properties:
+        sub: { type: string }
+        name: { type: string }
+        given_name: { type: string }
+        family_name: { type: string }
+        email: { type: string }
+        iin: { type: string }
+        bin: { type: string }
+        organization: { type: string }
+        roles: { type: array, items: { type: string } }
+        owner_type: { type: string, enum: [INDIVIDUAL, LEGAL_PERSON, INFOSYSTEM, UNKNOWN] }
+        gender: { type: string, enum: [male, female] }
     Signer:
       type: object
       properties:
@@ -315,6 +333,7 @@ components:
         chainSignaturesVerified: { type: boolean }
         cadesLevel: { type: string, enum: [BES, T] }
         verifyInfo: { type: string }
+        claims: { $ref: '#/components/schemas/Claims' }
     RevocationStatus:
       type: object
       properties:
@@ -364,6 +383,7 @@ components:
         inputPem: { type: boolean }
         checkCertTime: { type: boolean }
         extractContent: { type: boolean }
+        claims: { type: boolean, description: "add an OIDC claim set per signer" }
         trustedCerts: { type: array, items: { $ref: '#/components/schemas/TrustedCert' } }
     VerifyResponse:
       type: object
@@ -396,6 +416,7 @@ components:
         encoding: { type: string, enum: [pem, der, base64] }
         buildChain: { type: boolean }
         validate: { type: boolean }
+        claims: { type: boolean, description: "add an OIDC claim set from the certificate" }
         method: { type: string, enum: [ocsp, crl] }
         trustedCerts: { type: array, items: { $ref: '#/components/schemas/TrustedCert' } }
     CertInfoResponse:
@@ -403,6 +424,7 @@ components:
       properties:
         certificate: { $ref: '#/components/schemas/Certificate' }
         chain: { type: array, items: { $ref: '#/components/schemas/Certificate' } }
+        claims: { $ref: '#/components/schemas/Claims' }
         warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
         libError: { $ref: '#/components/schemas/LibError' }
     ValidateRequest:

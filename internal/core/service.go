@@ -199,6 +199,12 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 	if in.ExtractContent {
 		out.Content = res.Content
 	}
+	if in.ExtractClaims {
+		for i := range out.Signers {
+			c := ClaimsFromCertificate(out.Signers[i].Certificate)
+			out.Signers[i].Claims = &c
+		}
+	}
 	out.Warnings = w.list()
 
 	if err != nil {
@@ -266,6 +272,10 @@ func (s *Service) CertInfo(ctx context.Context, in CertInfoInput) (CertInfoOutpu
 	cert := parseCertificate(props, toDER(certBytes, format), "", &w)
 
 	out := CertInfoOutput{Certificate: cert, Warnings: w.list()}
+	if in.ExtractClaims {
+		c := ClaimsFromCertificate(cert)
+		out.Claims = &c
+	}
 	if in.Validate {
 		vres, verr := s.Validate(ctx, ValidateInput{
 			Cert: certBytes, Format: format, Method: in.Method, TrustedCerts: in.TrustedCerts,

@@ -169,7 +169,19 @@ func signerPB(s core.Signer) *pb.Signer {
 		SigningTime: rfc3339(s.SigningTime), SignatureAlgorithm: s.SignatureAlgorithm,
 		Timestamp: timestampPB(s.Timestamp), ChainComplete: s.ChainComplete,
 		TrustAnchorFound: s.TrustAnchorFound, ChainSignaturesVerified: s.ChainSignaturesVerified,
-		CadesLevel: s.CAdESLevel, VerifyInfo: s.VerifyInfo,
+		CadesLevel: s.CAdESLevel, VerifyInfo: s.VerifyInfo, Claims: claimsPB(s.Claims),
+	}
+}
+
+// claimsPB maps the OIDC claim set (nil when not requested).
+func claimsPB(c *core.Claims) *pb.Claims {
+	if c == nil {
+		return nil
+	}
+	return &pb.Claims{
+		Sub: c.Sub, Name: c.Name, GivenName: c.GivenName, FamilyName: c.FamilyName,
+		Email: c.Email, Iin: c.IIN, Bin: c.BIN, Organization: c.Organization,
+		Roles: c.Roles, OwnerType: c.OwnerType, Gender: c.Gender,
 	}
 }
 

@@ -112,6 +112,7 @@ message VerifyRequest {
   bool check_cert_time = 6;
   bool extract_content = 7;
   repeated TrustedCert trusted_certs = 8;
+  bool claims = 9; // add OIDC claims per signer
 }
 message VerifyResponse {
   bool valid = 1;
@@ -142,12 +143,14 @@ message CertInfoRequest {
   bool validate = 5;
   ValidationMethod method = 6;
   repeated TrustedCert trusted_certs = 7;
+  bool claims = 8; // add OIDC claims from the certificate
 }
 message CertInfoResponse {
   Certificate certificate = 1;
   repeated Certificate chain = 2;
   repeated Warning warnings = 3;
   LibError lib_error = 4;
+  Claims claims = 5;
 }
 
 message CertValidateRequest {
@@ -231,6 +234,21 @@ message Signer {
   string cades_level = 9;
   string verify_info = 10;
   bool chain_signatures_verified = 11;
+  Claims claims = 12;
+}
+
+message Claims {
+  string sub = 1;
+  string name = 2;
+  string given_name = 3;
+  string family_name = 4;
+  string email = 5;
+  string iin = 6;
+  string bin = 7;
+  string organization = 8;
+  repeated string roles = 9;
+  string owner_type = 10;
+  string gender = 11;
 }
 
 message RevocationStatus {
