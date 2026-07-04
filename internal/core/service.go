@@ -98,6 +98,13 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 		withTS = *in.WithTimestamp
 	}
 
+	// The library anchors the signer's chain only when the time check is on, so
+	// the CA(s) are loaded just for that path — a permissive sign needs no store.
+	var trusted []provider.TrustedCert
+	if !in.NoCheckCertTime {
+		trusted = toProviderCerts(s.mergedTrusted(in.TrustedCerts))
+	}
+
 	var res provider.SignResult
 	switch in.Format {
 	case FormatCMS:
@@ -111,6 +118,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			WithTimestamp:     withTS,
 			TSAURL:            in.TSAURL,
 			ExistingSignature: in.ExistingSignature,
+			TrustedCerts:      trusted,
 		})
 	case FormatXML:
 		res, err = s.prov.SignXML(ctx, provider.SignXMLRequest{
@@ -122,6 +130,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			NodeID:        in.NodeID,
 			ParentNode:    in.ParentNode,
 			ParentNS:      in.ParentNS,
+			TrustedCerts:  trusted,
 		})
 	case FormatWSSE:
 		res, err = s.prov.SignWSSE(ctx, provider.SignWSSERequest{
@@ -131,6 +140,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			CheckCertTime: !in.NoCheckCertTime,
 			WithTimestamp: withTS,
 			TSAURL:        in.TSAURL,
+			TrustedCerts:  trusted,
 		})
 	}
 	if err != nil {

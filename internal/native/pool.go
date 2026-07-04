@@ -108,6 +108,11 @@ func (p *Pool) SignCMS(ctx context.Context, req provider.SignRequest) (provider.
 		if err != nil {
 			return err
 		}
+		// With CheckCertTime the library anchors the signer's chain, so the CA(s)
+		// must be in the store before signing (leaf-only otherwise fails 0x08F00042).
+		if err := loadTrusted(inst, req.TrustedCerts); err != nil {
+			return err
+		}
 		if req.WithTimestamp {
 			inst.tsaSetURL(req.TSAURL)
 		}
@@ -180,6 +185,9 @@ func (p *Pool) SignXML(ctx context.Context, req provider.SignXMLRequest) (provid
 		if err != nil {
 			return err
 		}
+		if err := loadTrusted(inst, req.TrustedCerts); err != nil {
+			return err
+		}
 		if req.WithTimestamp {
 			inst.tsaSetURL(req.TSAURL)
 		}
@@ -249,6 +257,9 @@ func (p *Pool) SignWSSE(ctx context.Context, req provider.SignWSSERequest) (prov
 	err := p.submit(ctx, func(inst kalkanInstance) error {
 		alias, err := inst.loadKey(req.Key)
 		if err != nil {
+			return err
+		}
+		if err := loadTrusted(inst, req.TrustedCerts); err != nil {
 			return err
 		}
 		if req.WithTimestamp {

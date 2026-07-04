@@ -74,6 +74,11 @@ type SignRequest struct {
 	// ExistingSignature co-signs: add this signer to an already-signed CMS
 	// (passed as inSign). Empty means the first signature.
 	ExistingSignature []byte
+	// TrustedCerts are CA certificates loaded into the store before signing. With
+	// CheckCertTime the library validates the signer's chain to a trusted root, so
+	// the issuing CA(s) must be present — a leaf-only key store alone fails with
+	// KCR "load root or intermediate certificate" (0x08F00042).
+	TrustedCerts []TrustedCert
 }
 
 // SignXMLRequest is an XML signing request (XMLDSig).
@@ -86,6 +91,7 @@ type SignXMLRequest struct {
 	NodeID        string // id of the node to sign (empty signs the whole document)
 	ParentNode    string
 	ParentNS      string
+	TrustedCerts  []TrustedCert // CA chain loaded before signing (see SignRequest)
 }
 
 // SignResult is the output of a signing operation.
@@ -102,6 +108,7 @@ type SignWSSERequest struct {
 	CheckCertTime bool
 	WithTimestamp bool
 	TSAURL        string
+	TrustedCerts  []TrustedCert // CA chain loaded before signing (see SignRequest)
 }
 
 // ExportResult is the owner certificate from a key container (pkcs12/info) plus

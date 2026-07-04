@@ -21,6 +21,9 @@ KEY_REVOKED="${QOLTANBA_KEY_REVOKED:-native/keys-and-certs/Gost2015/2026.05.08-2
 CRL="${QOLTANBA_CRL:-native/keys-and-certs/CRL/nca_gost2022_test.crl}"
 CRL_URL="${QOLTANBA_CRL_URL:-http://test.pki.gov.kz/crl/nca_gost2022_test.crl}"
 OCSP_URL="${QOLTANBA_OCSP_URL:-http://test.pki.gov.kz/ocsp/}"
+# Test TSA: Kalkan's built-in default is the production responder, which will not
+# timestamp a test certificate — the e2e TSP test must name the test responder.
+TSA_URL="${QOLTANBA_TSA_URL:-http://test.pki.gov.kz/tsp/}"
 PASS="${QOLTANBA_PASS:-Qwerty12}"
 POOL="${QOLTANBA_POOL:-1}"
 ISO="${QOLTANBA_ISO:-0}"
@@ -49,6 +52,7 @@ docker run --rm --platform=linux/amd64 \
 	-e QOLTANBA_CRL="/src/$CRL" \
 	-e QOLTANBA_CRL_URL="$CRL_URL" \
 	-e QOLTANBA_OCSP_URL="$OCSP_URL" \
+	-e QOLTANBA_TSA_URL="$TSA_URL" \
 	-e QOLTANBA_PASS="$PASS" \
 	${QOLTANBA_HASH_ALG:+-e QOLTANBA_HASH_ALG="$QOLTANBA_HASH_ALG"} \
 	${QOLTANBA_DUMP_CERT:+-e QOLTANBA_DUMP_CERT="$QOLTANBA_DUMP_CERT"} \

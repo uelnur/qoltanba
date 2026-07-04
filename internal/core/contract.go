@@ -73,6 +73,11 @@ type SignInput struct {
 	InputPEM        bool
 	OutputPEM       bool
 
+	// TrustedCerts are CA certificates (roots/intermediates) loaded into the store
+	// before signing so the time check can anchor the signer's chain. They are
+	// merged with the service trust store; ignored when NoCheckCertTime is set.
+	TrustedCerts []TrustedCert
+
 	// XML/WSSE node targeting (ignored for CMS).
 	NodeID     string
 	ParentNode string

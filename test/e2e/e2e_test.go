@@ -48,8 +48,11 @@ func newService(t *testing.T) (*core.Service, func()) {
 	if err != nil {
 		t.Fatalf("open driver: %v", err)
 	}
+	// Signing under the default strict time check anchors the signer's chain, so
+	// the test CA(s) must be in the store — supplied via the trust store.
 	svc := core.New(pool,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
+		core.WithTrustStore(loadEnvTrust(t)),
 	)
 	return svc, func() { _ = pool.Close() }
 }
@@ -74,7 +77,7 @@ func TestFunctionalE2E_SignVerifyCMS(t *testing.T) {
 	data := []byte("hello e2e")
 
 	signed, err := svc.Sign(context.Background(), core.SignInput{
-		Format: core.FormatCMS, Data: data, Key: key,
+		Format: core.FormatCMS, Data: data, Key: key, OutputPEM: true,
 	})
 	if err != nil {
 		t.Fatalf("sign: %v (lib %+v)", err, signed.LibError)
@@ -84,7 +87,7 @@ func TestFunctionalE2E_SignVerifyCMS(t *testing.T) {
 	}
 
 	out, err := svc.Verify(context.Background(), core.VerifyInput{
-		Format: core.FormatCMS, Signature: signed.Signature, ExtractContent: true,
+		Format: core.FormatCMS, Signature: signed.Signature, InputPEM: true, ExtractContent: true,
 	})
 	if err != nil {
 		t.Fatalf("verify: %v", err)
@@ -118,15 +121,21 @@ func TestFunctionalE2E_TSP(t *testing.T) {
 	defer closer()
 	key := testKey(t)
 
+	// The default TSA baked into Kalkan is the production responder, which will not
+	// timestamp a test certificate; the test responder must be named explicitly.
 	signed, err := svc.Sign(context.Background(), core.SignInput{
 		Format: core.FormatCMS, Data: []byte("tsp"), Key: key, WithTimestamp: boolPtr(true),
+		OutputPEM: true, TSAURL: os.Getenv("QOLTANBA_TSA_URL"),
 	})
 	if err != nil {
 		t.Fatalf("sign+tsp: %v (network to TSA required; lib %+v)", err, signed.LibError)
 	}
-	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatCMS, Signature: signed.Signature})
+	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatCMS, Signature: signed.Signature, InputPEM: true})
 	if err != nil {
 		t.Fatalf("verify: %v", err)
+	}
+	if len(out.Signers) == 0 {
+		t.Fatalf("no signers (valid=%v libErr=%+v)", out.Valid, out.LibError)
 	}
 	ts := out.Signers[0].Timestamp
 	if ts == nil {
@@ -205,7 +214,7 @@ func TestFunctionalE2E_RESTVerify(t *testing.T) {
 	defer closer()
 	key := testKey(t)
 
-	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("rest"), Key: key})
+	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("rest"), Key: key, OutputPEM: true})
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -216,7 +225,7 @@ func TestFunctionalE2E_RESTVerify(t *testing.T) {
 	defer srv.Close()
 
 	body, _ := json.Marshal(map[string]any{
-		"format": "cms", "signature": signed.Signature, "extractContent": true,
+		"format": "cms", "signature": signed.Signature, "inputPem": true, "extractContent": true,
 	})
 	resp, err := http.Post(srv.URL+"/verify", "application/json", bytes.NewReader(body))
 	if err != nil {
@@ -280,11 +289,11 @@ func TestFunctionalE2E_ChainVerified(t *testing.T) {
 	)
 	key := testKey(t)
 
-	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("chain"), Key: key})
+	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("chain"), Key: key, OutputPEM: true})
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatCMS, Signature: signed.Signature})
+	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatCMS, Signature: signed.Signature, InputPEM: true})
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
@@ -307,7 +316,7 @@ func TestFunctionalE2E_GRPCVerify(t *testing.T) {
 	defer closer()
 	key := testKey(t)
 
-	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("grpc"), Key: key})
+	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatCMS, Data: []byte("grpc"), Key: key, OutputPEM: true})
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
@@ -329,7 +338,7 @@ func TestFunctionalE2E_GRPCVerify(t *testing.T) {
 
 	client := pb.NewSignatureServiceClient(conn)
 	resp, err := client.Verify(context.Background(), &pb.VerifyRequest{
-		Format: pb.SignatureFormat_CMS, Signature: signed.Signature, ExtractContent: true,
+		Format: pb.SignatureFormat_CMS, Signature: signed.Signature, InputPem: true, ExtractContent: true,
 	})
 	if err != nil {
 		t.Fatalf("gRPC Verify: %v", err)

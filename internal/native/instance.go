@@ -139,6 +139,30 @@ func (in *instance) exportCert(alias string, format int) ([]byte, error) {
 
 // certInfo extracts all certificate properties. A missing property
 // (KCR_GETCERTPROPERR) is normal: the field is marked OK=false, not an error.
+// afterEq strips the "name=" prefix that X509CertificateGetInfo prepends to most
+// single-valued property renderings (e.g. "notBefore=08.05.2026 06:45:13 +00:00"
+// -> "08.05.2026 06:45:13 +00:00", "C=KZ" -> "KZ"). The prefix is an identifier
+// immediately followed by '='. Values that don't fit that shape are returned
+// unchanged, which is exactly what the exceptions need: the DN aggregates render
+// with spaces ("CN = ..., C = KZ") so the first '=' is not identifier-adjacent,
+// and the base64 public key has non-identifier bytes before its '=' padding.
+func afterEq(v string) string {
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		if c == '=' {
+			if i == 0 {
+				return v // nothing before '=' — not a prefix
+			}
+			return v[i+1:]
+		}
+		isIdent := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.'
+		if !isIdent {
+			return v // non-identifier byte before any '=' — leave untouched
+		}
+	}
+	return v
+}
+
 func (in *instance) certInfo(cert []byte) provider.CertProperties {
 	cCert := C.CBytes(cert)
 	defer C.free(cCert)
@@ -153,7 +177,7 @@ func (in *instance) certInfo(cert []byte) provider.CertProperties {
 			b := trimNul(out)
 			f.OK = true
 			if utf8.Valid(b) && isPrintable(b) {
-				f.Value = string(b)
+				f.Value = afterEq(string(b))
 			} else {
 				f.Raw = b
 			}
