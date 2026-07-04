@@ -79,7 +79,7 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string)
 	if err := json.Unmarshal(body, &req); err != nil {
 		outcome = "client_error"
 		return encodeReply(Reply{CorrelationID: metaCorrID, Error: &ReplyError{
-			Kind: kindName(core.KindInvalid), Message: "invalid request envelope",
+			Kind: core.KindName(core.KindInvalid), Message: "invalid request envelope",
 		}}), metaCorrID
 	}
 	if req.Op != "" {
@@ -92,7 +92,7 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string)
 	if !dispatch.Valid(req.Op) {
 		outcome = "client_error"
 		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
-			Kind: kindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
+			Kind: core.KindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
 		}}), corrID
 	}
 
@@ -105,7 +105,7 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string)
 	if merr != nil {
 		outcome = "server_error"
 		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
-			Kind: kindName(core.KindInternal), Message: "encode result",
+			Kind: core.KindName(core.KindInternal), Message: "encode result",
 		}}), corrID
 	}
 	return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Result: result}), corrID
@@ -143,22 +143,7 @@ func errorFrom(err error) *ReplyError {
 	if msg == "" {
 		msg = err.Error()
 	}
-	return &ReplyError{Kind: kindName(kind), Code: exp.Code, Message: msg, Action: exp.Action}
-}
-
-func kindName(k core.ErrorKind) string {
-	switch k {
-	case core.KindInvalid:
-		return "invalid"
-	case core.KindUnsupported:
-		return "unsupported"
-	case core.KindUnavailable:
-		return "unavailable"
-	case core.KindCanceled:
-		return "canceled"
-	default:
-		return "internal"
-	}
+	return &ReplyError{Kind: core.KindName(kind), Code: exp.Code, Message: msg, Action: exp.Action}
 }
 
 // strconvQuote wraps s in double quotes for error messages without pulling in

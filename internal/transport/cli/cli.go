@@ -55,7 +55,7 @@ func encodeError(out io.Writer, err error) int {
 		kind = de.Kind
 	}
 	exp := core.Explain(err)
-	detail := map[string]string{"kind": kindName(kind), "message": err.Error()}
+	detail := map[string]string{"kind": core.KindName(kind), "message": err.Error()}
 	if exp.Message != "" {
 		detail["message"] = exp.Message
 	}
@@ -81,20 +81,5 @@ func exitFor(k core.ErrorKind) int {
 		return 5
 	default:
 		return 1
-	}
-}
-
-func kindName(k core.ErrorKind) string {
-	switch k {
-	case core.KindInvalid:
-		return "invalid"
-	case core.KindUnsupported:
-		return "unsupported"
-	case core.KindUnavailable:
-		return "unavailable"
-	case core.KindCanceled:
-		return "canceled"
-	default:
-		return "internal"
 	}
 }

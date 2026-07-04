@@ -10,16 +10,30 @@ import (
 	"net/http"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
 // Server adapts the domain service to HTTP handlers.
 type Server struct {
-	svc *core.Service
+	svc  *core.Service
+	jobs *jobs.Manager // nil disables the async-job endpoints
 }
 
+// Option configures a Server.
+type Option func(*Server)
+
+// WithJobs enables the async-job endpoints backed by the given manager.
+func WithJobs(m *jobs.Manager) Option { return func(s *Server) { s.jobs = m } }
+
 // New builds a REST server over the domain service.
-func New(svc *core.Service) *Server { return &Server{svc: svc} }
+func New(svc *core.Service, opts ...Option) *Server {
+	s := &Server{svc: svc}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
 
 // Routes returns the work-endpoint handler (sign/verify/extract/cert).
 func (s *Server) Routes() http.Handler {
@@ -30,6 +44,17 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /extract", s.handleExtract)
 	mux.HandleFunc("POST /cert/info", s.handleCertInfo)
 	mux.HandleFunc("POST /cert/validate", s.handleValidate)
+	mux.HandleFunc("POST /sign/batch", s.handleSignBatch)
+	mux.HandleFunc("POST /verify/batch", s.handleVerifyBatch)
+	mux.HandleFunc("POST /extract/batch", s.handleExtractBatch)
+	mux.HandleFunc("POST /cert/info/batch", s.handleCertInfoBatch)
+	mux.HandleFunc("POST /cert/validate/batch", s.handleValidateBatch)
+	if s.jobs != nil {
+		mux.HandleFunc("POST /jobs", s.handleJobSubmit)
+		mux.HandleFunc("GET /jobs/{id}", s.handleJobGet)
+		mux.HandleFunc("GET /jobs/{id}/result", s.handleJobResult)
+		mux.HandleFunc("DELETE /jobs/{id}", s.handleJobCancel)
+	}
 	return mux
 }
 
@@ -162,7 +187,7 @@ func writeError(w http.ResponseWriter, err error, msg string) {
 		msg = err.Error()
 	}
 	writeJSON(w, statusFor(kind), errorBody{Error: errorDetail{
-		Kind: kindName(kind), Code: exp.Code, Message: msg, Action: exp.Action,
+		Kind: core.KindName(kind), Code: exp.Code, Message: msg, Action: exp.Action,
 	}})
 }
 
@@ -178,20 +203,5 @@ func statusFor(k core.ErrorKind) int {
 		return http.StatusRequestTimeout
 	default:
 		return http.StatusInternalServerError
-	}
-}
-
-func kindName(k core.ErrorKind) string {
-	switch k {
-	case core.KindInvalid:
-		return "invalid"
-	case core.KindUnsupported:
-		return "unsupported"
-	case core.KindUnavailable:
-		return "unavailable"
-	case core.KindCanceled:
-		return "canceled"
-	default:
-		return "internal"
 	}
 }

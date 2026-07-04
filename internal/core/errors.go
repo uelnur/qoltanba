@@ -26,6 +26,23 @@ const (
 	KindInternal
 )
 
+// KindName is the stable lowercase label for an ErrorKind, shared by every
+// transport's error envelope so the wire vocabulary is defined once.
+func KindName(k ErrorKind) string {
+	switch k {
+	case KindInvalid:
+		return "invalid"
+	case KindUnsupported:
+		return "unsupported"
+	case KindUnavailable:
+		return "unavailable"
+	case KindCanceled:
+		return "canceled"
+	default:
+		return "internal"
+	}
+}
+
 // Error is a domain-level error carrying a Kind and the operation name. It wraps
 // the underlying provider error so errors.Is/As still reach the sentinels.
 type Error struct {

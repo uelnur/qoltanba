@@ -13,6 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rabbitmq/amqp091-go v1.12.0
 	github.com/twmb/franz-go v1.21.5
+	go.etcd.io/bbolt v1.5.0
 	golang.org/x/crypto v0.53.0
 	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11

@@ -14,8 +14,13 @@ import (
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
-// Ops lists the supported operation names, in a stable order.
-var Ops = []string{"sign", "verify", "extract", "cert-info", "cert-validate"}
+// Ops lists the supported operation names, in a stable order. Each single
+// operation has a "-batch" companion that takes {items, policy, concurrency} and
+// returns an aggregated core.BatchOutput (the stateless transports never stream).
+var Ops = []string{
+	"sign", "verify", "extract", "cert-info", "cert-validate",
+	"sign-batch", "verify-batch", "extract-batch", "cert-info-batch", "cert-validate-batch",
+}
 
 // Valid reports whether op names a supported operation.
 func Valid(op string) bool {
@@ -75,9 +80,43 @@ func Handle(ctx context.Context, svc *core.Service, op string, payload []byte) (
 			return nil, invalid("Validate")
 		}
 		return svc.Validate(ctx, req.ToCore())
+	case "sign-batch":
+		return handleBatch(payload, "SignBatch", dto.SignRequest.ToCore,
+			func(items []core.SignInput, o core.BatchOptions) any { return svc.SignBatch(ctx, items, o, nil) })
+	case "verify-batch":
+		return handleBatch(payload, "VerifyBatch", dto.VerifyRequest.ToCore,
+			func(items []core.VerifyInput, o core.BatchOptions) any { return svc.VerifyBatch(ctx, items, o, nil) })
+	case "extract-batch":
+		return handleBatch(payload, "ExtractBatch", dto.ExtractRequest.ToCore,
+			func(items []core.ExtractInput, o core.BatchOptions) any { return svc.ExtractBatch(ctx, items, o, nil) })
+	case "cert-info-batch":
+		return handleBatch(payload, "CertInfoBatch", dto.CertInfoToCore,
+			func(items []core.CertInfoInput, o core.BatchOptions) any {
+				return svc.CertInfoBatch(ctx, items, o, nil)
+			})
+	case "cert-validate-batch":
+		return handleBatch(payload, "ValidateBatch", dto.ValidateToCore,
+			func(items []core.ValidateInput, o core.BatchOptions) any {
+				return svc.ValidateBatch(ctx, items, o, nil)
+			})
 	default:
 		return nil, invalid("dispatch")
 	}
+}
+
+// handleBatch decodes a BatchRequest[R], maps each item with conv, and runs it
+// through run (which binds the matching Service.*Batch aggregated call). A
+// malformed envelope or item yields a KindInvalid error, mirroring the singles.
+func handleBatch[R, I any](payload []byte, op string, conv func(R) (I, error), run func([]I, core.BatchOptions) any) (any, error) {
+	var req dto.BatchRequest[R]
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return nil, invalid(op)
+	}
+	items, err := dto.BatchItems(req.Items, conv)
+	if err != nil {
+		return nil, invalid(op)
+	}
+	return run(items, req.Options()), nil
 }
 
 func invalid(op string) error { return &core.Error{Kind: core.KindInvalid, Op: op} }

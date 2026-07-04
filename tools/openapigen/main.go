@@ -17,6 +17,7 @@ import (
 	sigsyaml "sigs.k8s.io/yaml"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
@@ -52,6 +53,11 @@ var topTypes = []schemaType{
 	{"CertInfoResponse", &core.CertInfoOutput{}},
 	{"ValidateResponse", &core.ValidateOutput{}},
 	{"ErrorEnvelope", &ErrorEnvelope{}},
+	// Batch and async-job wire types. The batch request/response wrappers are
+	// generic, so they are composed by hand in addBatchSchemas from these leaves;
+	// the job status view and the per-item error reflect cleanly.
+	{"BatchItemError", &core.BatchItemError{}},
+	{"JobStatus", &jobs.View{}},
 }
 
 // enums enriches specific properties the reflector cannot infer (Go string types
@@ -81,6 +87,7 @@ func main() {
 
 	schemas := reflectSchemas()
 	applyEnums(schemas)
+	addBatchSchemas(schemas)
 
 	doc := buildDoc(schemas)
 	writeOpenAPI(filepath.Join(root, "api", "openapi.yaml"), doc)

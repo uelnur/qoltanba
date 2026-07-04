@@ -14,7 +14,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,12 +37,14 @@ import (
 	"github.com/uelnur/qoltanba/internal/config"
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/crl"
+	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/native"
 	"github.com/uelnur/qoltanba/internal/pki"
 	"github.com/uelnur/qoltanba/internal/transport/amqp"
 	"github.com/uelnur/qoltanba/internal/transport/cli"
+	"github.com/uelnur/qoltanba/internal/transport/dispatch"
 	grpctransport "github.com/uelnur/qoltanba/internal/transport/grpc"
 	"github.com/uelnur/qoltanba/internal/transport/kafka"
 	"github.com/uelnur/qoltanba/internal/transport/mq"
@@ -223,14 +227,91 @@ func runServe(args []string) int {
 	}
 	ready := func() bool { return true } // library loaded, self-tested and gated before serving
 
-	return serve(cfg, svc, refresher, rec, ready, status, log)
+	mgr, err := buildJobs(cfg, svc, log)
+	if err != nil {
+		log.Error("job subsystem setup failed", "error", err)
+		return 1
+	}
+
+	return serve(cfg, svc, mgr, refresher, rec, ready, status, log)
+}
+
+// buildJobs constructs the async-job manager when enabled, wiring its executor to
+// the shared operation router so jobs run the exact same contract as the sync
+// endpoints. It returns a nil manager (no error) when jobs are disabled.
+func buildJobs(cfg config.Config, svc *core.Service, log *slog.Logger) (*jobs.Manager, error) {
+	if !cfg.Jobs.Enabled {
+		return nil, nil
+	}
+	var store jobs.Store
+	switch cfg.Jobs.Store {
+	case "bolt":
+		bs, err := jobs.OpenBoltStore(cfg.Jobs.BoltPath)
+		if err != nil {
+			return nil, fmt.Errorf("open job store: %w", err)
+		}
+		store = bs
+	default:
+		store = jobs.NewMemStore()
+	}
+
+	workers := cfg.Jobs.MaxConcurrent
+	if workers < 1 {
+		workers = cfg.Workers // default to the crypto pool size
+	}
+	exec := func(ctx context.Context, op string, req json.RawMessage) (any, error) {
+		return dispatch.Handle(ctx, svc, op, req)
+	}
+	mgr := jobs.New(store, exec, dispatch.Valid, jobs.Config{
+		Workers:       workers,
+		QueueSize:     cfg.Jobs.QueueSize,
+		TTL:           cfg.Jobs.JobsTTL(),
+		MaxInputBytes: cfg.Jobs.MaxInputMB << 20,
+	}, jobs.WithLogger(log), jobs.WithWebhook(jobWebhook(log)))
+	return mgr, nil
+}
+
+// jobWebhook delivers a terminal job notification by POSTing the client-safe view
+// as JSON to the caller's callbackUrl. It is best-effort: a delivery failure is
+// logged, not retried. The view carries no secrets.
+func jobWebhook(log *slog.Logger) jobs.Webhook {
+	return func(ctx context.Context, url string, v jobs.View) {
+		body, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+		if err != nil {
+			log.Warn("job webhook build failed", "job", v.ID, "error", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Warn("job webhook delivery failed", "job", v.ID, "error", err)
+			return
+		}
+		_ = resp.Body.Close()
+	}
 }
 
 // serve starts every enabled transport (REST, gRPC, optional separate metrics
 // port) and drains them gracefully on a shutdown signal.
-func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
+func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// The async-job manager shares the serve context: its pool drains when ctx is
+	// canceled. It is served over REST, so warn if enabled without the HTTP port.
+	if mgr != nil {
+		if !cfg.HTTP.Enabled {
+			log.Warn("jobs enabled but the REST transport is off: /jobs endpoints will not be reachable")
+		}
+		if err := mgr.Start(ctx); err != nil {
+			log.Error("job manager start failed", "error", err)
+			return 1
+		}
+	}
 
 	// Background trust-anchor refresh drains with ctx. A resolved interval of 0
 	// (default without the RK registry, or an explicit 0/off) makes Run a no-op.
@@ -243,8 +324,12 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rec
 	var shutdowns []func(context.Context)
 
 	if cfg.HTTP.Enabled {
+		var restOpts []rest.Option
+		if mgr != nil {
+			restOpts = append(restOpts, rest.WithJobs(mgr))
+		}
 		work := http.NewServeMux()
-		work.Handle("/", rec.InstrumentHTTP("rest", rest.New(svc).Routes()))
+		work.Handle("/", rec.InstrumentHTTP("rest", rest.New(svc, restOpts...).Routes()))
 		mountObs(work, obs)
 		work.Handle("GET /metrics", rec.Handler())
 
@@ -318,6 +403,12 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rec
 		sd(shutCtx)
 	}
 	mqWG.Wait()
+	if mgr != nil {
+		mgr.Wait() // workers drain on ctx cancel
+		if err := mgr.Close(); err != nil {
+			log.Warn("job store close", "error", err)
+		}
+	}
 	return 0
 }
 
