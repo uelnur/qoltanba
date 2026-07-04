@@ -1,0 +1,108 @@
+package core
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/uelnur/qoltanba/internal/provider"
+)
+
+// ErrorKind classifies a domain failure so transports can pick a status without
+// knowing crypto details (REST → HTTP code, CLI → exit code).
+type ErrorKind int
+
+const (
+	// KindInvalid is a client/request fault: bad input, wrong password, missing
+	// key, a trusted CA required but absent.
+	KindInvalid ErrorKind = iota
+	// KindUnsupported: the loaded library version does not expose the operation.
+	KindUnsupported
+	// KindUnavailable: the service/library is not ready (self-test pending, closed).
+	KindUnavailable
+	// KindCanceled: the caller's context ended.
+	KindCanceled
+	// KindInternal: an unexpected failure.
+	KindInternal
+)
+
+// Error is a domain-level error carrying a Kind and the operation name. It wraps
+// the underlying provider error so errors.Is/As still reach the sentinels.
+type Error struct {
+	Kind ErrorKind
+	Op   string
+	err  error
+}
+
+func (e *Error) Error() string {
+	if e.err == nil {
+		return fmt.Sprintf("%s: %v", e.Op, e.Kind)
+	}
+	return fmt.Sprintf("%s: %v", e.Op, e.err)
+}
+
+func (e *Error) Unwrap() error { return e.err }
+
+// domainErr wraps err into an *Error with the classified kind. Returns nil for a
+// nil err.
+func domainErr(op string, err error) *Error {
+	if err == nil {
+		return nil
+	}
+	return &Error{Kind: classify(err), Op: op, err: err}
+}
+
+// classify maps a provider/context error to an ErrorKind.
+func classify(err error) ErrorKind {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return KindCanceled
+	case errors.Is(err, provider.ErrUnsupported):
+		return KindUnsupported
+	case errors.Is(err, provider.ErrNotReady), errors.Is(err, provider.ErrClosed):
+		return KindUnavailable
+	case errors.Is(err, provider.ErrInvalidPassword),
+		errors.Is(err, provider.ErrKeyNotFound),
+		errors.Is(err, provider.ErrCertNotFound),
+		errors.Is(err, provider.ErrCertExpired),
+		errors.Is(err, provider.ErrCertTimeInvalid),
+		errors.Is(err, provider.ErrSignFormatMismatch),
+		errors.Is(err, provider.ErrCARequired):
+		return KindInvalid
+	default:
+		return KindInternal
+	}
+}
+
+// isSoftVerifyFailure reports whether a verify-time error is an expected
+// business outcome (an invalid/absent signature or a failed chain) that belongs
+// in the response's LibError with Valid=false, rather than a transport error.
+func isSoftVerifyFailure(err error) bool {
+	switch {
+	case errors.Is(err, provider.ErrSignatureInvalid),
+		errors.Is(err, provider.ErrNoSignature),
+		errors.Is(err, provider.ErrChainInvalid),
+		errors.Is(err, provider.ErrCertExpired),
+		errors.Is(err, provider.ErrCertTimeInvalid):
+		return true
+	default:
+		// A bare NativeError with a code but no recognized sentinel is also a
+		// verify outcome, not an infra fault.
+		var ne *provider.NativeError
+		return errors.As(err, &ne) && !errors.Is(err, provider.ErrUnsupported) &&
+			!errors.Is(err, provider.ErrNotReady) && !errors.Is(err, provider.ErrClosed)
+	}
+}
+
+// libErrorFrom builds a response LibError from a provider error, exposing the raw
+// KCR_* code and text when present.
+func libErrorFrom(err error) *LibError {
+	if err == nil {
+		return nil
+	}
+	var ne *provider.NativeError
+	if errors.As(err, &ne) {
+		return &LibError{Code: fmt.Sprintf("0x%08X", ne.Code), Text: ne.Detail}
+	}
+	return &LibError{Text: err.Error()}
+}

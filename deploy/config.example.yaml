@@ -1,0 +1,34 @@
+# qoltanba — example config file (YAML; TOML/JSON also accepted).
+# Precedence: defaults < THIS FILE < env < flags. Point the service at it with
+#   qoltanba -config /etc/qoltanba/config.yaml
+# or QOLTANBA_CONFIG=/etc/qoltanba/config.yaml.
+#
+# Do NOT put secrets here. Passwords/PINs arrive per request or via env/*_FILE.
+
+lib:
+  # BYOL: you supply the Kalkan library; it is never bundled with the service.
+  path: /opt/kalkan/libkalkancryptwr-64.so
+  # version:        # override version detection
+  isolated: false   # dlmopen isolation (Linux); required when workers > 1
+  # isolation-deps: [/opt/kalkan/libkalkancrypto.so, /opt/kalkan/iconv_compat.so]
+
+workers: 1          # max parallel crypto ops
+verify-only: false  # true → no key path, no sign endpoints (safe in open perimeter)
+
+http:
+  enabled: true
+  addr: ":8080"     # or "unix:/run/kalkan.sock"
+
+keys:
+  allow-inline: false   # inline PKCS#12 in requests — only over TLS/local sockets
+
+trust:
+  ca-dir: ""        # directory of trusted CA PEM files (roots + intermediates)
+
+log:
+  level: info       # debug|info|warn|error
+  format: text      # text|json
+
+metrics:
+  enabled: false
+  addr: ":9090"     # health/status on a separate port

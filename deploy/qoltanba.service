@@ -1,0 +1,50 @@
+# systemd unit for qoltanba (native binary, no Docker).
+#
+# Install:
+#   install -m0755 qoltanba /usr/local/bin/
+#   install -d /etc/qoltanba
+#   install -m0644 deploy/config.example.yaml /etc/qoltanba/config.yaml
+#   install -m0640 deploy/qoltanba.env  /etc/qoltanba/qoltanba.env
+#   install -m0644 deploy/qoltanba.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now qoltanba
+#
+# BYOL: the Kalkan library is provided by you (not shipped); point QOLTANBA_LIB_PATH
+# at it. Logs go to stdout/stderr → journald (12-factor); no log files to rotate.
+
+[Unit]
+Description=qoltanba (Kalkan digital-signature service)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kalkan
+Group=kalkan
+DynamicUser=yes
+
+# Config: an env file (non-secret settings) plus the config file it points at.
+EnvironmentFile=/etc/qoltanba/qoltanba.env
+Environment=QOLTANBA_CONFIG=/etc/qoltanba/config.yaml
+
+# Secrets via systemd credentials: the file is exposed under $CREDENTIALS_DIRECTORY.
+# Reference it with the *_FILE convention, e.g.:
+#   LoadCredential=keystore-password:/etc/qoltanba/keystore.pw
+#   Environment=QOLTANBA_KEYSTORE_PASSWORD_FILE=%d/keystore-password
+# (%d expands to $CREDENTIALS_DIRECTORY.)
+
+ExecStart=/usr/local/bin/qoltanba -http
+# Cheap-subgroup reload (log level, telemetry) on SIGHUP; lib/pool changes need a
+# restart. Aligns with the config hot-reload design.
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2
+
+# Hardening (the service needs only its lib, config and CA dir).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/opt/kalkan /etc/qoltanba
+
+[Install]
+WantedBy=multi-user.target

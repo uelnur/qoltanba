@@ -1,0 +1,50 @@
+name: Functional (real Kalkan)
+
+# Functional tests run the driver against the REAL, proprietary Kalkan library
+# (BYOL) plus test keys — via test/functional/run.sh in a linux/amd64 container.
+# They cannot run on GitHub-hosted runners: the library is not redistributable
+# and the machine must have it. This workflow targets a self-hosted runner (see
+# test/functional/setup-runner.sh) and is manual/scheduled, never on every push.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 3 * * 1" # weekly, Monday 03:00 UTC — skipped if the runner is offline
+
+permissions:
+  contents: read
+
+concurrency:
+  group: functional # one heavy run at a time on the single self-hosted host
+  cancel-in-progress: false
+
+jobs:
+  functional:
+    name: driver functional tests
+    runs-on: [self-hosted, kalkan]
+    steps:
+      - uses: actions/checkout@v4
+
+      # BYOL native/ (library + test keys) lives on the runner host, never in
+      # git. Copy it into the workspace so run.sh can mount it. QOLTANBA_NATIVE_SRC
+      # is a repo Actions variable pointing at that host path.
+      - name: Provision BYOL native library
+        env:
+          QOLTANBA_NATIVE_SRC: ${{ vars.QOLTANBA_NATIVE_SRC }}
+        run: |
+          src="${QOLTANBA_NATIVE_SRC:?set repo variable QOLTANBA_NATIVE_SRC to the native/ path on the runner host}"
+          if [ ! -d "$src/linux-x64" ]; then
+            echo "native/ at '$src' has no linux-x64 — provisioning failed" >&2
+            exit 1
+          fi
+          rm -rf native
+          cp -R "$src" native
+
+      # run.sh builds the linux/amd64 image and runs the qoltanba_functional tests
+      # against the mounted library (Docker required on the host).
+      - name: Run functional tests
+        run: test/functional/run.sh
+
+      # Verify the isolated worker pool too (dlmopen path).
+      - name: Run functional tests (isolated pool)
+        run: QOLTANBA_POOL=4 QOLTANBA_ISO=1 test/functional/run.sh

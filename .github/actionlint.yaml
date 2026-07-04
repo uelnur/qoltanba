@@ -1,0 +1,6 @@
+# Custom labels for our self-hosted runner (see test/functional/setup-runner.sh).
+# Declaring them here lets actionlint validate `runs-on` without false "unknown
+# label" errors.
+self-hosted-runner:
+  labels:
+    - kalkan

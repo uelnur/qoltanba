@@ -1,0 +1,243 @@
+// Focused, stable gRPC contract for qoltanba — the operations the service
+// actually implements (sign/verify/extract/cert-info/cert-validate), mirroring
+// the domain's own types and the REST/CLI JSON contract. It is deliberately
+// separate from the aspirational draft api/qoltanba-draft.proto: the domain owns its
+// types, and this is one serialization of them.
+//
+// Binary fields are bytes (base64 in JSON gateways). Times are RFC3339 strings.
+// Secrets (password/pin/inline p12) are input-only and never appear in responses.
+syntax = "proto3";
+
+package qoltanba.v1;
+
+option go_package = "github.com/uelnur/qoltanba/api/qoltanba/v1;qoltanbav1";
+
+service SignatureService {
+  rpc Sign(SignRequest) returns (SignResponse);
+  rpc Verify(VerifyRequest) returns (VerifyResponse);
+  rpc Extract(ExtractRequest) returns (ExtractResponse);
+  rpc CertInfo(CertInfoRequest) returns (CertInfoResponse);
+  rpc CertValidate(CertValidateRequest) returns (CertValidateResponse);
+}
+
+enum SignatureFormat {
+  SIGNATURE_FORMAT_UNSPECIFIED = 0;
+  CMS = 1;
+  XML = 2;
+  WSSE = 3;
+}
+
+enum CertEncoding {
+  CERT_ENCODING_UNSPECIFIED = 0;
+  PEM = 1;
+  DER = 2;
+  BASE64 = 3;
+}
+
+enum ValidationMethod {
+  VALIDATION_METHOD_UNSPECIFIED = 0;
+  OCSP = 1;
+  CRL = 2;
+}
+
+message KeySpec {
+  oneof source {
+    InlineKey inline = 1;
+    PathKey path = 2;
+    TokenKey token = 3;
+    string key_id = 4;
+  }
+}
+message InlineKey {
+  bytes p12 = 1;
+  string password = 2; // secret
+  string alias = 3;
+}
+message PathKey {
+  string path = 1;
+  string password = 2; // secret
+  string alias = 3;
+}
+message TokenKey {
+  string storage = 1;
+  string pin = 2; // secret
+  string alias = 3;
+}
+
+message TrustedCert {
+  bytes cert = 1;
+  bool intermediate = 2;
+}
+message LibError {
+  string code = 1;
+  string text = 2;
+}
+message Warning {
+  string field = 1;
+  string reason = 2;
+}
+
+message SignRequest {
+  SignatureFormat format = 1;
+  bytes data = 2;
+  KeySpec key = 3;
+  bool detached = 4;
+  optional bool with_timestamp = 5; // unset → service default
+  string tsa_url = 6;
+  bool no_check_cert_time = 7;
+  bool input_pem = 8;
+  bool output_pem = 9;
+  string node_id = 10;
+  string parent_node = 11;
+  string parent_namespace = 12;
+  bytes existing_signature = 13;
+}
+message SignResponse {
+  bytes signature = 1;
+  SignatureFormat format = 2;
+  LibError lib_error = 3;
+  Timestamp timestamp = 4; // parsed TSP (CMS) when a timestamp was added
+  string cades_level = 5;  // BES | T
+}
+
+message VerifyRequest {
+  SignatureFormat format = 1;
+  bytes signature = 2;
+  bytes data = 3;
+  bool detached = 4;
+  bool input_pem = 5;
+  bool check_cert_time = 6;
+  bool extract_content = 7;
+  repeated TrustedCert trusted_certs = 8;
+}
+message VerifyResponse {
+  bool valid = 1;
+  SignatureFormat format = 2;
+  bool detached = 3;
+  repeated Signer signers = 4;
+  bytes content = 5;
+  repeated Warning warnings = 6;
+  LibError lib_error = 7;
+}
+
+message ExtractRequest {
+  SignatureFormat format = 1;
+  bytes signature = 2;
+  bytes data = 3;
+}
+message ExtractResponse {
+  bytes content = 1;
+  bool detached = 2;
+  LibError lib_error = 3;
+}
+
+message CertInfoRequest {
+  bytes cert = 1;
+  KeySpec key = 2;
+  CertEncoding encoding = 3;
+  bool build_chain = 4;
+  bool validate = 5;
+  ValidationMethod method = 6;
+  repeated TrustedCert trusted_certs = 7;
+}
+message CertInfoResponse {
+  Certificate certificate = 1;
+  repeated Certificate chain = 2;
+  repeated Warning warnings = 3;
+  LibError lib_error = 4;
+}
+
+message CertValidateRequest {
+  bytes cert = 1;
+  CertEncoding encoding = 2;
+  ValidationMethod method = 3;
+  bool want_ocsp = 4;
+  repeated TrustedCert trusted_certs = 5;
+  string responder_url = 6;
+  bytes crl = 7;
+}
+message CertValidateResponse {
+  RevocationStatus status = 1;
+  string info = 2;
+  bytes ocsp_response = 3;
+  repeated Warning warnings = 4;
+  LibError lib_error = 5;
+}
+
+message Subject {
+  string common_name = 1;
+  string last_name = 2;
+  string given_name = 3;
+  string email = 4;
+  string organization = 5;
+  string org_unit = 6;
+  string country = 7;
+  string locality = 8;
+  string state = 9;
+  string business_category = 10;
+  string domain_component = 11;
+  string dn = 12;
+  string iin = 13;
+  string bin = 14;
+  string gender = 15;
+}
+
+message Certificate {
+  Subject subject = 1;
+  Subject issuer = 2;
+  string serial_number = 3;
+  string not_before = 4;
+  string not_after = 5;
+  string signature_algorithm = 6;
+  string signature_algorithm_oid = 7;
+  string key_algorithm = 8;
+  bytes public_key = 9;
+  string authority_key_id = 10;
+  string subject_key_id = 11;
+  repeated string key_usage = 12;
+  string key_usage_kind = 13;
+  repeated string extended_key_usage = 14;
+  repeated string policy_oids = 15;
+  string owner_type = 16;
+  repeated string roles = 17;
+  repeated string ca_issuer_urls = 18;
+  repeated string ocsp_urls = 19;
+  repeated string crl_urls = 20;
+  bool is_ca = 21;
+  bytes pem = 22;
+}
+
+message Timestamp {
+  string serial_number = 1;
+  string gen_time = 2;
+  string policy = 3;
+  string tsa = 4;
+  string hash_algorithm = 5;
+  bytes hash = 6;
+}
+
+message Signer {
+  Certificate certificate = 1;
+  repeated Certificate chain = 2;
+  bool valid = 3;
+  string signing_time = 4;
+  string signature_algorithm = 5;
+  Timestamp timestamp = 6;
+  bool chain_complete = 7;
+  bool trust_anchor_found = 8;
+  string cades_level = 9;
+  string verify_info = 10;
+  bool chain_signatures_verified = 11;
+}
+
+message RevocationStatus {
+  bool revoked = 1;
+  ValidationMethod method = 2;
+  string revocation_time = 3;
+  string reason = 4;
+  string checked_at = 5;
+  LibError lib_error = 6;
+  string this_update = 7;
+  string next_update = 8;
+  string produced_at = 9;
+}

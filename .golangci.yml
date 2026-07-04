@@ -1,0 +1,76 @@
+# golangci-lint configuration (v2 schema). Run: `golangci-lint run`.
+# The set is curated for a production Go service with a cgo driver and thin
+# transports: correctness and resource-safety linters on, style noise off.
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags:
+    - qoltanba_functional
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose # HTTP/response bodies must be closed (AIA/registry fetchers)
+    - contextcheck # ctx must propagate — a core convention of this service
+    - durationcheck # catch time.Duration multiplication mistakes
+    - errorlint # correct errors.Is/As and %w wrapping (used throughout)
+    - gocritic # opinionated diagnostics + performance checks
+    - misspell # comment/string typos
+    - nilerr # `return nil` after a non-nil err check
+    - noctx # no HTTP requests without a context
+    - reassign # reassigning package variables from other packages
+    - unconvert # redundant type conversions
+    - wastedassign # assignments never read
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # struct layout micro-optimization — not worth the churn
+        - shadow # variable shadowing is idiomatic Go here (err, ok)
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam # value receivers on config structs are intentional
+        - rangeValCopy # ranging over large value structs is fine at our scale
+        - appendCombine # separate appends read clearer than one chained call
+        - commentedOutCode # inline explanatory comments trip this heuristic
+    misspell:
+      locale: US
+
+  exclusions:
+    generated: lax # skip generated files (protobuf *.pb.go)
+    presets:
+      - std-error-handling
+    rules:
+      # Tests favor terse setup: unchecked errors and context.Background are fine.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - noctx
+          - bodyclose
+          - contextcheck
+      # The cgo driver package wraps unsafe/native calls; security and some vet
+      # heuristics do not apply cleanly across the FFI boundary.
+      - path: internal/native/
+        linters:
+          - gosec
+          - govet
+      # A network listener and a one-shot startup subprocess do not need a
+      # context; noctx's value here is guarding HTTP calls, which it still does.
+      - linters: [noctx]
+        text: net.Listen must not be called
+      - linters: [noctx]
+        text: os/exec.Command must not be called
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/uelnur/qoltanba

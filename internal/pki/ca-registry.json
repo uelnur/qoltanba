@@ -1,0 +1,216 @@
+{
+  "source": "https://root.gov.kz/registr/",
+  "title": "Регистр регистрационных свидетельств (КУЦ РК) — trust-store",
+  "note": "Официальный список CA-сертификатов и корневых CRL РК: корни КУЦ (gost/rsa/2015/2020), НУЦ (intermediate), УЦ ГО и аккредитованные УЦ (банки). Источник CA-набора для валидации цепочки.",
+  "certificates": [
+    {
+      "label": "nca_gost",
+      "url": "https://pki.gov.kz/cert/nca_gost.crt",
+      "kind": "nca_intermediate",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "nca_rsa",
+      "url": "https://pki.gov.kz/cert/nca_rsa.crt",
+      "kind": "nca_intermediate",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "kuc_old",
+      "url": "https://root.gov.kz/cert/kuc_old.cer",
+      "kind": "root",
+      "algo": "unknown",
+      "test": false
+    },
+    {
+      "label": "root_gost",
+      "url": "https://root.gov.kz/cert/root_gost.cer",
+      "kind": "root",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "root_gost2015_2022",
+      "url": "https://root.gov.kz/cert/root_gost2015_2022.cer",
+      "kind": "root",
+      "algo": "gost2015",
+      "test": false
+    },
+    {
+      "label": "root_gost_2020",
+      "url": "https://root.gov.kz/cert/root_gost_2020.cer",
+      "kind": "root",
+      "algo": "gost2015",
+      "test": false
+    },
+    {
+      "label": "root_gost_2020_test",
+      "url": "https://root.gov.kz/cert/root_gost_2020_test.cer",
+      "kind": "root",
+      "algo": "gost2015",
+      "test": true
+    },
+    {
+      "label": "root_rsa",
+      "url": "https://root.gov.kz/cert/root_rsa.cer",
+      "kind": "root",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "root_rsa_2020",
+      "url": "https://root.gov.kz/cert/root_rsa_2020.cer",
+      "kind": "root",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "root_rsa_2020_test",
+      "url": "https://root.gov.kz/cert/root_rsa_2020_test.cer",
+      "kind": "root",
+      "algo": "rsa",
+      "test": true
+    },
+    {
+      "label": "root_test_gost_2022",
+      "url": "https://root.gov.kz/cert/root_test_gost_2022.cer",
+      "kind": "root",
+      "algo": "gost",
+      "test": true
+    },
+    {
+      "label": "alfa_bank_gost",
+      "url": "https://root.gov.kz/cert/uc/alfa_bank_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "berekebank_gost",
+      "url": "https://root.gov.kz/cert/uc/berekebank_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "biometric_gost",
+      "url": "https://root.gov.kz/cert/uc/biometric_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "btsd_gost",
+      "url": "https://root.gov.kz/cert/uc/btsd_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "eurasian_gost",
+      "url": "https://root.gov.kz/cert/uc/eurasian_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "first_credit_gost",
+      "url": "https://root.gov.kz/cert/uc/first_credit_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "forte_bank_gost",
+      "url": "https://root.gov.kz/cert/uc/forte_bank_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "freedom_finance_gost",
+      "url": "https://root.gov.kz/cert/uc/freedom_finance_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "freedom_finance_rsa",
+      "url": "https://root.gov.kz/cert/uc/freedom_finance_rsa.cer",
+      "kind": "accredited_ca",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "halyk_gost",
+      "url": "https://root.gov.kz/cert/uc/halyk_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "homecredit_gost",
+      "url": "https://root.gov.kz/cert/uc/homecredit_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "jusan_gost",
+      "url": "https://root.gov.kz/cert/uc/jusan_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "kaspi_gost",
+      "url": "https://root.gov.kz/cert/uc/kaspi_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "mycar",
+      "url": "https://root.gov.kz/cert/uc/mycar.cer",
+      "kind": "accredited_ca",
+      "algo": "unknown",
+      "test": false
+    },
+    {
+      "label": "npc_national_bank_gost2015",
+      "url": "https://root.gov.kz/cert/uc/npc_national_bank_gost2015.cer",
+      "kind": "accredited_ca",
+      "algo": "gost2015",
+      "test": false
+    },
+    {
+      "label": "npc_national_bank_rsa",
+      "url": "https://root.gov.kz/cert/uc/npc_national_bank_rsa.cer",
+      "kind": "accredited_ca",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "sber_gost",
+      "url": "https://root.gov.kz/cert/uc/sber_gost.cer",
+      "kind": "accredited_ca",
+      "algo": "gost",
+      "test": false
+    },
+    {
+      "label": "ucgo",
+      "url": "https://ucgo.gov.kz/files/cert/ucgo.cer",
+      "kind": "ucgo",
+      "algo": "unknown",
+      "test": false
+    }
+  ],
+  "rootCrls": [
+    "https://crl.root.gov.kz/gost.crl",
+    "https://crl.root.gov.kz/gost2020.crl",
+    "https://crl.root.gov.kz/rsa.crl",
+    "https://crl.root.gov.kz/rsa2020.crl"
+  ]
+}

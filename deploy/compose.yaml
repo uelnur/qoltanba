@@ -1,0 +1,49 @@
+# qoltanba via Docker Compose. BYOL: the Kalkan native library is provided
+# by you as a mounted volume — it is never inside the image (see ../native/).
+#
+#   docker compose -f deploy/compose.yaml up --build
+#
+# Config comes from env (see ../.env.example) and/or the mounted config file.
+# Secrets use the *_FILE convention backed by Docker secrets.
+
+services:
+  qoltanba:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    # Kalkan ships glibc/amd64 builds; on Apple Silicon this runs under emulation.
+    platform: linux/amd64
+    command: ["-http"]   # add "-grpc" to also serve gRPC on :9091
+    ports:
+      - "8080:8080"   # REST
+      - "9090:9090"   # health/metrics (when metrics.enabled)
+      # - "9091:9091" # gRPC (when -grpc)
+    environment:
+      QOLTANBA_LIB_PATH: /opt/kalkan/libkalkancryptwr-64.so
+      QOLTANBA_HTTP_ADDR: ":8080"
+      QOLTANBA_LOG_FORMAT: json
+      QOLTANBA_CONFIG: /etc/qoltanba/config.yaml
+      # Loader wiring for the OpenSSL-1.1 fork / iconv shipped in the BYOL bundle.
+      # Adjust to your bundle (mirrors test/functional/ mechanics).
+      LD_LIBRARY_PATH: /opt/kalkan
+    volumes:
+      # BYOL: mount your Kalkan library + its runtime deps read-only.
+      - ../native/linux-x64:/opt/kalkan:ro
+      # Config file (optional; env/flags still override it).
+      - ./config.example.yaml:/etc/qoltanba/config.yaml:ro
+      # Trusted CA PEM files for chain building (optional).
+      # - ./ca:/etc/qoltanba/ca:ro
+    # secrets:
+    #   - some_secret
+    # Readiness gate: only routes traffic after the library self-test passes.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/qoltanba", "config-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+# Example secret wired via the *_FILE convention (QOLTANBA_<KEY>_FILE):
+# secrets:
+#   some_secret:
+#     file: ./secrets/some_secret.txt

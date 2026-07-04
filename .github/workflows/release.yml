@@ -1,0 +1,100 @@
+name: Release
+
+# Tag a version (vX.Y.Z) to build and publish packaged binaries as GitHub
+# Release assets. The binaries carry NO Kalkan (BYOL, loaded at runtime), so
+# they are safe to publish. Target set = the platforms Kalkan itself ships for
+# (linux/amd64, windows/amd64, windows/386); there is no point building
+# linux/arm64 or macOS — no Kalkan library exists to load there.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            cc: gcc
+            ext: ""
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            cc: x86_64-w64-mingw32-gcc
+            ext: ".exe"
+            archive: zip
+          - goos: windows
+            goarch: "386"
+            cc: i686-w64-mingw32-gcc
+            ext: ".exe"
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install mingw-w64 (Windows cgo toolchain)
+        if: matrix.goos == 'windows'
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64
+
+      # cgo is required (the driver links a C shim); glibc build for linux — the
+      # native library is glibc, and musl/static would crash on dlopen.
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc }}
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "qoltanba${{ matrix.ext }}" ./cmd/qoltanba
+
+      # Package the binary with the config examples the operator needs. BYOL
+      # native/ is not bundled — the consumer supplies it.
+      - name: Package
+        run: |
+          name="qoltanba_${GITHUB_REF_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "dist/$name"
+          cp "qoltanba${{ matrix.ext }}" "dist/$name/"
+          cp .env.example deploy/config.example.yaml "dist/$name/"
+          ( cd dist
+            if [ "${{ matrix.archive }}" = "zip" ]; then
+              zip -r "$name.zip" "$name"
+            else
+              tar czf "$name.tar.gz" "$name"
+            fi )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: ( cd dist && sha256sum * > SHA256SUMS.txt )
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (a new push obsoletes the old one).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod # single source of truth for the Go version
+      # Unit tests run without the native Kalkan library (Provider is faked);
+      # cgo compiles the shim, but dlopen happens only at runtime. The C
+      # toolchain ships with ubuntu-latest, so no extra setup is needed.
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      # -race exercises the concurrent MQ consumers and the driver pool.
+      - name: Test
+        run: go test -race ./...
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Version kept in sync with the Makefile's GOLANGCI_VERSION; config is
+      # .golangci.yml. The action handles its own caching.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+
+  # Cross-compile check for the Windows targets (x64/x86) documented in the
+  # native-library reference. The cgo driver's loader has a LoadLibrary path
+  # (shim.c), so both targets compile with mingw-w64.
+  build-windows:
+    name: build (windows/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            cc: x86_64-w64-mingw32-gcc
+          - goarch: "386"
+            cc: i686-w64-mingw32-gcc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install mingw-w64 (cgo cross toolchain)
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+        run: go build ./...

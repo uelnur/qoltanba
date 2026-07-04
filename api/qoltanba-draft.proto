@@ -1,0 +1,401 @@
+// Драфт gRPC-контрактов qoltanba (v1).
+// Отражает паритет с NCANode v3 + наши «сверх-поля» (см. docs/COMPARISON-ncanode.md)
+// и инфраструктурные нюансы: гибкие источники ключей (N7), пакетный (N8) и
+// асинхронный (N9) режимы, best-effort извлечение (N5), коды ошибок Kalkan.
+//
+// Времена — строки RFC3339. Бинарные данные — base64 в JSON-зеркале; в proto — bytes.
+// Это ДРАФТ: имена/составы полей ещё уточняются вместе с остальными нюансами.
+
+syntax = "proto3";
+
+package qoltanbadraft.v1;
+
+option go_package = "github.com/uelnur/qoltanba/api/qoltanbadraft;qoltanbadraft";
+
+// ============================ СЕРВИС ============================
+
+service Qoltanba {
+  // Подпись (формат выбирается в запросе): CMS / XML / WSSE.
+  rpc Sign(SignRequest) returns (SignResponse);
+  // Со-подпись: добавить подпись к уже подписанному контейнеру (мультиподпись).
+  rpc SignAdd(SignAddRequest) returns (SignResponse);
+  // Проверка подписи + исчерпывающее извлечение подписантов/цепочки/валидности.
+  rpc Verify(VerifyRequest) returns (VerifyResponse);
+  // Извлечь оригинальное содержимое из вложенной (attached) подписи.
+  rpc Extract(ExtractRequest) returns (ExtractResponse);
+  // Полный разбор сертификата (+ опц. цепочка и валидация).
+  rpc CertInfo(CertInfoRequest) returns (CertInfoResponse);
+  // Валидация сертификата по цепочке (OCSP/CRL).
+  rpc CertValidate(CertValidateRequest) returns (CertValidateResponse);
+
+  // Пакетные варианты (N8): элементы независимы, результат — в исходном порядке.
+  rpc SignBatch(SignBatchRequest) returns (SignBatchResponse);
+  rpc VerifyBatch(VerifyBatchRequest) returns (VerifyBatchResponse);
+
+  // Асинхронные задания для больших файлов (N9).
+  rpc SubmitJob(JobRequest) returns (JobHandle);
+  rpc GetJob(JobId) returns (JobStatus);
+}
+
+// ============================ ПЕРЕЧИСЛЕНИЯ ============================
+
+enum SignatureFormat {
+  SIGNATURE_FORMAT_UNSPECIFIED = 0;
+  CMS = 1;   // CMS/PKCS#7
+  XML = 2;   // XMLDSIG
+  WSSE = 3;  // WS-Security
+}
+
+enum Encoding {
+  ENCODING_UNSPECIFIED = 0;
+  RAW = 1;
+  BASE64 = 2;
+  PEM = 3;
+  DER = 4;
+}
+
+enum RevocationMethod {
+  REVOCATION_METHOD_UNSPECIFIED = 0;
+  OCSP = 1;
+  CRL = 2;
+}
+
+enum TsaPolicy {
+  TSA_POLICY_UNSPECIFIED = 0;
+  TSA_GOST2015_POLICY = 1;
+  TSA_GOST_POLICY = 2;
+  TSA_GOSTGT_POLICY = 3;
+}
+
+// Упрощённое назначение ключа (паритет с NCANode).
+enum KeyUsageKind {
+  KEY_USAGE_UNKNOWN = 0;
+  AUTH = 1;
+  SIGN = 2;
+}
+
+// Роль владельца (паритет с NCANode CertificateKeyUser + расширяемо).
+enum KeyUser {
+  KEY_USER_UNSPECIFIED = 0;
+  INDIVIDUAL = 1;                       // 1.2.398.3.3.4.1.1
+  ORGANIZATION = 2;                     // 1.2.398.3.3.4.1.2
+  CEO = 3;                              // 1.2.398.3.3.4.1.2.1
+  CAN_SIGN = 4;                         // 1.2.398.3.3.4.1.2.2
+  CAN_SIGN_FINANCIAL = 5;
+  HR = 6;
+  EMPLOYEE = 7;                         // 1.2.398.3.3.4.1.2.5
+  INFOSYSTEM = 8;                       // 1.2.398.3.3.4.1.2.6
+  TREASURY_CLIENT = 9;                  // 1.2.398.5.19.1.2.2.1
+  NCA_PRIVILEGES = 10;
+  NCA_ADMIN = 11;
+  NCA_MANAGER = 12;
+  NCA_OPERATOR = 13;
+  IDENTIFICATION = 14;
+  IDENTIFICATION_CON = 15;
+  IDENTIFICATION_REMOTE = 16;
+  IDENTIFICATION_REMOTE_DIGITAL_ID = 17;
+}
+
+enum Gender {
+  GENDER_NONE = 0;
+  MALE = 1;
+  FEMALE = 2;
+}
+
+enum OwnerType {
+  OWNER_TYPE_UNSPECIFIED = 0;
+  OWNER_INDIVIDUAL = 1;      // физлицо
+  OWNER_LEGAL_PERSON = 2;    // сотрудник ЮЛ (есть ФИО/ИИН + OU=BIN)
+  OWNER_INFOSYSTEM = 3;      // информационная система (OU=BIN, без ФИО/ИИН)
+}
+
+enum CadesLevel {
+  CADES_UNSPECIFIED = 0;
+  CADES_BES = 1;
+  CADES_T = 2;
+}
+
+// ============================ ИСТОЧНИК КЛЮЧА (N7) ============================
+
+message KeySource {
+  oneof source {
+    InlineP12 inline = 1;   // PKCS#12 в запросе (только по TLS/локальному сокету)
+    KeyRef key_id = 2;      // ссылка на запись в keystore сервиса
+    KeyPath path = 3;       // путь к .p12 на сервере
+    TokenKey token = 4;     // аппаратный токен
+  }
+}
+message InlineP12 {
+  bytes p12 = 1;            // JSON: base64
+  string password = 2;     // СЕКРЕТ — не логируется
+  string alias = 3;        // опц.
+}
+message KeyRef { string id = 1; }
+message KeyPath { string path = 1; string password = 2; string alias = 3; }
+message TokenKey {
+  string storage_type = 1; // KCST_KAZTOKEN | KCST_KZIDCARD | ...
+  string pin = 2;          // СЕКРЕТ
+  string alias = 3;
+}
+
+// ============================ ОБЩИЕ ТИПЫ ============================
+
+// Ошибка криптоядра (код KCR_* + текст KC_GetLastErrorString).
+message LibError {
+  string code = 1;   // напр. "0x08F0001C"
+  string text = 2;
+}
+
+// Предупреждение best-effort извлечения (поле недоступно/ошибка — не фейл).
+message ExtractionWarning {
+  string field = 1;  // напр. "signers[0].issuer.email"
+  string reason = 2; // напр. "KCR_GETCERTPROPERR"
+}
+
+message CertificateSubject {
+  string common_name = 1;
+  string last_name = 2;          // фамилия (SUBJECT_SURNAME)
+  string sur_name = 3;           // имя/отчество (SUBJECT_GIVENNAME)
+  string email = 4;
+  string organization = 5;
+  Gender gender = 6;             // выводится из ИИН
+  string iin = 7;               // из serialNumber=IIN...
+  string bin = 8;               // из OU=BIN...
+  string country = 9;
+  string locality = 10;
+  string state = 11;            // SOPN
+  string dn = 12;
+  // сверх NCANode:
+  string business_category = 13; // BC (напр. Казначейство)
+  string domain_component = 14;  // DC
+}
+
+message RevocationStatus {
+  bool revoked = 1;
+  RevocationMethod by = 2;      // OCSP | CRL
+  string revocation_time = 3;   // RFC3339
+  string reason = 4;            // напр. "certificateHold"
+  // сверх NCANode:
+  string checked_at = 5;
+  bytes ocsp_response = 6;      // сырой OCSP-ответ (base64 в JSON)
+  LibError lib_error = 7;       // код/текст, если проверка не удалась
+}
+
+message Certificate {
+  bool valid = 1;
+  repeated RevocationStatus revocations = 2;
+  string not_before = 3;        // RFC3339
+  string not_after = 4;
+  KeyUsageKind key_usage = 5;   // упрощённо (паритет)
+  string serial_number = 6;     // HEX
+  string sign_alg = 7;
+  repeated KeyUser key_user = 8;
+  bytes public_key = 9;         // DER (base64 в JSON)
+  bytes signature = 10;         // подпись сертификата (base64) — парсим из DER
+  CertificateSubject subject = 11;
+  CertificateSubject issuer = 12;
+
+  // сверх NCANode:
+  OwnerType owner_type = 20;
+  repeated string key_usage_list = 21;      // полный список keyUsage
+  repeated string extended_key_usage = 22;  // полный EKU (тексты + OID)
+  string sign_alg_oid = 23;
+  string public_key_algorithm = 24;         // напр. "gost2015-512"
+  string authority_key_id = 25;
+  string subject_key_id = 26;
+  repeated string policy_oids = 27;
+  repeated string ca_issuer_urls = 28;      // AIA CA Issuers
+  repeated string ocsp_urls = 29;           // AIA OCSP
+  repeated string crl_urls = 30;            // CRL DP
+  bytes pem = 31;                           // PEM сертификата
+}
+
+message TspInfo {
+  string serial_number = 1;
+  string gen_time = 2;          // RFC3339
+  string policy = 3;
+  string tsa = 4;
+  string tsp_hash_algorithm = 5;
+  bytes hash = 6;
+}
+
+// Один подписант (парити NCANode CmsSignerInfo + расширения).
+message Signer {
+  int32 index = 1;
+  Certificate certificate = 2;            // сертификат подписанта (лист)
+  repeated Certificate chain = 3;         // цепочка (лист + CA-источник/AIA)
+  bool valid = 4;
+  string signing_time = 5;                // RFC3339 (из подписанных атрибутов)
+  TspInfo tsp = 6;                        // метка времени, если есть
+  string signature_algorithm = 7;
+  // сверх NCANode:
+  bool chain_complete = 20;               // достроена до корня
+  bool trust_anchor_found = 21;           // корень в trust-store потребителя
+  CadesLevel cades_level = 22;
+  string verify_info = 23;                // сырой outVerifyInfo
+}
+
+// ============================ ПОДПИСЬ ============================
+
+message SignOptions {
+  bool detached = 1;
+  bool with_tsp = 2;
+  TsaPolicy tsa_policy = 3;
+  string tsa_url = 4;
+  Encoding input_encoding = 5;
+  Encoding output_encoding = 6;
+  bool no_check_cert_time = 7;
+  // XML/WSSE:
+  string sign_node_id = 10;
+  string parent_sign_node = 11;
+  string parent_namespace = 12;
+}
+
+message SignRequest {
+  SignatureFormat format = 1;
+  DataInput data = 2;          // содержимое (inline или ссылка)
+  KeySource key = 3;
+  SignOptions options = 4;
+}
+
+message SignAddRequest {       // co-sign: добавить подпись к существующему
+  SignatureFormat format = 1;
+  DataInput signature = 2;     // существующий CMS/XML
+  DataInput data = 3;          // исходные данные (для detached)
+  KeySource key = 4;
+  SignOptions options = 5;
+}
+
+message SignResponse {
+  bytes signature = 1;         // подписанный контейнер (base64/PEM)
+  SignatureFormat format = 2;
+  LibError lib_error = 3;
+}
+
+// ============================ ПРОВЕРКА ============================
+
+message VerifyOptions {
+  repeated RevocationMethod revocation_check = 1; // OCSP и/или CRL
+  bool extract_content = 2;                        // вернуть оригинал (attached)
+  bool build_chain = 3;                            // достроить цепочку
+  bool fetch_aia = 4;                              // дозагрузка по AIA
+  repeated bytes ca_certs = 5;                     // доверенные CA (base64)
+}
+
+message VerifyRequest {
+  SignatureFormat format = 1;
+  DataInput signature = 2;     // CMS/XML/WSSE
+  DataInput data = 3;          // исходные данные для detached
+  KeySource key = 4;           // обычно не нужен для verify
+  VerifyOptions options = 5;
+}
+
+message VerifyResponse {
+  bool valid = 1;              // все подписи валидны
+  SignatureFormat format = 2;
+  int32 signature_count = 3;
+  repeated Signer signers = 4;
+  bool detached = 5;
+  bytes content = 6;           // оригинал (если attached и extract_content)
+  repeated ExtractionWarning warnings = 7;
+  LibError lib_error = 8;
+}
+
+// ============================ ИЗВЛЕЧЕНИЕ / СЕРТИФИКАТ ============================
+
+message ExtractRequest { DataInput signature = 1; DataInput data = 2; }
+message ExtractResponse { bytes content = 1; bool detached = 2; LibError lib_error = 3; }
+
+message CertInfoRequest {
+  DataInput certificate = 1;   // PEM/DER; либо из key (см. key)
+  KeySource key = 2;           // если разбираем серт владельца ключа
+  bool build_chain = 3;
+  bool fetch_aia = 4;
+  repeated RevocationMethod revocation_check = 5;
+  repeated bytes ca_certs = 6;
+}
+message CertInfoResponse {
+  Certificate certificate = 1;
+  repeated Certificate chain = 2;
+  repeated ExtractionWarning warnings = 3;
+  LibError lib_error = 4;
+}
+
+message CertValidateRequest {
+  DataInput certificate = 1;
+  RevocationMethod method = 2;
+  repeated bytes ca_certs = 3;
+  string check_time = 4;       // RFC3339, опц.
+}
+message CertValidateResponse {
+  bool valid = 1;
+  repeated RevocationStatus revocations = 2;
+  repeated Certificate chain = 3;
+  string info = 4;             // сырой outInfo
+  LibError lib_error = 5;
+}
+
+// ============================ ВХОД ДАННЫХ (inline / ссылка) ============================
+
+message DataInput {
+  oneof input {
+    bytes bytes_value = 1;     // inline (base64 в JSON)
+    string file_path = 2;      // путь на сервере (большие файлы, N9)
+    string url = 3;            // объектное хранилище/стрим
+  }
+  Encoding encoding = 4;
+}
+
+// ============================ ПАКЕТНЫЙ РЕЖИМ (N8) ============================
+
+enum BatchPolicy {
+  BATCH_CONTINUE_ON_ERROR = 0;
+  BATCH_FAIL_FAST = 1;
+}
+
+message SignBatchRequest { repeated SignRequest items = 1; BatchPolicy policy = 2; }
+message SignBatchResponse {
+  int32 total = 1; int32 succeeded = 2; int32 failed = 3;
+  repeated SignResponse results = 4;   // в исходном порядке
+}
+message VerifyBatchRequest { repeated VerifyRequest items = 1; BatchPolicy policy = 2; }
+message VerifyBatchResponse {
+  int32 total = 1; int32 succeeded = 2; int32 failed = 3;
+  repeated VerifyResponse results = 4;
+}
+
+// ============================ АСИНХРОННЫЕ ЗАДАНИЯ (N9) ============================
+
+message JobRequest {
+  oneof op {
+    SignRequest sign = 1;
+    VerifyRequest verify = 2;
+    SignBatchRequest sign_batch = 3;
+    VerifyBatchRequest verify_batch = 4;
+  }
+  string callback_url = 10;    // опц. webhook
+  string correlation_id = 11;
+}
+message JobHandle { string job_id = 1; }
+message JobId { string job_id = 1; }
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  QUEUED = 1;
+  RUNNING = 2;
+  SUCCEEDED = 3;
+  FAILED = 4;
+  CANCELLED = 5;
+}
+message JobStatus {
+  string job_id = 1;
+  JobState state = 2;
+  int32 progress = 3;          // 0..100
+  string correlation_id = 4;
+  // результат (по завершении) — один из:
+  SignResponse sign_result = 10;
+  VerifyResponse verify_result = 11;
+  SignBatchResponse sign_batch_result = 12;
+  VerifyBatchResponse verify_batch_result = 13;
+  string error = 20;
+}
