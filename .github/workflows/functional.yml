@@ -44,15 +44,20 @@ jobs:
       # the login keychain on every pull — even anonymous ones of public base
       # images. In the headless runner session that keychain is locked, so the
       # pull dies (docker-credential-desktop: keychain cannot be accessed). Point
-      # the job at a throwaway DOCKER_CONFIG with no cred helper (public images
-      # then pull anonymously), copying the existing context metadata so the
-      # desktop-linux endpoint still resolves. The host's real config is untouched.
+      # the job at a throwaway DOCKER_CONFIG with no cred helper so public images
+      # pull anonymously. Carry over the bits `docker build` still needs: contexts
+      # (so the desktop-linux endpoint resolves), cli-plugins (so buildx is found —
+      # without it docker falls back to the legacy builder, which chokes on the
+      # containerd image store with "content digest not found"), and the buildx
+      # state. The host's real config is untouched.
       - name: Use credential-less Docker config (headless keychain is locked)
         run: |
           cfg="$RUNNER_TEMP/docker"
           rm -rf "$cfg"
-          mkdir -p "$cfg/contexts"
-          cp -R "$HOME/.docker/contexts/." "$cfg/contexts/" 2>/dev/null || true
+          mkdir -p "$cfg"
+          for d in contexts cli-plugins buildx; do
+            [ -e "$HOME/.docker/$d" ] && cp -R "$HOME/.docker/$d" "$cfg/$d"
+          done
           printf '{"currentContext":"desktop-linux"}\n' > "$cfg/config.json"
           echo "DOCKER_CONFIG=$cfg" >> "$GITHUB_ENV"
 

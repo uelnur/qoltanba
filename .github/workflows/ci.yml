@@ -48,6 +48,25 @@ jobs:
         with:
           version: v2.12.2
 
+  # The OpenAPI spec and Postman collection are generated from the Go types
+  # (tools/openapigen). Fail if a code change altered a request/response shape but
+  # the committed artifacts were not regenerated, then lint the spec.
+  openapi:
+    name: openapi generated & valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Regenerate and diff
+        run: make check-generated
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint OpenAPI
+        run: make openapi-lint
+
   # Cross-compile check for the Windows targets (x64/x86) documented in the
   # native-library reference. The cgo driver's loader has a LoadLibrary path
   # (shim.c), so both targets compile with mingw-w64.
