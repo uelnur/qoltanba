@@ -18,8 +18,8 @@ jobs:
     name: build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod # single source of truth for the Go version
       # Unit tests run without the native Kalkan library (Provider is faked);
@@ -37,14 +37,14 @@ jobs:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       # Version kept in sync with the Makefile's GOLANGCI_VERSION; config is
       # .golangci.yml. The action handles its own caching.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
 
@@ -63,8 +63,8 @@ jobs:
           - goarch: "386"
             cc: i686-w64-mingw32-gcc
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Install mingw-w64 (cgo cross toolchain)
