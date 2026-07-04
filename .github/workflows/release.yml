@@ -94,7 +94,16 @@ jobs:
           merge-multiple: true
       - name: Checksums
         run: ( cd dist && sha256sum * > SHA256SUMS.txt )
-      - name: Create release
+      # Idempotent: the release may already exist — created here on a prior run,
+      # or manually via the GitHub Releases UI (which makes the tag AND the
+      # release object, so this workflow's tag-push trigger then re-runs). Create
+      # it when missing, otherwise just (re)upload the assets with --clobber.
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
