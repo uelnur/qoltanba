@@ -10,7 +10,7 @@ GOLANGCI_VERSION := v2.12.2
 GOBIN           := $(shell go env GOPATH)/bin
 GOLANGCI        := $(GOBIN)/golangci-lint
 
-.PHONY: build test vet lint fmt tidy check tools
+.PHONY: build test vet lint fmt tidy check tools openapi openapi-lint check-generated
 
 ## build: compile all packages
 build:
@@ -38,6 +38,18 @@ tidy:
 
 ## check: full pre-commit gate
 check: build vet lint test
+
+## openapi: regenerate api/openapi.yaml and the Postman collection from the Go types
+openapi:
+	go run ./tools/openapigen
+
+## openapi-lint: validate the generated OpenAPI spec (needs Node/npx)
+openapi-lint:
+	npx --yes @redocly/cli@latest lint api/openapi.yaml
+
+## check-generated: fail if the committed OpenAPI/Postman artifacts are stale
+check-generated: openapi
+	git diff --exit-code api/openapi.yaml deploy/postman/qoltanba.postman_collection.json
 
 ## tools: install the pinned golangci-lint if absent or outdated
 tools:

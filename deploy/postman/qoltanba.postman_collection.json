@@ -1,61 +1,117 @@
 {
   "info": {
     "name": "qoltanba REST API",
-    "description": "Kalkan digital-signature service (RK). Binary fields are base64 strings; times are RFC 3339. Set the {{baseUrl}} variable (see the qoltanba environment). Response envelopes use Capitalized top-level keys; nested objects use lowerCamelCase.",
+    "description": "Generated from the Go types (tools/openapigen). Set {{baseUrl}} and the base64/secret variables. All keys are lowerCamelCase.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
   ],
   "item": [
     {
       "name": "Signature",
       "item": [
         {
-          "name": "Sign (CMS)",
+          "name": "Sign data (CMS / XML / WSSE)",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/sign", "host": ["{{baseUrl}}"], "path": ["sign"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"format\": \"cms\",\n  \"data\": \"{{dataBase64}}\",\n  \"key\": {\n    \"path\": { \"path\": \"/keys/signer.p12\", \"password\": \"{{keyPassword}}\" }\n  },\n  \"detached\": false,\n  \"withTimestamp\": false\n}"
+              "raw": "{\"format\":\"cms\",\"data\":\"{{dataBase64}}\",\"key\":{\"path\":{\"path\":\"/keys/signer.p12\",\"password\":\"{{keyPassword}}\"}},\"detached\":false,\"withTimestamp\":false}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sign"
+              ]
             }
           }
         },
         {
-          "name": "Co-sign (add signer)",
+          "name": "Co-sign — add a signer to an already-signed container",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/sign/add", "host": ["{{baseUrl}}"], "path": ["sign", "add"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"format\": \"cms\",\n  \"data\": \"{{dataBase64}}\",\n  \"key\": { \"path\": { \"path\": \"/keys/signer2.p12\", \"password\": \"{{keyPassword}}\" } },\n  \"existingSignature\": \"{{signatureBase64}}\"\n}"
+              "raw": "{\"format\":\"cms\",\"data\":\"{{dataBase64}}\",\"key\":{\"path\":{\"path\":\"/keys/signer2.p12\",\"password\":\"{{keyPassword}}\"}},\"existingSignature\":\"{{signatureBase64}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sign/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sign",
+                "add"
+              ]
             }
           }
         },
         {
-          "name": "Verify (CMS)",
+          "name": "Verify a signature and extract everything available",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/verify", "host": ["{{baseUrl}}"], "path": ["verify"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"format\": \"cms\",\n  \"signature\": \"{{signatureBase64}}\",\n  \"checkCertTime\": true,\n  \"extractContent\": true\n}"
+              "raw": "{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\",\"checkCertTime\":true,\"extractContent\":true,\"claims\":true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify"
+              ]
             }
           }
         },
         {
-          "name": "Extract content",
+          "name": "Recover the original content from an attached signature",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"format\": \"cms\",\n  \"signature\": \"{{signatureBase64}}\"\n}"
+              "raw": "{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/extract",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "extract"
+              ]
             }
           }
         }
@@ -65,26 +121,54 @@
       "name": "Certificate",
       "item": [
         {
-          "name": "Cert info",
+          "name": "Fully parse a certificate (optionally build/validate the chain, add claims)",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/cert/info", "host": ["{{baseUrl}}"], "path": ["cert", "info"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"cert\": \"{{certBase64}}\",\n  \"encoding\": \"der\",\n  \"buildChain\": true\n}"
+              "raw": "{\"cert\":\"{{certBase64}}\",\"encoding\":\"der\",\"buildChain\":true,\"claims\":true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cert/info",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cert",
+                "info"
+              ]
             }
           }
         },
         {
-          "name": "Cert validate (OCSP)",
+          "name": "Check a certificate's revocation status (OCSP / CRL)",
           "request": {
             "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": { "raw": "{{baseUrl}}/cert/validate", "host": ["{{baseUrl}}"], "path": ["cert", "validate"] },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"cert\": \"{{certBase64}}\",\n  \"encoding\": \"der\",\n  \"method\": \"ocsp\",\n  \"wantOcsp\": true\n}"
+              "raw": "{\"cert\":\"{{certBase64}}\",\"encoding\":\"der\",\"method\":\"ocsp\",\"wantOcsp\":true}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cert/validate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cert",
+                "validate"
+              ]
             }
           }
         }
@@ -94,20 +178,64 @@
       "name": "Observability",
       "item": [
         {
-          "name": "Health (liveness)",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] } }
+          "name": "Liveness — the process is up",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            }
+          }
         },
         {
-          "name": "Ready",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/readyz", "host": ["{{baseUrl}}"], "path": ["readyz"] } }
+          "name": "Readiness — library loaded and self-tested",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/readyz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "readyz"
+              ]
+            }
+          }
         },
         {
-          "name": "Status",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/statusz", "host": ["{{baseUrl}}"], "path": ["statusz"] } }
+          "name": "Non-sensitive service status (no secrets)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/statusz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "statusz"
+              ]
+            }
+          }
         },
         {
-          "name": "Metrics",
-          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] } }
+          "name": "Prometheus metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            }
+          }
         }
       ]
     }

@@ -106,6 +106,13 @@ served on the HTTP work port; the Service is annotated for Prometheus scraping.
 
 ## API spec & Postman (try-it-now)
 
+**Both are generated from the Go types** (`tools/openapigen`) — the component
+schemas are reflected from `internal/transport/dto` (requests) and `internal/core`
+(responses), so they never drift from the code. Do not hand-edit them; run
+`make openapi` and commit. CI (`make check-generated`) fails a PR whose code
+changed a request/response shape without regenerating, then lints the spec
+(`make openapi-lint`, Redocly).
+
 - **OpenAPI 3.1:** `api/openapi.yaml` — import into Swagger UI / Redoc, or generate
   clients. All request and response keys are lowerCamelCase.
 - **Postman:** import `deploy/postman/qoltanba.postman_collection.json` and the
