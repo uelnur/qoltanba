@@ -40,6 +40,22 @@ jobs:
           rm -rf native
           cp -R "$src" native
 
+      # Docker on the macOS host uses the "desktop" credsStore, which reaches into
+      # the login keychain on every pull — even anonymous ones of public base
+      # images. In the headless runner session that keychain is locked, so the
+      # pull dies (docker-credential-desktop: keychain cannot be accessed). Point
+      # the job at a throwaway DOCKER_CONFIG with no cred helper (public images
+      # then pull anonymously), copying the existing context metadata so the
+      # desktop-linux endpoint still resolves. The host's real config is untouched.
+      - name: Use credential-less Docker config (headless keychain is locked)
+        run: |
+          cfg="$RUNNER_TEMP/docker"
+          rm -rf "$cfg"
+          mkdir -p "$cfg/contexts"
+          cp -R "$HOME/.docker/contexts/." "$cfg/contexts/" 2>/dev/null || true
+          printf '{"currentContext":"desktop-linux"}\n' > "$cfg/config.json"
+          echo "DOCKER_CONFIG=$cfg" >> "$GITHUB_ENV"
+
       # run.sh builds the linux/amd64 image and runs the qoltanba_functional tests
       # against the mounted library (Docker required on the host).
       - name: Run functional tests
