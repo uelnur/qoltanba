@@ -61,7 +61,7 @@ jobs:
           go-version-file: go.mod
       - name: Regenerate and diff
         run: make check-generated
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
       - name: Lint OpenAPI
