@@ -1,0 +1,23 @@
+qoltanba is installed as {{ include "qoltanba.fullname" . }}.
+
+BYOL reminder: this chart mounts your Kalkan library at {{ .Values.byol.mountPath }}
+(QOLTANBA_LIB_PATH={{ .Values.byol.mountPath }}/{{ .Values.byol.libFile }}).
+{{- if not .Values.byol.volume }}
+
+  WARNING: byol.volume is unset — the chart mounted an emptyDir PLACEHOLDER with
+  no library, so readiness (/readyz) will never pass. Set byol.volume to a real
+  source (hostPath / persistentVolumeClaim) that holds libkalkancryptwr-64.so
+  and its runtime deps.
+{{- end }}
+
+Reach the service:
+{{- if .Values.transports.http }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "qoltanba.fullname" . }} {{ .Values.service.httpPort }}:{{ .Values.service.httpPort }}
+  curl localhost:{{ .Values.service.httpPort }}/readyz
+{{- if .Values.metrics.enabled }}
+  curl localhost:{{ .Values.service.httpPort }}/metrics
+{{- end }}
+{{- end }}
+{{- if .Values.transports.grpc }}
+  gRPC on port {{ .Values.service.grpcPort }} (contract: api/qoltanba/v1/service.proto)
+{{- end }}

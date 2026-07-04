@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qoltanba.fullname" . }}
+  labels:
+    {{- include "qoltanba.labels" . | nindent 4 }}
+  {{- if .Values.metrics.enabled }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /metrics
+    prometheus.io/port: {{ .Values.service.httpPort | quote }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "qoltanba.selectorLabels" . | nindent 4 }}
+  ports:
+    {{- if .Values.transports.http }}
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: http
+    {{- end }}
+    {{- if .Values.transports.grpc }}
+    - name: grpc
+      port: {{ .Values.service.grpcPort }}
+      targetPort: grpc
+    {{- end }}

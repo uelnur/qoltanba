@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qoltanba.fullname" . }}
+  labels:
+    {{- include "qoltanba.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "qoltanba.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "qoltanba.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll pods when config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: qoltanba
+          image: {{ include "qoltanba.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            {{- if .Values.transports.http }}
+            - "-http"
+            {{- end }}
+            {{- if .Values.transports.grpc }}
+            - "-grpc"
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "qoltanba.fullname" . }}
+            {{- if .Values.secretConfig }}
+            - secretRef:
+                name: {{ include "qoltanba.fullname" . }}
+            {{- end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            {{- if .Values.transports.http }}
+            - name: http
+              containerPort: {{ .Values.service.httpPort }}
+            {{- end }}
+            {{- if .Values.transports.grpc }}
+            - name: grpc
+              containerPort: {{ .Values.service.grpcPort }}
+            {{- end }}
+          {{- if .Values.transports.http }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: kalkan-lib
+              mountPath: {{ .Values.byol.mountPath }}
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: kalkan-lib
+          {{- if .Values.byol.volume }}
+          {{- toYaml .Values.byol.volume | nindent 10 }}
+          {{- else }}
+          emptyDir: {} # PLACEHOLDER — no library; set byol.volume to a real source
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

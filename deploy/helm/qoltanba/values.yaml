@@ -1,0 +1,83 @@
+# Default values for the qoltanba chart.
+
+replicaCount: 1
+
+image:
+  # The image carries the binary only — no Kalkan library (BYOL). Build/push it
+  # from deploy/Dockerfile.
+  repository: qoltanba
+  tag: "" # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Transports to enable (passed as flags). At least one must be on.
+transports:
+  http: true
+  grpc: false
+
+service:
+  type: ClusterIP
+  httpPort: 8080
+  grpcPort: 9091
+
+# Prometheus metrics. When enabled the service exposes /metrics; the port is the
+# same work port (metrics.addr defaults to the work port here).
+metrics:
+  enabled: true
+  # Set true if you run the Prometheus Operator and want a ServiceMonitor.
+  serviceMonitor: false
+
+# BYOL: the Kalkan native library. You MUST provide it — the chart mounts a
+# volume at mountPath and points QOLTANBA_LIB_PATH + LD_LIBRARY_PATH at it.
+# Pick ONE volume source below (hostPath is the simplest for a single node;
+# a PVC or a sidecar/init image is more portable).
+byol:
+  mountPath: /opt/kalkan
+  libFile: libkalkancryptwr-64.so # relative to mountPath
+  # The volume source that holds the library. Leave empty and the chart mounts an
+  # emptyDir PLACEHOLDER (no library → readiness fails) — you MUST set exactly one
+  # real source, e.g.:
+  #   --set byol.volume.hostPath.path=/opt/kalkan,byol.volume.hostPath.type=Directory
+  #   -f values with: volume: { persistentVolumeClaim: { claimName: kalkan-lib } }
+  volume: {}
+
+# Non-secret settings → ConfigMap → env (QOLTANBA_*). Add any registry key.
+config:
+  QOLTANBA_LOG_LEVEL: info
+  QOLTANBA_LOG_FORMAT: json
+  QOLTANBA_HTTP_ADDR: ":8080"
+  QOLTANBA_GRPC_ADDR: ":9091"
+  QOLTANBA_TRUST_USE_RK_REGISTRY: "true"
+
+# Secret settings → Secret → env. Use for QOLTANBA_*_PASSWORD / _PIN, etc.
+# Prefer wiring an existing Secret via extraEnvFrom for production.
+secretConfig: {}
+# extraEnvFrom lets you reference existing ConfigMaps/Secrets (e.g. sealed).
+extraEnvFrom: []
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

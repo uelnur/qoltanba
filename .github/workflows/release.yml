@@ -60,14 +60,14 @@ jobs:
             -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
             -o "qoltanba${{ matrix.ext }}" ./cmd/qoltanba
 
-      # Package the binary with the config examples the operator needs. BYOL
-      # native/ is not bundled — the consumer supplies it.
+      # Package the binary with the config examples and OpenAPI spec the operator
+      # needs. BYOL native/ is not bundled — the consumer supplies it.
       - name: Package
         run: |
           name="qoltanba_${GITHUB_REF_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
           mkdir -p "dist/$name"
           cp "qoltanba${{ matrix.ext }}" "dist/$name/"
-          cp .env.example deploy/config.example.yaml "dist/$name/"
+          cp .env.example deploy/config.example.yaml api/openapi.yaml "dist/$name/"
           ( cd dist
             if [ "${{ matrix.archive }}" = "zip" ]; then
               zip -r "$name.zip" "$name"
@@ -79,6 +79,27 @@ jobs:
         with:
           name: pkg-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+      # Native Linux packages (.deb/.rpm) with systemd auto-registration, for
+      # servers without Docker. nfpm needs only its YAML config — no native tooling.
+      - name: Build .deb/.rpm (nfpm)
+        if: matrix.goos == 'linux'
+        env:
+          ARCH: ${{ matrix.goarch }}
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.1
+          export VERSION="${GITHUB_REF_NAME#v}"
+          "$(go env GOPATH)/bin/nfpm" pkg --config deploy/nfpm.yaml --packager deb --target dist/
+          "$(go env GOPATH)/bin/nfpm" pkg --config deploy/nfpm.yaml --packager rpm --target dist/
+
+      - uses: actions/upload-artifact@v7
+        if: matrix.goos == 'linux'
+        with:
+          name: pkg-linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
           if-no-files-found: error
 
   release:

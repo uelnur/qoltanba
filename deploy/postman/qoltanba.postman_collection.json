@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "qoltanba REST API",
+    "description": "Kalkan digital-signature service (RK). Binary fields are base64 strings; times are RFC 3339. Set the {{baseUrl}} variable (see the qoltanba environment). Response envelopes use Capitalized top-level keys; nested objects use lowerCamelCase.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Signature",
+      "item": [
+        {
+          "name": "Sign (CMS)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/sign", "host": ["{{baseUrl}}"], "path": ["sign"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"cms\",\n  \"data\": \"{{dataBase64}}\",\n  \"key\": {\n    \"path\": { \"path\": \"/keys/signer.p12\", \"password\": \"{{keyPassword}}\" }\n  },\n  \"detached\": false,\n  \"withTimestamp\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Co-sign (add signer)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/sign/add", "host": ["{{baseUrl}}"], "path": ["sign", "add"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"cms\",\n  \"data\": \"{{dataBase64}}\",\n  \"key\": { \"path\": { \"path\": \"/keys/signer2.p12\", \"password\": \"{{keyPassword}}\" } },\n  \"existingSignature\": \"{{signatureBase64}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify (CMS)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/verify", "host": ["{{baseUrl}}"], "path": ["verify"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"cms\",\n  \"signature\": \"{{signatureBase64}}\",\n  \"checkCertTime\": true,\n  \"extractContent\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Extract content",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"cms\",\n  \"signature\": \"{{signatureBase64}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Certificate",
+      "item": [
+        {
+          "name": "Cert info",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/cert/info", "host": ["{{baseUrl}}"], "path": ["cert", "info"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cert\": \"{{certBase64}}\",\n  \"encoding\": \"der\",\n  \"buildChain\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Cert validate (OCSP)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/cert/validate", "host": ["{{baseUrl}}"], "path": ["cert", "validate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cert\": \"{{certBase64}}\",\n  \"encoding\": \"der\",\n  \"method\": \"ocsp\",\n  \"wantOcsp\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Observability",
+      "item": [
+        {
+          "name": "Health (liveness)",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] } }
+        },
+        {
+          "name": "Ready",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/readyz", "host": ["{{baseUrl}}"], "path": ["readyz"] } }
+        },
+        {
+          "name": "Status",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/statusz", "host": ["{{baseUrl}}"], "path": ["statusz"] } }
+        },
+        {
+          "name": "Metrics",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] } }
+        }
+      ]
+    }
+  ]
+}

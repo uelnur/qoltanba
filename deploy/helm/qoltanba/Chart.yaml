@@ -1,0 +1,14 @@
+apiVersion: v2
+name: qoltanba
+description: >-
+  Kalkan digital-signature service (RK / NUC eSign). Bring-Your-Own-Library:
+  the proprietary Kalkan native library is supplied by you (mounted at runtime),
+  never bundled in the chart or image.
+type: application
+# Chart version tracks packaging; appVersion is overridden by --set image.tag.
+version: 0.1.0
+appVersion: "dev"
+keywords: [kalkan, esign, signature, kazakhstan, pki]
+home: https://github.com/uelnur/qoltanba
+sources:
+  - https://github.com/uelnur/qoltanba

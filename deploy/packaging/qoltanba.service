@@ -1,0 +1,36 @@
+# systemd unit for qoltanba, installed by the .deb/.rpm package.
+# The binary is at /usr/bin/qoltanba (package-managed); config lives in
+# /etc/qoltanba. BYOL: point QOLTANBA_LIB_PATH at your Kalkan library.
+#
+# Enable after supplying the library and config:
+#   systemctl enable --now qoltanba
+
+[Unit]
+Description=qoltanba (Kalkan digital-signature service)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+
+EnvironmentFile=/etc/qoltanba/qoltanba.env
+Environment=QOLTANBA_CONFIG=/etc/qoltanba/config.yaml
+
+# Secrets via systemd credentials (see the *_FILE convention), e.g.:
+#   LoadCredential=keystore-password:/etc/qoltanba/keystore.pw
+#   Environment=QOLTANBA_KEYSTORE_PASSWORD_FILE=%d/keystore-password
+
+ExecStart=/usr/bin/qoltanba -http
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/opt/kalkan /etc/qoltanba
+
+[Install]
+WantedBy=multi-user.target

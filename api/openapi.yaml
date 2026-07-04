@@ -1,0 +1,441 @@
+openapi: 3.1.0
+info:
+  title: qoltanba REST API
+  version: v1
+  description: >-
+    REST/JSON transport for the qoltanba digital-signature service (RK / Kalkan).
+    One call handles one item. Binary fields are base64-encoded strings; times are
+    RFC 3339.
+
+    Casing note: request bodies use lowerCamelCase keys. Response envelopes
+    (SignOutput/VerifyOutput/…) use Go-exported (Capitalized) top-level keys, while
+    nested objects (Certificate, Signer, LibError, RevocationStatus, Warning) use
+    lowerCamelCase. The schemas below reflect the wire format exactly.
+  license:
+    name: Proprietary Kalkan library is BYOL; this service is separate.
+servers:
+  - url: http://localhost:8080
+    description: Default REST work port (-http :8080)
+tags:
+  - name: signature
+    description: Sign, verify, extract
+  - name: certificate
+    description: Certificate parsing and revocation
+  - name: observability
+    description: Health, status, metrics
+
+paths:
+  /sign:
+    post:
+      tags: [signature]
+      summary: Sign data (CMS / XML / WSSE)
+      operationId: sign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignRequest' }
+      responses:
+        '200':
+          description: Signature produced (check LibError for a crypto-core failure)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /sign/add:
+    post:
+      tags: [signature]
+      summary: Co-sign — add a signer to an already-signed container
+      operationId: signAdd
+      description: Same body as /sign; set existingSignature to the container to add to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignRequest' }
+      responses:
+        '200':
+          description: Signature produced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /verify:
+    post:
+      tags: [signature]
+      summary: Verify a signature and extract everything available
+      operationId: verify
+      description: >-
+        An invalid or absent signature is a business result (Valid=false + LibError),
+        returned as 200 — not an HTTP error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyRequest' }
+      responses:
+        '200':
+          description: Verification outcome
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /extract:
+    post:
+      tags: [signature]
+      summary: Recover the original content from an attached signature
+      operationId: extract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExtractRequest' }
+      responses:
+        '200':
+          description: Recovered content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExtractResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /cert/info:
+    post:
+      tags: [certificate]
+      summary: Fully parse a certificate (optionally build/validate the chain)
+      operationId: certInfo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CertInfoRequest' }
+      responses:
+        '200':
+          description: Parsed certificate plus optional chain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CertInfoResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /cert/validate:
+    post:
+      tags: [certificate]
+      summary: Check a certificate's revocation status (OCSP / CRL)
+      operationId: certValidate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ValidateRequest' }
+      responses:
+        '200':
+          description: Revocation-status outcome
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidateResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /healthz:
+    get:
+      tags: [observability]
+      summary: Liveness — the process is up
+      operationId: healthz
+      responses:
+        '200':
+          description: ok
+          content:
+            text/plain: { schema: { type: string, example: "ok" } }
+  /readyz:
+    get:
+      tags: [observability]
+      summary: Readiness — library loaded and self-tested
+      operationId: readyz
+      responses:
+        '200':
+          description: ready
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string, example: ready } } }
+        '503':
+          description: not ready
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string, example: "not ready" } } }
+  /statusz:
+    get:
+      tags: [observability]
+      summary: Non-sensitive service status (no secrets)
+      operationId: statusz
+      responses:
+        '200':
+          description: Status info
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /metrics:
+    get:
+      tags: [observability]
+      summary: Prometheus metrics
+      operationId: metrics
+      responses:
+        '200':
+          description: Prometheus text exposition
+          content:
+            text/plain: { schema: { type: string } }
+
+components:
+  responses:
+    Error:
+      description: Hard failure envelope (friendly message from the error catalog)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    Bytes:
+      type: string
+      format: byte
+      description: base64-encoded binary
+    Format:
+      type: string
+      enum: [cms, xml, wsse]
+      description: Container kind
+    KeySpec:
+      type: object
+      description: Exactly one source (inline | path | token | keyId). Empty for verify-only.
+      properties:
+        inline:
+          type: object
+          properties:
+            p12: { $ref: '#/components/schemas/Bytes' }
+            password: { type: string }
+            alias: { type: string }
+          required: [p12, password]
+        path:
+          type: object
+          properties:
+            path: { type: string }
+            password: { type: string }
+            alias: { type: string }
+          required: [path]
+        token:
+          type: object
+          properties:
+            storage: { type: string, example: kaztoken }
+            pin: { type: string }
+            alias: { type: string }
+          required: [storage, pin]
+        keyId: { type: string }
+    TrustedCert:
+      type: object
+      description: A CA certificate for chain building. Note Capitalized keys (no JSON tags on this type).
+      properties:
+        Cert: { $ref: '#/components/schemas/Bytes' }
+        Intermediate: { type: boolean }
+    Warning:
+      type: object
+      properties:
+        field: { type: string }
+        reason: { type: string }
+    LibError:
+      type: object
+      description: Crypto-core error, distinct from the business outcome.
+      properties:
+        code: { type: string, example: "0x08F0000B" }
+        text: { type: string }
+        key: { type: string, example: cert.expired }
+        message: { type: string }
+        action: { type: string }
+    Subject:
+      type: object
+      properties:
+        commonName: { type: string }
+        lastName: { type: string }
+        givenName: { type: string }
+        email: { type: string }
+        organization: { type: string }
+        orgUnit: { type: string }
+        country: { type: string }
+        locality: { type: string }
+        state: { type: string }
+        businessCategory: { type: string }
+        domainComponent: { type: string }
+        dn: { type: string }
+        iin: { type: string }
+        bin: { type: string }
+        gender: { type: string, enum: [MALE, FEMALE, NONE] }
+    Certificate:
+      type: object
+      properties:
+        subject: { $ref: '#/components/schemas/Subject' }
+        issuer: { $ref: '#/components/schemas/Subject' }
+        serialNumber: { type: string, description: HEX }
+        notBefore: { type: string, format: date-time }
+        notAfter: { type: string, format: date-time }
+        signatureAlgorithm: { type: string }
+        signatureAlgorithmOid: { type: string }
+        keyAlgorithm: { type: string, description: "rsa | gost2004 | gost2015-256/512" }
+        publicKey: { $ref: '#/components/schemas/Bytes' }
+        authorityKeyId: { type: string }
+        subjectKeyId: { type: string }
+        keyUsage: { type: array, items: { type: string } }
+        keyUsageKind: { type: string, enum: [SIGN, AUTH, UNKNOWN] }
+        extendedKeyUsage: { type: array, items: { type: string } }
+        policyOids: { type: array, items: { type: string } }
+        ownerType: { type: string, enum: [INDIVIDUAL, LEGAL_PERSON, INFOSYSTEM, UNKNOWN] }
+        roles: { type: array, items: { type: string } }
+        caIssuerUrls: { type: array, items: { type: string } }
+        ocspUrls: { type: array, items: { type: string } }
+        crlUrls: { type: array, items: { type: string } }
+        isCa: { type: boolean }
+        pem: { $ref: '#/components/schemas/Bytes' }
+    Timestamp:
+      type: object
+      properties:
+        serialNumber: { type: string }
+        genTime: { type: string, format: date-time }
+        policy: { type: string }
+        hashAlgorithm: { type: string }
+        hash: { $ref: '#/components/schemas/Bytes' }
+        tsa: { type: string }
+    Signer:
+      type: object
+      properties:
+        certificate: { $ref: '#/components/schemas/Certificate' }
+        chain: { type: array, items: { $ref: '#/components/schemas/Certificate' } }
+        valid: { type: boolean }
+        signingTime: { type: string, format: date-time }
+        signatureAlgorithm: { type: string }
+        timestamp: { $ref: '#/components/schemas/Timestamp' }
+        chainComplete: { type: boolean }
+        trustAnchorFound: { type: boolean }
+        chainSignaturesVerified: { type: boolean }
+        cadesLevel: { type: string, enum: [BES, T] }
+        verifyInfo: { type: string }
+    RevocationStatus:
+      type: object
+      properties:
+        revoked: { type: boolean }
+        method: { type: string, enum: [ocsp, crl] }
+        revocationTime: { type: string, format: date-time }
+        reason: { type: string }
+        checkedAt: { type: string, format: date-time }
+        thisUpdate: { type: string, format: date-time }
+        nextUpdate: { type: string, format: date-time }
+        producedAt: { type: string, format: date-time }
+        libError: { $ref: '#/components/schemas/LibError' }
+
+    SignRequest:
+      type: object
+      required: [format, data, key]
+      properties:
+        format: { $ref: '#/components/schemas/Format' }
+        data: { $ref: '#/components/schemas/Bytes' }
+        key: { $ref: '#/components/schemas/KeySpec' }
+        detached: { type: boolean }
+        withTimestamp: { type: boolean, description: "omit → service default (CAdES-T)" }
+        tsaUrl: { type: string }
+        noCheckCertTime: { type: boolean }
+        inputPem: { type: boolean }
+        outputPem: { type: boolean }
+        nodeId: { type: string }
+        parentNode: { type: string }
+        parentNamespace: { type: string }
+        existingSignature: { $ref: '#/components/schemas/Bytes' }
+    SignResponse:
+      type: object
+      properties:
+        Signature: { $ref: '#/components/schemas/Bytes' }
+        Format: { $ref: '#/components/schemas/Format' }
+        Timestamp: { $ref: '#/components/schemas/Timestamp' }
+        CAdESLevel: { type: string, enum: [BES, T] }
+        LibError: { $ref: '#/components/schemas/LibError' }
+    VerifyRequest:
+      type: object
+      required: [format, signature]
+      properties:
+        format: { $ref: '#/components/schemas/Format' }
+        signature: { $ref: '#/components/schemas/Bytes' }
+        data: { $ref: '#/components/schemas/Bytes' }
+        detached: { type: boolean }
+        inputPem: { type: boolean }
+        checkCertTime: { type: boolean }
+        extractContent: { type: boolean }
+        trustedCerts: { type: array, items: { $ref: '#/components/schemas/TrustedCert' } }
+    VerifyResponse:
+      type: object
+      properties:
+        Valid: { type: boolean }
+        Format: { $ref: '#/components/schemas/Format' }
+        Detached: { type: boolean }
+        Signers: { type: array, items: { $ref: '#/components/schemas/Signer' } }
+        Content: { $ref: '#/components/schemas/Bytes' }
+        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        LibError: { $ref: '#/components/schemas/LibError' }
+    ExtractRequest:
+      type: object
+      required: [format, signature]
+      properties:
+        format: { $ref: '#/components/schemas/Format' }
+        signature: { $ref: '#/components/schemas/Bytes' }
+        data: { $ref: '#/components/schemas/Bytes' }
+    ExtractResponse:
+      type: object
+      properties:
+        Content: { $ref: '#/components/schemas/Bytes' }
+        Detached: { type: boolean }
+        LibError: { $ref: '#/components/schemas/LibError' }
+    CertInfoRequest:
+      type: object
+      properties:
+        cert: { $ref: '#/components/schemas/Bytes' }
+        key: { $ref: '#/components/schemas/KeySpec' }
+        encoding: { type: string, enum: [pem, der, base64] }
+        buildChain: { type: boolean }
+        validate: { type: boolean }
+        method: { type: string, enum: [ocsp, crl] }
+        trustedCerts: { type: array, items: { $ref: '#/components/schemas/TrustedCert' } }
+    CertInfoResponse:
+      type: object
+      properties:
+        Certificate: { $ref: '#/components/schemas/Certificate' }
+        Chain: { type: array, items: { $ref: '#/components/schemas/Certificate' } }
+        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        LibError: { $ref: '#/components/schemas/LibError' }
+    ValidateRequest:
+      type: object
+      required: [cert]
+      properties:
+        cert: { $ref: '#/components/schemas/Bytes' }
+        encoding: { type: string, enum: [pem, der, base64] }
+        method: { type: string, enum: [ocsp, crl] }
+        wantOcsp: { type: boolean }
+        responderUrl: { type: string }
+        crl: { $ref: '#/components/schemas/Bytes' }
+        trustedCerts: { type: array, items: { $ref: '#/components/schemas/TrustedCert' } }
+    ValidateResponse:
+      type: object
+      properties:
+        Status: { $ref: '#/components/schemas/RevocationStatus' }
+        Info: { type: string }
+        OCSPResponse: { $ref: '#/components/schemas/Bytes' }
+        Warnings: { type: array, items: { $ref: '#/components/schemas/Warning' } }
+        LibError: { $ref: '#/components/schemas/LibError' }
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            kind: { type: string, enum: [invalid, unsupported, unavailable, canceled, internal] }
+            code: { type: string, description: "raw KCR_* code, when present" }
+            message: { type: string }
+            action: { type: string }
