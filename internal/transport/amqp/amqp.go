@@ -101,31 +101,31 @@ func (c *Consumer) Run(ctx context.Context) error {
 	}
 }
 
-// handle processes one delivery and publishes its reply, acking only after a
-// successful publish. Failure to publish nacks with requeue so the job is
-// redelivered per the queue's policy.
+// handle processes one delivery and publishes its reply(ies), acking only after
+// they are all published. A batch op publishes one message per item plus a
+// summary, all under the same correlation id. Failure to publish nacks with
+// requeue so the message is redelivered per the queue's policy — a batch may then
+// re-stream already-delivered items, which the client dedups by index.
 func (c *Consumer) handle(ctx context.Context, ch *amqp.Channel, d amqp.Delivery) {
-	reply, corrID := c.proc.Process(ctx, d.Body, d.CorrelationId)
-
 	replyTo := d.ReplyTo
 	if replyTo == "" {
 		replyTo = c.cfg.ReplyQueue
 	}
-	if replyTo == "" {
-		_ = d.Ack(false) // nowhere to reply — fire-and-forget
-		return
-	}
-
 	// ctx here is the drain-safe processing context (not canceled on shutdown);
-	// bound the publish so a wedged broker cannot block a worker forever.
-	pubCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	err := ch.PublishWithContext(pubCtx, "", replyTo, false, false, amqp.Publishing{
-		ContentType:   "application/json",
-		CorrelationId: corrID,
-		Body:          reply,
-	})
-	if err != nil {
+	// bound each publish so a wedged broker cannot block a worker forever.
+	publish := func(corrID string, reply []byte) error {
+		if replyTo == "" {
+			return nil // nowhere to reply — fire-and-forget
+		}
+		pubCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		return ch.PublishWithContext(pubCtx, "", replyTo, false, false, amqp.Publishing{
+			ContentType:   "application/json",
+			CorrelationId: corrID,
+			Body:          reply,
+		})
+	}
+	if err := c.proc.Process(ctx, d.Body, d.CorrelationId, publish); err != nil {
 		c.log.Error("amqp publish reply", "error", err, "replyTo", replyTo)
 		_ = d.Nack(false, true) // requeue for redelivery
 		return

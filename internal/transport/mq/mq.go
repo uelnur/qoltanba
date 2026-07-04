@@ -1,15 +1,21 @@
 // Package mq holds the broker-agnostic core shared by the message-queue
 // transports (RabbitMQ, Kafka, NATS): the request/reply JSON envelope and a
 // Processor that decodes an incoming message, dispatches it to the domain
-// service, and encodes the reply. The per-broker adapters (amqp, kafka, nats
-// sub-packages) are thin: they own connection and delivery I/O only and delegate
-// every message to Processor.Process — so the mapping is tested once, here.
+// service, and publishes one or more reply envelopes. The per-broker adapters
+// (amqp, kafka, nats sub-packages) are thin: they own connection and delivery
+// I/O only and delegate every message to Processor.Process — so the mapping is
+// tested once, here.
 //
 // Envelope, not transport metadata, is the contract. A message body is a Request
 // envelope carrying the operation and its op-specific payload (the same JSON as
 // REST/CLI). This keeps the wire shape identical across brokers regardless of
 // which of them can carry native headers, while still letting a consumer fall
 // back to a transport-native correlation id when the envelope omits one.
+//
+// A batch op streams one reply per item (plus a summary) over the same
+// correlation id — the MQ analog of REST NDJSON. Async jobs are first-class
+// envelope ops (job-submit/job-status/job-result/job-cancel) when a manager is
+// wired; they mirror the REST job endpoints.
 package mq
 
 import (
@@ -19,6 +25,7 @@ import (
 	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/transport/dispatch"
 )
@@ -34,7 +41,8 @@ type Request struct {
 }
 
 // Reply is the JSON envelope a consumer publishes back. Exactly one of Result or
-// Error is populated. Result mirrors the corresponding REST/gRPC response body.
+// Error is populated. For a batch op, Result carries one item per message and a
+// final summary message. Result mirrors the corresponding REST/gRPC response body.
 type Reply struct {
 	CorrelationID string          `json:"correlationId,omitempty"`
 	Op            string          `json:"op,omitempty"`
@@ -53,24 +61,41 @@ type ReplyError struct {
 	Action  string `json:"action,omitempty"`
 }
 
-// Processor turns one raw message into one raw reply over the domain service.
+// PublishFunc delivers one reply envelope keyed by correlation id. A batch op
+// calls it once per item plus once for the summary; every other op calls it once.
+// It returns an error only on a genuine publish/infrastructure failure, which the
+// adapter turns into a nack/requeue.
+type PublishFunc func(corrID string, reply []byte) error
+
+// Processor turns one raw message into one or more raw replies over the domain
+// service (and, when wired, the async-job manager).
 type Processor struct {
-	svc *core.Service
-	rec *metrics.Recorder // may be nil (metrics off)
+	svc  *core.Service
+	jobs *jobs.Manager     // nil disables the job-* envelope ops
+	rec  *metrics.Recorder // may be nil (metrics off)
 }
+
+// Option configures a Processor.
+type Option func(*Processor)
+
+// WithJobs enables the job-* envelope operations backed by the given manager.
+func WithJobs(m *jobs.Manager) Option { return func(p *Processor) { p.jobs = m } }
 
 // NewProcessor builds a Processor over the domain service. rec may be nil.
-func NewProcessor(svc *core.Service, rec *metrics.Recorder) *Processor {
-	return &Processor{svc: svc, rec: rec}
+func NewProcessor(svc *core.Service, rec *metrics.Recorder, opts ...Option) *Processor {
+	p := &Processor{svc: svc, rec: rec}
+	for _, o := range opts {
+		o(p)
+	}
+	return p
 }
 
-// Process decodes the request envelope in body, dispatches to the domain service
-// and returns the encoded reply envelope together with the effective correlation
-// id (the envelope's value, else metaCorrID). It never returns an error: a
-// malformed envelope, an unknown operation or a service fault is encoded into
-// the reply's Error field, so the caller can always publish a result and then
-// ack. Retry/DLQ policy is the consumer's — we impose none here.
-func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string) (reply []byte, corrID string) {
+// Process decodes the request envelope in body and publishes its reply(ies) via
+// publish. It returns an error only when publish itself fails (so the adapter can
+// nack/requeue); a malformed envelope, an unknown operation or a service fault is
+// published as an error reply and returns nil, so the caller can always ack.
+// Retry/DLQ policy is the consumer's — we impose none here.
+func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string, publish PublishFunc) error {
 	start := time.Now()
 	op, outcome := "unknown", "ok"
 	defer func() { p.rec.Observe("mq", op, outcome, time.Since(start)) }()
@@ -78,37 +103,55 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string)
 	var req Request
 	if err := json.Unmarshal(body, &req); err != nil {
 		outcome = "client_error"
-		return encodeReply(Reply{CorrelationID: metaCorrID, Error: &ReplyError{
+		return publish(metaCorrID, encodeReply(Reply{CorrelationID: metaCorrID, Error: &ReplyError{
 			Kind: core.KindName(core.KindInvalid), Message: "invalid request envelope",
-		}}), metaCorrID
+		}}))
 	}
 	if req.Op != "" {
 		op = req.Op
 	}
-	corrID = req.CorrelationID
+	corrID := req.CorrelationID
 	if corrID == "" {
 		corrID = metaCorrID
 	}
-	if !dispatch.Valid(req.Op) {
-		outcome = "client_error"
-		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
-			Kind: core.KindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
-		}}), corrID
+
+	if isJobOp(req.Op) {
+		return p.handleJob(ctx, req, corrID, &outcome, publish)
 	}
 
-	out, err := dispatch.Handle(ctx, p.svc, req.Op, req.Request)
+	if !dispatch.Valid(req.Op) {
+		outcome = "client_error"
+		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
+			Kind: core.KindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
+		}}))
+	}
+
+	// Stream each op output: one reply for a single op, one per item plus a
+	// summary for a "-batch" op. emit is called serially by the batch runner.
+	var pubErr error
+	emit := func(v any) {
+		if pubErr != nil {
+			return
+		}
+		result, merr := json.Marshal(v)
+		if merr != nil {
+			pubErr = publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
+				Kind: core.KindName(core.KindInternal), Message: "encode result",
+			}}))
+			return
+		}
+		pubErr = publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Result: result}))
+	}
+	err := dispatch.HandleStreaming(ctx, p.svc, req.Op, req.Request, emit)
+	if pubErr != nil {
+		outcome = "server_error"
+		return pubErr
+	}
 	if err != nil {
 		outcome = outcomeForKind(err)
-		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(err)}), corrID
+		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(err)}))
 	}
-	result, merr := json.Marshal(out)
-	if merr != nil {
-		outcome = "server_error"
-		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
-			Kind: core.KindName(core.KindInternal), Message: "encode result",
-		}}), corrID
-	}
-	return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Result: result}), corrID
+	return nil
 }
 
 // outcomeForKind maps a domain error to a metric outcome label, matching the

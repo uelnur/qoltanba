@@ -396,7 +396,11 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 	// the whole service. A shared processor fans out to every broker.
 	var mqWG sync.WaitGroup
 	if cfg.AnyMQEnabled() {
-		startMQ(ctx, &mqWG, cfg, mq.NewProcessor(svc, rec), log, stop)
+		var procOpts []mq.Option
+		if mgr != nil {
+			procOpts = append(procOpts, mq.WithJobs(mgr))
+		}
+		startMQ(ctx, &mqWG, cfg, mq.NewProcessor(svc, rec, procOpts...), log, stop)
 	}
 
 	<-ctx.Done()
