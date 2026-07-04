@@ -28,11 +28,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SignatureService_Sign_FullMethodName         = "/qoltanba.v1.SignatureService/Sign"
-	SignatureService_Verify_FullMethodName       = "/qoltanba.v1.SignatureService/Verify"
-	SignatureService_Extract_FullMethodName      = "/qoltanba.v1.SignatureService/Extract"
-	SignatureService_CertInfo_FullMethodName     = "/qoltanba.v1.SignatureService/CertInfo"
-	SignatureService_CertValidate_FullMethodName = "/qoltanba.v1.SignatureService/CertValidate"
+	SignatureService_Sign_FullMethodName              = "/qoltanba.v1.SignatureService/Sign"
+	SignatureService_Verify_FullMethodName            = "/qoltanba.v1.SignatureService/Verify"
+	SignatureService_Extract_FullMethodName           = "/qoltanba.v1.SignatureService/Extract"
+	SignatureService_CertInfo_FullMethodName          = "/qoltanba.v1.SignatureService/CertInfo"
+	SignatureService_CertValidate_FullMethodName      = "/qoltanba.v1.SignatureService/CertValidate"
+	SignatureService_SignBatch_FullMethodName         = "/qoltanba.v1.SignatureService/SignBatch"
+	SignatureService_VerifyBatch_FullMethodName       = "/qoltanba.v1.SignatureService/VerifyBatch"
+	SignatureService_ExtractBatch_FullMethodName      = "/qoltanba.v1.SignatureService/ExtractBatch"
+	SignatureService_CertInfoBatch_FullMethodName     = "/qoltanba.v1.SignatureService/CertInfoBatch"
+	SignatureService_CertValidateBatch_FullMethodName = "/qoltanba.v1.SignatureService/CertValidateBatch"
+	SignatureService_SubmitJob_FullMethodName         = "/qoltanba.v1.SignatureService/SubmitJob"
+	SignatureService_GetJob_FullMethodName            = "/qoltanba.v1.SignatureService/GetJob"
+	SignatureService_GetJobResult_FullMethodName      = "/qoltanba.v1.SignatureService/GetJobResult"
+	SignatureService_CancelJob_FullMethodName         = "/qoltanba.v1.SignatureService/CancelJob"
 )
 
 // SignatureServiceClient is the client API for SignatureService service.
@@ -44,6 +53,20 @@ type SignatureServiceClient interface {
 	Extract(ctx context.Context, in *ExtractRequest, opts ...grpc.CallOption) (*ExtractResponse, error)
 	CertInfo(ctx context.Context, in *CertInfoRequest, opts ...grpc.CallOption) (*CertInfoResponse, error)
 	CertValidate(ctx context.Context, in *CertValidateRequest, opts ...grpc.CallOption) (*CertValidateResponse, error)
+	// Batch operations stream one event per item as it completes (a BatchItem),
+	// then a final BatchSummary — so a large batch never buffers server-side. Items
+	// carry their request index for reordering.
+	SignBatch(ctx context.Context, in *SignBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SignBatchEvent], error)
+	VerifyBatch(ctx context.Context, in *VerifyBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VerifyBatchEvent], error)
+	ExtractBatch(ctx context.Context, in *ExtractBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExtractBatchEvent], error)
+	CertInfoBatch(ctx context.Context, in *CertInfoBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CertInfoBatchEvent], error)
+	CertValidateBatch(ctx context.Context, in *CertValidateBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CertValidateBatchEvent], error)
+	// Async jobs run an operation off the request path. SubmitJob returns a jobId
+	// and QUEUED; poll GetJob for status and GetJobResult for the output.
+	SubmitJob(ctx context.Context, in *SubmitJobRequest, opts ...grpc.CallOption) (*JobStatus, error)
+	GetJob(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobStatus, error)
+	GetJobResult(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobResult, error)
+	CancelJob(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobStatus, error)
 }
 
 type signatureServiceClient struct {
@@ -104,6 +127,141 @@ func (c *signatureServiceClient) CertValidate(ctx context.Context, in *CertValid
 	return out, nil
 }
 
+func (c *signatureServiceClient) SignBatch(ctx context.Context, in *SignBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SignBatchEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignatureService_ServiceDesc.Streams[0], SignatureService_SignBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SignBatchRequest, SignBatchEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_SignBatchClient = grpc.ServerStreamingClient[SignBatchEvent]
+
+func (c *signatureServiceClient) VerifyBatch(ctx context.Context, in *VerifyBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VerifyBatchEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignatureService_ServiceDesc.Streams[1], SignatureService_VerifyBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[VerifyBatchRequest, VerifyBatchEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_VerifyBatchClient = grpc.ServerStreamingClient[VerifyBatchEvent]
+
+func (c *signatureServiceClient) ExtractBatch(ctx context.Context, in *ExtractBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExtractBatchEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignatureService_ServiceDesc.Streams[2], SignatureService_ExtractBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExtractBatchRequest, ExtractBatchEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_ExtractBatchClient = grpc.ServerStreamingClient[ExtractBatchEvent]
+
+func (c *signatureServiceClient) CertInfoBatch(ctx context.Context, in *CertInfoBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CertInfoBatchEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignatureService_ServiceDesc.Streams[3], SignatureService_CertInfoBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[CertInfoBatchRequest, CertInfoBatchEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_CertInfoBatchClient = grpc.ServerStreamingClient[CertInfoBatchEvent]
+
+func (c *signatureServiceClient) CertValidateBatch(ctx context.Context, in *CertValidateBatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[CertValidateBatchEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SignatureService_ServiceDesc.Streams[4], SignatureService_CertValidateBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[CertValidateBatchRequest, CertValidateBatchEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_CertValidateBatchClient = grpc.ServerStreamingClient[CertValidateBatchEvent]
+
+func (c *signatureServiceClient) SubmitJob(ctx context.Context, in *SubmitJobRequest, opts ...grpc.CallOption) (*JobStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JobStatus)
+	err := c.cc.Invoke(ctx, SignatureService_SubmitJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *signatureServiceClient) GetJob(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JobStatus)
+	err := c.cc.Invoke(ctx, SignatureService_GetJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *signatureServiceClient) GetJobResult(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JobResult)
+	err := c.cc.Invoke(ctx, SignatureService_GetJobResult_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *signatureServiceClient) CancelJob(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JobStatus)
+	err := c.cc.Invoke(ctx, SignatureService_CancelJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SignatureServiceServer is the server API for SignatureService service.
 // All implementations must embed UnimplementedSignatureServiceServer
 // for forward compatibility.
@@ -113,6 +271,20 @@ type SignatureServiceServer interface {
 	Extract(context.Context, *ExtractRequest) (*ExtractResponse, error)
 	CertInfo(context.Context, *CertInfoRequest) (*CertInfoResponse, error)
 	CertValidate(context.Context, *CertValidateRequest) (*CertValidateResponse, error)
+	// Batch operations stream one event per item as it completes (a BatchItem),
+	// then a final BatchSummary — so a large batch never buffers server-side. Items
+	// carry their request index for reordering.
+	SignBatch(*SignBatchRequest, grpc.ServerStreamingServer[SignBatchEvent]) error
+	VerifyBatch(*VerifyBatchRequest, grpc.ServerStreamingServer[VerifyBatchEvent]) error
+	ExtractBatch(*ExtractBatchRequest, grpc.ServerStreamingServer[ExtractBatchEvent]) error
+	CertInfoBatch(*CertInfoBatchRequest, grpc.ServerStreamingServer[CertInfoBatchEvent]) error
+	CertValidateBatch(*CertValidateBatchRequest, grpc.ServerStreamingServer[CertValidateBatchEvent]) error
+	// Async jobs run an operation off the request path. SubmitJob returns a jobId
+	// and QUEUED; poll GetJob for status and GetJobResult for the output.
+	SubmitJob(context.Context, *SubmitJobRequest) (*JobStatus, error)
+	GetJob(context.Context, *JobId) (*JobStatus, error)
+	GetJobResult(context.Context, *JobId) (*JobResult, error)
+	CancelJob(context.Context, *JobId) (*JobStatus, error)
 	mustEmbedUnimplementedSignatureServiceServer()
 }
 
@@ -137,6 +309,33 @@ func (UnimplementedSignatureServiceServer) CertInfo(context.Context, *CertInfoRe
 }
 func (UnimplementedSignatureServiceServer) CertValidate(context.Context, *CertValidateRequest) (*CertValidateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CertValidate not implemented")
+}
+func (UnimplementedSignatureServiceServer) SignBatch(*SignBatchRequest, grpc.ServerStreamingServer[SignBatchEvent]) error {
+	return status.Error(codes.Unimplemented, "method SignBatch not implemented")
+}
+func (UnimplementedSignatureServiceServer) VerifyBatch(*VerifyBatchRequest, grpc.ServerStreamingServer[VerifyBatchEvent]) error {
+	return status.Error(codes.Unimplemented, "method VerifyBatch not implemented")
+}
+func (UnimplementedSignatureServiceServer) ExtractBatch(*ExtractBatchRequest, grpc.ServerStreamingServer[ExtractBatchEvent]) error {
+	return status.Error(codes.Unimplemented, "method ExtractBatch not implemented")
+}
+func (UnimplementedSignatureServiceServer) CertInfoBatch(*CertInfoBatchRequest, grpc.ServerStreamingServer[CertInfoBatchEvent]) error {
+	return status.Error(codes.Unimplemented, "method CertInfoBatch not implemented")
+}
+func (UnimplementedSignatureServiceServer) CertValidateBatch(*CertValidateBatchRequest, grpc.ServerStreamingServer[CertValidateBatchEvent]) error {
+	return status.Error(codes.Unimplemented, "method CertValidateBatch not implemented")
+}
+func (UnimplementedSignatureServiceServer) SubmitJob(context.Context, *SubmitJobRequest) (*JobStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitJob not implemented")
+}
+func (UnimplementedSignatureServiceServer) GetJob(context.Context, *JobId) (*JobStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetJob not implemented")
+}
+func (UnimplementedSignatureServiceServer) GetJobResult(context.Context, *JobId) (*JobResult, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetJobResult not implemented")
+}
+func (UnimplementedSignatureServiceServer) CancelJob(context.Context, *JobId) (*JobStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelJob not implemented")
 }
 func (UnimplementedSignatureServiceServer) mustEmbedUnimplementedSignatureServiceServer() {}
 func (UnimplementedSignatureServiceServer) testEmbeddedByValue()                          {}
@@ -249,6 +448,133 @@ func _SignatureService_CertValidate_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SignatureService_SignBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SignBatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SignatureServiceServer).SignBatch(m, &grpc.GenericServerStream[SignBatchRequest, SignBatchEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_SignBatchServer = grpc.ServerStreamingServer[SignBatchEvent]
+
+func _SignatureService_VerifyBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(VerifyBatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SignatureServiceServer).VerifyBatch(m, &grpc.GenericServerStream[VerifyBatchRequest, VerifyBatchEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_VerifyBatchServer = grpc.ServerStreamingServer[VerifyBatchEvent]
+
+func _SignatureService_ExtractBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExtractBatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SignatureServiceServer).ExtractBatch(m, &grpc.GenericServerStream[ExtractBatchRequest, ExtractBatchEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_ExtractBatchServer = grpc.ServerStreamingServer[ExtractBatchEvent]
+
+func _SignatureService_CertInfoBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CertInfoBatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SignatureServiceServer).CertInfoBatch(m, &grpc.GenericServerStream[CertInfoBatchRequest, CertInfoBatchEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_CertInfoBatchServer = grpc.ServerStreamingServer[CertInfoBatchEvent]
+
+func _SignatureService_CertValidateBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CertValidateBatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SignatureServiceServer).CertValidateBatch(m, &grpc.GenericServerStream[CertValidateBatchRequest, CertValidateBatchEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SignatureService_CertValidateBatchServer = grpc.ServerStreamingServer[CertValidateBatchEvent]
+
+func _SignatureService_SubmitJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).SubmitJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_SubmitJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).SubmitJob(ctx, req.(*SubmitJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SignatureService_GetJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JobId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).GetJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_GetJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).GetJob(ctx, req.(*JobId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SignatureService_GetJobResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JobId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).GetJobResult(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_GetJobResult_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).GetJobResult(ctx, req.(*JobId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SignatureService_CancelJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JobId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).CancelJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_CancelJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).CancelJob(ctx, req.(*JobId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SignatureService_ServiceDesc is the grpc.ServiceDesc for SignatureService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -276,7 +602,49 @@ var SignatureService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "CertValidate",
 			Handler:    _SignatureService_CertValidate_Handler,
 		},
+		{
+			MethodName: "SubmitJob",
+			Handler:    _SignatureService_SubmitJob_Handler,
+		},
+		{
+			MethodName: "GetJob",
+			Handler:    _SignatureService_GetJob_Handler,
+		},
+		{
+			MethodName: "GetJobResult",
+			Handler:    _SignatureService_GetJobResult_Handler,
+		},
+		{
+			MethodName: "CancelJob",
+			Handler:    _SignatureService_CancelJob_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SignBatch",
+			Handler:       _SignatureService_SignBatch_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "VerifyBatch",
+			Handler:       _SignatureService_VerifyBatch_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ExtractBatch",
+			Handler:       _SignatureService_ExtractBatch_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "CertInfoBatch",
+			Handler:       _SignatureService_CertInfoBatch_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "CertValidateBatch",
+			Handler:       _SignatureService_CertValidateBatch_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/qoltanba/v1/service.proto",
 }

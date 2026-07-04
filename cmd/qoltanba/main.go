@@ -302,10 +302,10 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 	defer stop()
 
 	// The async-job manager shares the serve context: its pool drains when ctx is
-	// canceled. It is served over REST, so warn if enabled without the HTTP port.
+	// canceled. It is served over REST and gRPC, so warn only if neither is on.
 	if mgr != nil {
-		if !cfg.HTTP.Enabled {
-			log.Warn("jobs enabled but the REST transport is off: /jobs endpoints will not be reachable")
+		if !cfg.HTTP.Enabled && !cfg.GRPC.Enabled {
+			log.Warn("jobs enabled but neither REST nor gRPC is on: job endpoints will not be reachable")
 		}
 		if err := mgr.Start(ctx); err != nil {
 			log.Error("job manager start failed", "error", err)
@@ -376,8 +376,12 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 			log.Error("listen grpc", "addr", cfg.GRPC.Addr, "error", err)
 			return 1
 		}
+		var grpcOpts []grpctransport.Option
+		if mgr != nil {
+			grpcOpts = append(grpcOpts, grpctransport.WithJobs(mgr))
+		}
 		gs := grpclib.NewServer(grpclib.UnaryInterceptor(rec.UnaryInterceptor()))
-		grpctransport.New(svc).Register(gs)
+		grpctransport.New(svc, grpcOpts...).Register(gs)
 		shutdowns = append(shutdowns, func(context.Context) { gs.GracefulStop() })
 		go func() {
 			log.Info("serving gRPC", "addr", cfg.GRPC.Addr)

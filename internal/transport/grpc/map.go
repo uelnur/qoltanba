@@ -5,6 +5,7 @@ import (
 
 	pb "github.com/uelnur/qoltanba/api/qoltanba/v1"
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/jobs"
 )
 
 // ── request: proto → core ──
@@ -69,7 +70,121 @@ func pbTrusted(in []*pb.TrustedCert) []core.TrustedCert {
 	return out
 }
 
+func signInputPB(req *pb.SignRequest) core.SignInput {
+	return core.SignInput{
+		Format: pbFormat(req.GetFormat()), Data: req.GetData(), Key: pbKeySpec(req.GetKey()),
+		Detached: req.GetDetached(), WithTimestamp: req.WithTimestamp, TSAURL: req.GetTsaUrl(),
+		NoCheckCertTime: req.GetNoCheckCertTime(), InputPEM: req.GetInputPem(), OutputPEM: req.GetOutputPem(),
+		NodeID: req.GetNodeId(), ParentNode: req.GetParentNode(), ParentNS: req.GetParentNamespace(),
+		ExistingSignature: req.GetExistingSignature(),
+	}
+}
+
+func verifyInputPB(req *pb.VerifyRequest) core.VerifyInput {
+	return core.VerifyInput{
+		Format: pbFormat(req.GetFormat()), Signature: req.GetSignature(), Data: req.GetData(),
+		Detached: req.GetDetached(), InputPEM: req.GetInputPem(), CheckCertTime: req.GetCheckCertTime(),
+		ExtractContent: req.GetExtractContent(), ExtractClaims: req.GetClaims(),
+		TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+	}
+}
+
+func extractInputPB(req *pb.ExtractRequest) core.ExtractInput {
+	return core.ExtractInput{Format: pbFormat(req.GetFormat()), Signature: req.GetSignature(), Data: req.GetData()}
+}
+
+func certInfoInputPB(req *pb.CertInfoRequest) core.CertInfoInput {
+	return core.CertInfoInput{
+		Cert: req.GetCert(), Key: pbKeySpec(req.GetKey()), Format: pbEncoding(req.GetEncoding()),
+		BuildChain: req.GetBuildChain(), Validate: req.GetValidate(), ExtractClaims: req.GetClaims(),
+		Method: pbMethod(req.GetMethod()), TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+	}
+}
+
+func validateInputPB(req *pb.CertValidateRequest) core.ValidateInput {
+	return core.ValidateInput{
+		Cert: req.GetCert(), Format: pbEncoding(req.GetEncoding()), Method: pbMethod(req.GetMethod()),
+		WantOCSP: req.GetWantOcsp(), ResponderURL: req.GetResponderUrl(), CRL: req.GetCrl(),
+		TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+	}
+}
+
 // ── response: core → proto ──
+
+// The response builders take a pointer so the batch handlers can pass a possibly
+// nil per-item output (a failed item has none); the single-call handlers pass the
+// address of their value result.
+
+func signResponsePB(o *core.SignOutput) *pb.SignResponse {
+	if o == nil {
+		return nil
+	}
+	return &pb.SignResponse{
+		Signature: o.Signature, Format: coreFormatPB(o.Format),
+		Timestamp: timestampPB(o.Timestamp), CadesLevel: o.CAdESLevel, LibError: libErrorPB(o.LibError),
+	}
+}
+
+func verifyResponsePB(o *core.VerifyOutput) *pb.VerifyResponse {
+	if o == nil {
+		return nil
+	}
+	return &pb.VerifyResponse{
+		Valid: o.Valid, Format: coreFormatPB(o.Format), Detached: o.Detached,
+		Signers: signersPB(o.Signers), Content: o.Content,
+		Warnings: warningsPB(o.Warnings), LibError: libErrorPB(o.LibError),
+	}
+}
+
+func extractResponsePB(o *core.ExtractOutput) *pb.ExtractResponse {
+	if o == nil {
+		return nil
+	}
+	return &pb.ExtractResponse{Content: o.Content, Detached: o.Detached, LibError: libErrorPB(o.LibError)}
+}
+
+func certInfoResponsePB(o *core.CertInfoOutput) *pb.CertInfoResponse {
+	if o == nil {
+		return nil
+	}
+	return &pb.CertInfoResponse{
+		Certificate: certPB(o.Certificate), Chain: certsPB(o.Chain),
+		Warnings: warningsPB(o.Warnings), LibError: libErrorPB(o.LibError), Claims: claimsPB(o.Claims),
+	}
+}
+
+func certValidateResponsePB(o *core.ValidateOutput) *pb.CertValidateResponse {
+	if o == nil {
+		return nil
+	}
+	return &pb.CertValidateResponse{
+		Status: revocationPB(o.Status), Info: o.Info, OcspResponse: o.OCSPResponse,
+		Warnings: warningsPB(o.Warnings), LibError: libErrorPB(o.LibError),
+	}
+}
+
+// batchOptsPB maps the wire batch controls to the domain options.
+func batchOptsPB(policy string, concurrency int32) core.BatchOptions {
+	return core.BatchOptions{Policy: core.BatchPolicy(policy), Concurrency: int(concurrency)}
+}
+
+// batchItemErrorPB maps a per-item error (nil when the item succeeded).
+func batchItemErrorPB(e *core.BatchItemError) *pb.BatchItemError {
+	if e == nil {
+		return nil
+	}
+	return &pb.BatchItemError{Kind: e.Kind, Code: e.Code, Message: e.Message, Action: e.Action}
+}
+
+// jobStatusPB maps the client-safe job view.
+func jobStatusPB(v jobs.View) *pb.JobStatus {
+	return &pb.JobStatus{
+		Id: v.ID, Op: v.Op, Status: string(v.Status),
+		SubmittedAt: rfc3339(&v.SubmittedAt), StartedAt: rfc3339(v.StartedAt),
+		FinishedAt: rfc3339(v.FinishedAt), ExpiresAt: rfc3339(v.ExpiresAt),
+		Error: batchItemErrorPB(v.Error),
+	}
+}
 
 func coreFormatPB(f core.SignatureFormat) pb.SignatureFormat {
 	switch f {
