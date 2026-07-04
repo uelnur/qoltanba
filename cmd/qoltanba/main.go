@@ -34,6 +34,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/compat"
 	"github.com/uelnur/qoltanba/internal/config"
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/crl"
 	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/native"
 	"github.com/uelnur/qoltanba/internal/pki"
@@ -156,7 +157,7 @@ func runCLI(op string, args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	svc, closer, _, err := buildService(l.Config, discardLogger())
+	svc, closer, _, _, err := buildService(l.Config, discardLogger())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -200,7 +201,7 @@ func runServe(args []string) int {
 		return 2
 	}
 
-	svc, closer, report, err := buildService(cfg, log)
+	svc, closer, refresher, report, err := buildService(cfg, log)
 	if err != nil {
 		log.Error("startup failed", "error", err)
 		return 1
@@ -215,18 +216,26 @@ func runServe(args []string) int {
 			Service: "qoltanba", Version: version, LibVersion: caps.Version,
 			VerifyOnly: cfg.VerifyOnly, PoolSize: caps.PoolSize, Capabilities: caps,
 			SelfTest: report.SelfTest.OK, Compat: report.VerdictString(),
+			TrustRefresh: refresher.Status(),
 		}
 	}
 	ready := func() bool { return true } // library loaded, self-tested and gated before serving
 
-	return serve(cfg, svc, ready, status, log)
+	return serve(cfg, svc, refresher, ready, status, log)
 }
 
 // serve starts every enabled transport (REST, gRPC, optional separate metrics
 // port) and drains them gracefully on a shutdown signal.
-func serve(cfg config.Config, svc *core.Service, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
+func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Background trust-anchor refresh drains with ctx. A resolved interval of 0
+	// (default without the RK registry, or an explicit 0/off) makes Run a no-op.
+	if interval := cfg.TrustRefreshInterval(); interval > 0 {
+		log.Info("trust auto-refresh enabled", "interval", interval.String())
+		go refresher.Run(ctx, interval)
+	}
 
 	var shutdowns []func(context.Context)
 
@@ -376,10 +385,10 @@ func openLibrary(cfg config.Config) (*native.Pool, compat.Report, error) {
 // assembles the domain service with its infrastructure (key source, trust
 // store). It refuses to build the service when the library is incompatible under
 // the configured policy (a self-test failure always refuses).
-func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), compat.Report, error) {
+func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), *trust.Refresher, compat.Report, error) {
 	pool, report, err := openLibrary(cfg)
 	if err != nil {
-		return nil, nil, compat.Report{}, err
+		return nil, nil, nil, compat.Report{}, err
 	}
 	policy, _ := compat.ParsePolicy(cfg.Lib.Compat) // validated by config.Validate
 	if log != nil {
@@ -387,22 +396,28 @@ func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), c
 	}
 	if report.MustRefuse(policy) {
 		_ = pool.Close()
-		return nil, nil, report, fmt.Errorf("library incompatible (policy=%s), refusing to start:\n%s",
+		return nil, nil, nil, report, fmt.Errorf("library incompatible (policy=%s), refusing to start:\n%s",
 			policy, report.Text())
 	}
 
 	store, err := trust.LoadDir(cfg.Trust.CADir)
 	if err != nil {
 		_ = pool.Close()
-		return nil, nil, report, fmt.Errorf("load trust store: %w", err)
+		return nil, nil, nil, report, fmt.Errorf("load trust store: %w", err)
 	}
+	fetch := trust.HTTPFetcher(time.Duration(cfg.Trust.AIATimeout) * time.Second)
+	var refs []pki.CACertRef
 	if cfg.Trust.UseRKRegistry {
-		refs := pki.CACertificatesFor(cfg.Trust.RKIncludeTest)
-		errs := store.LoadRegistry(context.Background(), refs, trust.HTTPFetcher(time.Duration(cfg.Trust.AIATimeout)*time.Second))
+		refs = pki.CACertificatesFor(cfg.Trust.RKIncludeTest)
+		errs := store.LoadRegistry(context.Background(), refs, fetch)
 		if len(errs) > 0 && log != nil {
 			log.Warn("RK registry: some CA certificates could not be loaded", "failed", len(errs), "total", len(refs))
 		}
 	}
+	// The refresher rebuilds anchors in the background (started by serve when the
+	// resolved interval is > 0). refs is empty when the registry is off, so it then
+	// only re-scans the CA directory.
+	refresher := trust.NewRefresher(store, cfg.Trust.CADir, refs, fetch, log)
 
 	opts := []core.Option{
 		core.WithTrustStore(store),
@@ -415,6 +430,9 @@ func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), c
 	if cfg.Trust.FetchAIA {
 		opts = append(opts, core.WithIssuerFetcher(aia.New(time.Duration(cfg.Trust.AIATimeout)*time.Second)))
 	}
+	if cfg.Trust.CRLCache {
+		opts = append(opts, core.WithCRLSource(crl.New(time.Duration(cfg.Trust.AIATimeout)*time.Second)))
+	}
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))
 	}
@@ -424,7 +442,7 @@ func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), c
 			log.Warn("driver close", "error", err)
 		}
 	}
-	return svc, closer, report, nil
+	return svc, closer, refresher, report, nil
 }
 
 // logReport emits the compatibility assessment at a level matched to the

@@ -116,6 +116,70 @@ func TestVerify_SoftFailureIsNotError(t *testing.T) {
 	if out.LibError == nil || out.LibError.Code != "0x08F0001C" {
 		t.Errorf("LibError = %+v, want code 0x08F0001C", out.LibError)
 	}
+	// The friendly catalog rendering must accompany the raw code/text.
+	if out.LibError.Key != "signature.invalid" || out.LibError.Message == "" || out.LibError.Action == "" {
+		t.Errorf("LibError friendly fields = %+v, want signature.invalid with message/action", out.LibError)
+	}
+	if out.LibError.Text != "bad sig" {
+		t.Errorf("LibError.Text = %q, want raw library detail 'bad sig'", out.LibError.Text)
+	}
+}
+
+type fakeCRLSource struct {
+	der    []byte
+	called bool
+}
+
+func (f *fakeCRLSource) CRLFor(_ context.Context, _ []byte) ([]byte, bool) {
+	f.called = true
+	return f.der, f.der != nil
+}
+
+func TestValidate_UsesCRLCacheWhenNoInlineCRL(t *testing.T) {
+	f := &fakeProvider{validateResult: provider.ValidateResult{RawCode: 0}}
+	fc := &fakeCRLSource{der: []byte("dummy-crl-bytes")}
+	s := newTestService(f, WithCRLSource(fc))
+
+	_, err := s.Validate(context.Background(), ValidateInput{
+		Cert: []byte("cert"), Format: EncodingDER, Method: MethodCRL,
+	})
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if !fc.called {
+		t.Error("CRL source was not consulted for a Method=CRL request without inline CRL")
+	}
+	if f.lastValidate == nil || f.lastValidate.Path == "" {
+		t.Errorf("provider Path is empty, want a temp CRL file path from the fetched CRL")
+	}
+}
+
+func TestValidate_InlineCRLBypassesCache(t *testing.T) {
+	f := &fakeProvider{validateResult: provider.ValidateResult{RawCode: 0}}
+	fc := &fakeCRLSource{der: []byte("cache-crl")}
+	s := newTestService(f, WithCRLSource(fc))
+
+	_, err := s.Validate(context.Background(), ValidateInput{
+		Cert: []byte("cert"), Format: EncodingDER, Method: MethodCRL, CRL: []byte("inline-crl"),
+	})
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if fc.called {
+		t.Error("CRL cache was consulted despite an inline CRL being supplied")
+	}
+}
+
+func TestExplain_ContextErrorsResolvedLocally(t *testing.T) {
+	if exp := Explain(context.Canceled); exp.Key != "request.canceled" {
+		t.Errorf("canceled Key = %q, want request.canceled", exp.Key)
+	}
+	if exp := Explain(context.DeadlineExceeded); exp.Key != "request.timeout" {
+		t.Errorf("deadline Key = %q, want request.timeout", exp.Key)
+	}
+	if exp := Explain(nil); exp != (provider.Explanation{}) {
+		t.Errorf("Explain(nil) = %+v, want zero", exp)
+	}
 }
 
 func TestVerify_HardFailureIsError(t *testing.T) {

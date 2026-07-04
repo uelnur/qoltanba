@@ -16,6 +16,9 @@ type StatusInfo struct {
 	// Compat is the compatibility verdict for the loaded library
 	// (compatible|degraded|incompatible).
 	Compat string `json:"compat"`
+	// TrustRefresh reports the background trust-anchor refresh state (nil when the
+	// caller does not supply it). Kept as any to avoid a transport→infra import.
+	TrustRefresh any `json:"trustRefresh,omitempty"`
 }
 
 // Observability returns the health/status handler. ready reports whether the

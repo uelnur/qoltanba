@@ -533,6 +533,9 @@ type LibError struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
 	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Key           string                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`         // stable catalog id, e.g. "cert.expired"
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"` // plain-language description
+	Action        string                 `protobuf:"bytes,5,opt,name=action,proto3" json:"action,omitempty"`   // suggested remedy
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -577,6 +580,27 @@ func (x *LibError) GetCode() string {
 func (x *LibError) GetText() string {
 	if x != nil {
 		return x.Text
+	}
+	return ""
+}
+
+func (x *LibError) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *LibError) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *LibError) GetAction() string {
+	if x != nil {
+		return x.Action
 	}
 	return ""
 }
@@ -2198,10 +2222,13 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x05alias\x18\x03 \x01(\tR\x05alias\"E\n" +
 	"\vTrustedCert\x12\x12\n" +
 	"\x04cert\x18\x01 \x01(\fR\x04cert\x12\"\n" +
-	"\fintermediate\x18\x02 \x01(\bR\fintermediate\"2\n" +
+	"\fintermediate\x18\x02 \x01(\bR\fintermediate\"v\n" +
 	"\bLibError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\"7\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\tR\x03key\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x12\x16\n" +
+	"\x06action\x18\x05 \x01(\tR\x06action\"7\n" +
 	"\aWarning\x12\x14\n" +
 	"\x05field\x18\x01 \x01(\tR\x05field\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xf0\x03\n" +

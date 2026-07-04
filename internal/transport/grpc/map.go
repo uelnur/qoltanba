@@ -98,7 +98,7 @@ func libErrorPB(e *core.LibError) *pb.LibError {
 	if e == nil {
 		return nil
 	}
-	return &pb.LibError{Code: e.Code, Text: e.Text}
+	return &pb.LibError{Code: e.Code, Text: e.Text, Key: e.Key, Message: e.Message, Action: e.Action}
 }
 
 func warningsPB(ws []core.Warning) []*pb.Warning {

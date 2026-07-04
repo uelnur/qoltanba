@@ -54,9 +54,18 @@ func encodeError(out io.Writer, err error) int {
 	if errors.As(err, &de) {
 		kind = de.Kind
 	}
-	_ = encode(out, map[string]any{
-		"error": map[string]string{"kind": kindName(kind), "message": err.Error()},
-	})
+	exp := core.Explain(err)
+	detail := map[string]string{"kind": kindName(kind), "message": err.Error()}
+	if exp.Message != "" {
+		detail["message"] = exp.Message
+	}
+	if exp.Code != "" {
+		detail["code"] = exp.Code
+	}
+	if exp.Action != "" {
+		detail["action"] = exp.Action
+	}
+	_ = encode(out, map[string]any{"error": detail})
 	return exitFor(kind)
 }
 

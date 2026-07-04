@@ -140,21 +140,30 @@ type errorBody struct {
 
 type errorDetail struct {
 	Kind    string `json:"kind"`
-	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`   // raw KCR_* code when present
+	Message string `json:"message"`          // friendly, from the error catalog
+	Action  string `json:"action,omitempty"` // suggested remedy
 }
 
-// writeError maps a domain error to an HTTP status and JSON envelope. msg
-// overrides the error text when non-empty (used for pre-service validation).
+// writeError maps a domain error to an HTTP status and JSON envelope, rendering a
+// friendly message/action from the error catalog. msg overrides the message when
+// non-empty (used for pre-service request validation, which has no catalog entry).
 func writeError(w http.ResponseWriter, err error, msg string) {
 	kind := core.KindInternal
 	var de *core.Error
 	if errors.As(err, &de) {
 		kind = de.Kind
 	}
+	exp := core.Explain(err)
+	if msg == "" {
+		msg = exp.Message
+	}
 	if msg == "" && err != nil {
 		msg = err.Error()
 	}
-	writeJSON(w, statusFor(kind), errorBody{Error: errorDetail{Kind: kindName(kind), Message: msg}})
+	writeJSON(w, statusFor(kind), errorBody{Error: errorDetail{
+		Kind: kindName(kind), Code: exp.Code, Message: msg, Action: exp.Action,
+	}})
 }
 
 func statusFor(k core.ErrorKind) int {

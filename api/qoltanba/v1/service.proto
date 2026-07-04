@@ -71,6 +71,9 @@ message TrustedCert {
 message LibError {
   string code = 1;
   string text = 2;
+  string key = 3;     // stable catalog id, e.g. "cert.expired"
+  string message = 4; // plain-language description
+  string action = 5;  // suggested remedy
 }
 message Warning {
   string field = 1;

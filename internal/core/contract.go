@@ -33,10 +33,16 @@ func (f SignatureFormat) Valid() bool {
 
 // LibError is the crypto-core error, kept separate from the business outcome: an
 // operation can fail at the library while the request itself was well-formed. It
-// carries the raw KCR_* code and the library's last error text.
+// carries the raw KCR_* code and the library's last error text (Code/Text, for
+// diagnosis) plus a friendly rendering (Key/Message/Action, from the error
+// catalog) so a caller without a crypto background can act on it. Key is a stable
+// locale-independent identifier; Message/Action are English (see provider.Explain).
 type LibError struct {
-	Code string `json:"code"` // e.g. "0x08F0001C"
-	Text string `json:"text,omitempty"`
+	Code    string `json:"code"` // e.g. "0x08F0001C"
+	Text    string `json:"text,omitempty"`
+	Key     string `json:"key,omitempty"`     // stable catalog id, e.g. "cert.expired"
+	Message string `json:"message,omitempty"` // plain-language description
+	Action  string `json:"action,omitempty"`  // suggested remedy
 }
 
 // Warning records a best-effort extraction miss: a field the library could not

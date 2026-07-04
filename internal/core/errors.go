@@ -66,7 +66,11 @@ func classify(err error) ErrorKind {
 		errors.Is(err, provider.ErrCertNotFound),
 		errors.Is(err, provider.ErrCertExpired),
 		errors.Is(err, provider.ErrCertTimeInvalid),
+		errors.Is(err, provider.ErrCertParse),
 		errors.Is(err, provider.ErrSignFormatMismatch),
+		errors.Is(err, provider.ErrXMLParse),
+		errors.Is(err, provider.ErrCMSFormat),
+		errors.Is(err, provider.ErrInvalidParam),
 		errors.Is(err, provider.ErrCARequired):
 		return KindInvalid
 	default:
@@ -95,14 +99,39 @@ func isSoftVerifyFailure(err error) bool {
 }
 
 // libErrorFrom builds a response LibError from a provider error, exposing the raw
-// KCR_* code and text when present.
+// KCR_* code and text plus the friendly Key/Message/Action from the error catalog.
 func libErrorFrom(err error) *LibError {
 	if err == nil {
 		return nil
 	}
+	le := &LibError{Text: err.Error()}
 	var ne *provider.NativeError
 	if errors.As(err, &ne) {
-		return &LibError{Code: fmt.Sprintf("0x%08X", ne.Code), Text: ne.Detail}
+		le.Code = fmt.Sprintf("0x%08X", ne.Code)
+		le.Text = ne.Detail
 	}
-	return &LibError{Text: err.Error()}
+	exp := provider.Explain(err)
+	le.Key, le.Message, le.Action = exp.Key, exp.Message, exp.Action
+	return le
+}
+
+// Explain renders a domain/provider error into a friendly Explanation for a
+// transport's hard-error envelope. It resolves the caller's context errors here
+// (the crypto catalog does not know about them) and delegates the rest to the
+// provider error catalog. Returns the zero value for a nil error.
+func Explain(err error) provider.Explanation {
+	if err == nil {
+		return provider.Explanation{}
+	}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return provider.Explanation{Key: "request.canceled",
+			Message: "The request was canceled.",
+			Action:  "Retry the request."}
+	case errors.Is(err, context.DeadlineExceeded):
+		return provider.Explanation{Key: "request.timeout",
+			Message: "The request timed out.",
+			Action:  "Retry, or increase the timeout."}
+	}
+	return provider.Explain(err)
 }

@@ -50,6 +50,14 @@ func sentinelFor(code uint32) error {
 		return provider.ErrCertExpired
 	case kcrCertTimeInvalid:
 		return provider.ErrCertTimeInvalid
+	case kcrCertParseError:
+		return provider.ErrCertParse
+	case kcrXMLParseError:
+		return provider.ErrXMLParse
+	case kcrUnknownCMSFormat:
+		return provider.ErrCMSFormat
+	case kcrParamError, kcrInvalidFlag:
+		return provider.ErrInvalidParam
 	case kcrSignFormat:
 		return provider.ErrSignFormatMismatch
 	case kcrVerifySignError:

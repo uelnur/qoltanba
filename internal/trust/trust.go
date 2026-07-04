@@ -17,12 +17,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/uelnur/qoltanba/internal/core"
 )
 
-// Store holds the loaded trust anchors.
+// Store holds the loaded trust anchors. It is safe for concurrent use: the domain
+// reads Anchors() per request while a background Refresher may replace the whole
+// set (see refresh.go). The published slice is treated as immutable — a refresh
+// swaps in a fresh slice rather than mutating in place, so readers never observe a
+// torn set.
 type Store struct {
+	mu      sync.RWMutex
 	anchors []core.TrustedCert
 }
 
@@ -31,7 +37,32 @@ type Store struct {
 func Empty() *Store { return &Store{} }
 
 // Anchors implements core.TrustStore.
-func (s *Store) Anchors() []core.TrustedCert { return s.anchors }
+func (s *Store) Anchors() []core.TrustedCert {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.anchors
+}
+
+// replace atomically swaps in a new anchor set. Used by the Refresher.
+func (s *Store) replace(anchors []core.TrustedCert) {
+	s.mu.Lock()
+	s.anchors = anchors
+	s.mu.Unlock()
+}
+
+// Count returns the current number of anchors (for status reporting).
+func (s *Store) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.anchors)
+}
+
+// append adds one anchor under the lock (construction-time helpers).
+func (s *Store) append(a core.TrustedCert) {
+	s.mu.Lock()
+	s.anchors = append(s.anchors, a)
+	s.mu.Unlock()
+}
 
 // LoadDir builds a Store from every PEM/CRT file under dir (non-recursive). Each
 // certificate is classified root vs intermediate by whether it is self-signed.
@@ -72,7 +103,7 @@ func (s *Store) addPEM(raw []byte) {
 		if block.Type != "CERTIFICATE" {
 			continue
 		}
-		s.anchors = append(s.anchors, core.TrustedCert{
+		s.append(core.TrustedCert{
 			Cert:         pem.EncodeToMemory(block),
 			Intermediate: !isSelfSigned(block.Bytes),
 		})
@@ -85,7 +116,7 @@ func (s *Store) addDER(der []byte) bool {
 	if _, err := x509.ParseCertificate(der); err != nil {
 		return false
 	}
-	s.anchors = append(s.anchors, core.TrustedCert{
+	s.append(core.TrustedCert{
 		Cert:         pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 		Intermediate: !isSelfSigned(der),
 	})

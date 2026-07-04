@@ -104,7 +104,8 @@ func (s *Server) CertValidate(ctx context.Context, req *pb.CertValidateRequest) 
 	}, nil
 }
 
-// grpcError maps a domain error's kind to a gRPC status code.
+// grpcError maps a domain error's kind to a gRPC status code, using the friendly
+// catalog message (with the suggested action appended) as the status message.
 func grpcError(err error) error {
 	code := codes.Internal
 	var de *core.Error
@@ -120,5 +121,12 @@ func grpcError(err error) error {
 			code = codes.Canceled
 		}
 	}
-	return status.Error(code, err.Error())
+	msg := err.Error()
+	if exp := core.Explain(err); exp.Message != "" {
+		msg = exp.Message
+		if exp.Action != "" {
+			msg += " " + exp.Action
+		}
+	}
+	return status.Error(code, msg)
 }

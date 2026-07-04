@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml/v2"
@@ -112,6 +113,28 @@ func (c NATSConfig) Enabled() bool { return c.URL != "" }
 // AnyMQEnabled reports whether at least one message-queue transport is configured.
 func (c Config) AnyMQEnabled() bool { return c.AMQP.Enabled() || c.Kafka.Enabled() || c.NATS.Enabled() }
 
+// TrustRefreshInterval resolves the effective background anchor-refresh cadence.
+// Empty means "auto" — 24h when the RK registry is used, otherwise disabled;
+// "0"/"off" disables it explicitly; anything else is parsed as a Go duration.
+// A malformed value yields 0 (disabled); config.Validate rejects it up front.
+func (c Config) TrustRefreshInterval() time.Duration {
+	switch raw := strings.TrimSpace(c.Trust.RefreshInterval); raw {
+	case "":
+		if c.Trust.UseRKRegistry {
+			return 24 * time.Hour
+		}
+		return 0
+	case "0", "off":
+		return 0
+	default:
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return 0
+		}
+		return d
+	}
+}
+
 // KeysConfig configures key handling.
 type KeysConfig struct {
 	AllowInline bool `koanf:"allow-inline"`
@@ -130,6 +153,11 @@ type TrustConfig struct {
 	UseRKRegistry bool   `koanf:"use-rk-registry"` // preload anchors from the official RK CA registry
 	RKIncludeTest bool   `koanf:"rk-include-test"` // include the RK test roots/chains
 	VerifyChain   bool   `koanf:"verify-chain"`    // cryptographically validate the chain via Kalkan (incl. GOST)
+	// RefreshInterval is the background anchor-refresh cadence as a Go duration
+	// (e.g. "24h"). Empty means "auto": 24h when UseRKRegistry is set, else off.
+	// "0"/"off" disables it explicitly. Resolve via TrustRefreshInterval.
+	RefreshInterval string `koanf:"refresh-interval"`
+	CRLCache        bool   `koanf:"crl-cache"` // cache CRLs by distribution point for Method=CRL validation
 }
 
 // LogConfig configures logging.
@@ -264,6 +292,11 @@ func (l *Loaded) Validate() error {
 	case "debug", "info", "warn", "error":
 	default:
 		errs = append(errs, "log.level must be one of debug|info|warn|error")
+	}
+	if raw := strings.TrimSpace(c.Trust.RefreshInterval); raw != "" && raw != "0" && raw != "off" {
+		if _, err := time.ParseDuration(raw); err != nil {
+			errs = append(errs, "trust.refresh-interval must be a Go duration (e.g. 24h), empty, 0 or off")
+		}
 	}
 	if len(errs) == 0 {
 		return nil

@@ -19,6 +19,7 @@ var (
 	ErrCertNotFound       = errors.New("provider: certificate not found")
 	ErrCertExpired        = errors.New("provider: certificate expired")
 	ErrCertTimeInvalid    = errors.New("provider: certificate not valid at the given time")
+	ErrCertParse          = errors.New("provider: certificate parse error")
 	ErrSignFormatMismatch = errors.New("provider: sign/verify flag mismatch")
 	ErrSignatureInvalid   = errors.New("provider: signature invalid")
 	ErrNoSignature        = errors.New("provider: no signature found")
@@ -26,6 +27,9 @@ var (
 	ErrCARequired         = errors.New("provider: trusted CA certificate required")
 	ErrOCSPRequest        = errors.New("provider: OCSP request failed")
 	ErrBufferTooSmall     = errors.New("provider: output buffer too small")
+	ErrXMLParse           = errors.New("provider: XML parse error")
+	ErrCMSFormat          = errors.New("provider: unknown CMS format")
+	ErrInvalidParam       = errors.New("provider: invalid parameter")
 )
 
 // NativeError wraps a raw Kalkan return code for cases without a dedicated

@@ -67,6 +67,8 @@ func registry() []entry {
 		{key: "trust.use-rk-registry", flag: "trust-use-rk-registry", env: "TRUST_USE_RK_REGISTRY", kind: kindBool, def: false, usage: "preload trust anchors from the official RK CA registry"},
 		{key: "trust.rk-include-test", flag: "trust-rk-include-test", env: "TRUST_RK_INCLUDE_TEST", kind: kindBool, def: false, usage: "include RK test roots when preloading the registry"},
 		{key: "trust.verify-chain", flag: "trust-verify-chain", env: "TRUST_VERIFY_CHAIN", kind: kindBool, def: false, usage: "cryptographically validate the signer chain via Kalkan (incl. GOST)"},
+		{key: "trust.refresh-interval", flag: "trust-refresh-interval", env: "TRUST_REFRESH_INTERVAL", kind: kindString, def: "", usage: "background anchor-refresh cadence (e.g. 24h); empty=auto (24h with RK registry), 0/off=disabled"},
+		{key: "trust.crl-cache", flag: "trust-crl-cache", env: "TRUST_CRL_CACHE", kind: kindBool, def: false, usage: "cache CRLs by distribution point for Method=CRL validation without inline CRL"},
 		{key: "log.level", flag: "log-level", env: "LOG_LEVEL", kind: kindString, def: "info", usage: "log level: debug|info|warn|error"},
 		{key: "log.format", flag: "log-format", env: "LOG_FORMAT", kind: kindString, def: "text", usage: "log format: text|json"},
 		{key: "metrics.enabled", flag: "metrics", env: "METRICS_ENABLED", kind: kindBool, def: false, usage: "enable the metrics/health endpoint"},
@@ -219,6 +221,10 @@ func (l *Loaded) value(e entry) string {
 		return strconv.FormatBool(c.Trust.RKIncludeTest)
 	case "trust.verify-chain":
 		return strconv.FormatBool(c.Trust.VerifyChain)
+	case "trust.refresh-interval":
+		return c.Trust.RefreshInterval
+	case "trust.crl-cache":
+		return strconv.FormatBool(c.Trust.CRLCache)
 	case "log.level":
 		return c.Log.Level
 	case "log.format":

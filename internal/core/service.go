@@ -17,6 +17,7 @@ type Service struct {
 	keys             KeySource
 	trust            TrustStore
 	fetcher          IssuerFetcher
+	crl              CRLSource
 	verifyChain      bool
 	defaultTimestamp bool
 	now              func() time.Time
@@ -42,6 +43,11 @@ func WithVerifyOnly(v bool) Option { return func(s *Service) { s.verifyOnly = v 
 // WithIssuerFetcher enables AIA issuer download during chain building. Nil (the
 // default) means no network fetch — chains build only from the trusted set.
 func WithIssuerFetcher(f IssuerFetcher) Option { return func(s *Service) { s.fetcher = f } }
+
+// WithCRLSource enables CRL lookup for revocation checks when the caller did not
+// supply a CRL inline. Nil (the default) means a Method=CRL request without inline
+// CRL bytes is left to fail at the library, as before.
+func WithCRLSource(c CRLSource) Option { return func(s *Service) { s.crl = c } }
 
 // WithDefaultTimestamp sets whether signing adds a TSA timestamp when the
 // request does not specify (SignInput.WithTimestamp == nil). Off by default.
@@ -286,12 +292,20 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 		checkTime = s.now()
 	}
 
-	// Path: OCSP responder URL, or a temp file for a supplied CRL (Kalkan reads a
-	// path). Always fetch the raw OCSP so we can parse its structured fields.
+	// Path: OCSP responder URL, or a temp file for a CRL (Kalkan reads a path).
+	// Always fetch the raw OCSP so we can parse its structured fields.
 	path := in.ResponderURL
 	wantOCSP := in.WantOCSP || method == MethodOCSP
-	if method == MethodCRL && len(in.CRL) > 0 {
-		p, cleanup, werr := writeTempCRL(in.CRL)
+	// CRL bytes: prefer the caller's inline CRL; otherwise pull from the CRL cache
+	// (the cert's distribution points) when one is configured.
+	crlBytes := in.CRL
+	if method == MethodCRL && len(crlBytes) == 0 && s.crl != nil {
+		if der, ok := s.crl.CRLFor(ctx, toDER(in.Cert, in.Format)); ok {
+			crlBytes = der
+		}
+	}
+	if method == MethodCRL && len(crlBytes) > 0 {
+		p, cleanup, werr := writeTempCRL(crlBytes)
 		if werr != nil {
 			return ValidateOutput{}, domainErr(op, werr)
 		}
@@ -318,8 +332,8 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 	// Enrich with structured fields parsed from the response/CRL (best-effort).
 	if method == MethodOCSP {
 		enrichFromOCSP(&status, res.OCSPResponse, res.Info)
-	} else if len(in.CRL) > 0 {
-		enrichFromCRL(&status, in.CRL, toDER(in.Cert, in.Format))
+	} else if len(crlBytes) > 0 {
+		enrichFromCRL(&status, crlBytes, toDER(in.Cert, in.Format))
 	}
 
 	out := ValidateOutput{Status: status, Info: res.Info}

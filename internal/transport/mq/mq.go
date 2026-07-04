@@ -41,11 +41,14 @@ type Reply struct {
 }
 
 // ReplyError is the error envelope for a failed operation, mirroring the REST
-// error body: a stable kind plus a human-readable message. Secrets never appear
-// here — the domain error text is derived from codes and operation names.
+// error body: a stable kind plus a friendly message/action from the error catalog
+// and the raw KCR_* code. Secrets never appear here — the message is derived from
+// codes and operation names, not from user input.
 type ReplyError struct {
 	Kind    string `json:"kind"`
+	Code    string `json:"code,omitempty"`
 	Message string `json:"message"`
+	Action  string `json:"action,omitempty"`
 }
 
 // Processor turns one raw message into one raw reply over the domain service.
@@ -109,7 +112,12 @@ func errorFrom(err error) *ReplyError {
 	if errors.As(err, &de) {
 		kind = de.Kind
 	}
-	return &ReplyError{Kind: kindName(kind), Message: err.Error()}
+	exp := core.Explain(err)
+	msg := exp.Message
+	if msg == "" {
+		msg = err.Error()
+	}
+	return &ReplyError{Kind: kindName(kind), Code: exp.Code, Message: msg, Action: exp.Action}
 }
 
 func kindName(k core.ErrorKind) string {

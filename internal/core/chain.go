@@ -23,6 +23,14 @@ type IssuerFetcher interface {
 	FetchIssuer(ctx context.Context, cert []byte) ([]byte, bool)
 }
 
+// CRLSource supplies a certificate's CRL (DER in cert, DER out CRL) for a
+// revocation check when the caller did not provide one inline. The domain
+// declares the port; infrastructure (internal/crl) implements it as a cache over
+// the cert's CRL distribution points. It returns false when no CRL is available.
+type CRLSource interface {
+	CRLFor(ctx context.Context, certDER []byte) ([]byte, bool)
+}
+
 // buildChain assembles the certificate chain for a leaf by walking issuer links
 // through the trusted set (roots + intermediates the consumer supplied) and,
 // when a fetcher is given, downloading missing issuers via AIA. Issuer selection
