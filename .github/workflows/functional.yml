@@ -23,7 +23,7 @@ jobs:
     name: driver functional tests
     runs-on: [self-hosted, kalkan]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # BYOL native/ (library + test keys) lives on the runner host, never in
       # git. Copy it into the workspace so run.sh can mount it. QOLTANBA_NATIVE_SRC
