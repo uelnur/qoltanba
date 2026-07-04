@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 
 	grpclib "google.golang.org/grpc"
@@ -57,11 +58,17 @@ func newService(t *testing.T) (*core.Service, func()) {
 	return svc, func() { _ = pool.Close() }
 }
 
-func testKey(t *testing.T) core.KeySpec {
+func testKey(t *testing.T) core.KeySpec { return keyFromEnv(t, "QOLTANBA_KEY") }
+
+// testKey2 is a second signer with a different profile (legal person / first
+// head), used for multi-signature and legal-person field coverage.
+func testKey2(t *testing.T) core.KeySpec { return keyFromEnv(t, "QOLTANBA_KEY2") }
+
+func keyFromEnv(t *testing.T, env string) core.KeySpec {
 	t.Helper()
-	path := os.Getenv("QOLTANBA_KEY")
+	path := os.Getenv(env)
 	if path == "" {
-		t.Skip("QOLTANBA_KEY not set")
+		t.Skipf("%s not set", env)
 	}
 	pass := os.Getenv("QOLTANBA_PASS")
 	if pass == "" {
@@ -353,4 +360,208 @@ func TestFunctionalE2E_GRPCVerify(t *testing.T) {
 		resp.GetSigners()[0].GetCertificate().GetSubject().GetCommonName(),
 		resp.GetSigners()[0].GetCertificate().GetOwnerType(),
 		resp.GetSigners()[0].GetChainComplete())
+}
+
+// TestFunctionalE2E_CertFieldsGolden pins the parsed certificate fields for the
+// two consumer test keys against the live library — the fast counterpart is
+// internal/core TestParseCertificate_Golden*, which parses the same values with
+// no native library. Together they catch drift in the X509CertificateGetInfo
+// rendering (e.g. a dropped "name=" prefix) and in the RK derivation.
+func TestFunctionalE2E_CertFieldsGolden(t *testing.T) {
+	svc, closer := newService(t)
+	defer closer()
+
+	t.Run("individual", func(t *testing.T) {
+		out, err := svc.CertInfo(context.Background(), core.CertInfoInput{Key: testKey(t)})
+		if err != nil {
+			t.Fatalf("cert info: %v", err)
+		}
+		c := out.Certificate
+		if c.Subject.CommonName != "ТЕСТОВ ТЕСТ" {
+			t.Errorf("CommonName = %q, want ТЕСТОВ ТЕСТ", c.Subject.CommonName)
+		}
+		if c.Subject.IIN != "123456789011" {
+			t.Errorf("IIN = %q, want 123456789011", c.Subject.IIN)
+		}
+		if c.Subject.BIN != "" {
+			t.Errorf("BIN = %q, want empty for an individual", c.Subject.BIN)
+		}
+		if c.OwnerType != "INDIVIDUAL" {
+			t.Errorf("OwnerType = %q, want INDIVIDUAL", c.OwnerType)
+		}
+		if len(c.Roles) != 1 || c.Roles[0] != "INDIVIDUAL" {
+			t.Errorf("Roles = %v, want [INDIVIDUAL]", c.Roles)
+		}
+		if c.KeyAlgorithm != "gost2015-512" {
+			t.Errorf("KeyAlgorithm = %q, want gost2015-512", c.KeyAlgorithm)
+		}
+		if c.SerialNumber != "6C425659BD2FC6DC587B871AEDE1857727CF8451" {
+			t.Errorf("SerialNumber = %q", c.SerialNumber)
+		}
+		if c.NotBefore == nil || c.NotBefore.Year() != 2026 || c.NotAfter == nil || c.NotAfter.Year() != 2027 {
+			t.Errorf("validity = [%v, %v], want 2026..2027", c.NotBefore, c.NotAfter)
+		}
+		if len(out.Warnings) != 0 {
+			t.Errorf("unexpected warnings: %v", out.Warnings)
+		}
+	})
+
+	t.Run("legalPerson", func(t *testing.T) {
+		out, err := svc.CertInfo(context.Background(), core.CertInfoInput{Key: testKey2(t)})
+		if err != nil {
+			t.Fatalf("cert info: %v", err)
+		}
+		c := out.Certificate
+		if c.Subject.IIN != "123456789011" {
+			t.Errorf("IIN = %q, want 123456789011", c.Subject.IIN)
+		}
+		if c.Subject.BIN != "123456789021" {
+			t.Errorf("BIN = %q, want 123456789021", c.Subject.BIN)
+		}
+		if c.Subject.Organization != `АО "ТЕСТ"` {
+			t.Errorf("Organization = %q, want АО \"ТЕСТ\"", c.Subject.Organization)
+		}
+		if c.OwnerType != "LEGAL_PERSON" {
+			t.Errorf("OwnerType = %q, want LEGAL_PERSON", c.OwnerType)
+		}
+		if !slices.Contains(c.Roles, "ORGANIZATION") || !slices.Contains(c.Roles, "CEO") {
+			t.Errorf("Roles = %v, want to contain ORGANIZATION and CEO", c.Roles)
+		}
+		if c.SerialNumber != "303EEBDF17969F3EDEDE9BD9828FB1355AABBE4E" {
+			t.Errorf("SerialNumber = %q", c.SerialNumber)
+		}
+	})
+}
+
+// TestFunctionalE2E_SignVerifyXMLStrict exercises the XML signing path through the
+// service under the default strict cert-time check: the signer's chain is anchored
+// during signing, so the CA(s) from the trust store must be loaded before SignXML.
+func TestFunctionalE2E_SignVerifyXMLStrict(t *testing.T) {
+	svc, closer := newService(t)
+	defer closer()
+	key := testKey(t)
+
+	xml := []byte(`<?xml version="1.0" encoding="UTF-8"?><root><data>xml strict</data></root>`)
+	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatXML, Data: xml, Key: key})
+	if err != nil {
+		t.Fatalf("sign xml (strict, CA from store): %v (lib %+v)", err, signed.LibError)
+	}
+	if len(signed.Signature) == 0 {
+		t.Fatal("empty XML signature")
+	}
+	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatXML, Signature: signed.Signature})
+	if err != nil {
+		t.Fatalf("verify xml: %v", err)
+	}
+	if !out.Valid {
+		t.Fatalf("xml signature not valid; libError=%+v", out.LibError)
+	}
+	if len(out.Signers) == 0 {
+		t.Fatal("no signers extracted from XML")
+	}
+}
+
+// TestFunctionalE2E_SignVerifyWSSEStrict is the WSSE counterpart: it also drives
+// the loadTrusted-before-signing path (SignWSSE) under the strict time check.
+func TestFunctionalE2E_SignVerifyWSSEStrict(t *testing.T) {
+	svc, closer := newService(t)
+	defer closer()
+	key := testKey(t)
+
+	// The signed node must carry wsu:Id and NodeID must reference it.
+	soap := []byte(`<?xml version="1.0" encoding="UTF-8"?>` +
+		`<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" ` +
+		`xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">` +
+		`<soap:Body wsu:Id="body-1"><data>wsse strict</data></soap:Body></soap:Envelope>`)
+	signed, err := svc.Sign(context.Background(), core.SignInput{Format: core.FormatWSSE, Data: soap, Key: key, NodeID: "body-1"})
+	if err != nil {
+		t.Fatalf("sign wsse (strict, CA from store): %v (lib %+v)", err, signed.LibError)
+	}
+	if len(signed.Signature) == 0 {
+		t.Fatal("empty WSSE signature")
+	}
+	out, err := svc.Verify(context.Background(), core.VerifyInput{Format: core.FormatXML, Signature: signed.Signature})
+	if err != nil {
+		t.Fatalf("verify wsse: %v", err)
+	}
+	if !out.Valid {
+		t.Fatalf("wsse signature not valid; libError=%+v", out.LibError)
+	}
+}
+
+// TestFunctionalE2E_RevokedViaOCSP validates the revoked test key through the
+// service and asserts the OCSP leg reports it revoked (the CRL leg is covered by
+// the driver-level TestFunctional_Revocation).
+func TestFunctionalE2E_RevokedViaOCSP(t *testing.T) {
+	lib := os.Getenv("QOLTANBA_LIB")
+	if lib == "" {
+		t.Skip("QOLTANBA_LIB not set")
+	}
+	ocspURL := os.Getenv("QOLTANBA_OCSP_URL")
+	if ocspURL == "" {
+		t.Skip("QOLTANBA_OCSP_URL not set")
+	}
+	pool, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
+	if err != nil {
+		t.Fatalf("open driver: %v", err)
+	}
+	defer pool.Close()
+	svc := core.New(pool,
+		core.WithKeySource(keysource.New(keysource.WithInline(true))),
+		core.WithTrustStore(loadEnvTrust(t)),
+	)
+
+	info, err := svc.CertInfo(context.Background(), core.CertInfoInput{Key: keyFromEnv(t, "QOLTANBA_KEY_REVOKED")})
+	if err != nil {
+		t.Fatalf("cert info (revoked): %v", err)
+	}
+	out, err := svc.Validate(context.Background(), core.ValidateInput{
+		Cert: info.Certificate.PEM, Format: core.EncodingPEM, Method: core.MethodOCSP,
+		ResponderURL: ocspURL, WantOCSP: true,
+	})
+	if err != nil {
+		t.Fatalf("ocsp validate: %v", err)
+	}
+	if !out.Status.Revoked {
+		t.Errorf("expected revoked=true for the revoked key; status=%+v", out.Status)
+	}
+	t.Logf("revoked key OCSP: revoked=%v reason=%q", out.Status.Revoked, out.Status.Reason)
+}
+
+// TestFunctionalE2E_CoSignCMS adds a second signer (KEY2) to KEY's detached CMS
+// and checks both are extracted — exercising ExistingSignature co-sign and the
+// multi-signer walk through the service, with the CA loaded for both signatures.
+func TestFunctionalE2E_CoSignCMS(t *testing.T) {
+	svc, closer := newService(t)
+	defer closer()
+	key := testKey(t)
+	key2 := testKey2(t)
+	data := []byte("multi-sign")
+
+	a, err := svc.Sign(context.Background(), core.SignInput{
+		Format: core.FormatCMS, Data: data, Key: key, Detached: true, OutputPEM: true,
+	})
+	if err != nil {
+		t.Fatalf("sign A: %v (lib %+v)", err, a.LibError)
+	}
+	ab, err := svc.Sign(context.Background(), core.SignInput{
+		Format: core.FormatCMS, Data: data, Key: key2, Detached: true,
+		InputPEM: true, OutputPEM: true, ExistingSignature: a.Signature,
+	})
+	if err != nil {
+		t.Fatalf("co-sign B: %v (lib %+v)", err, ab.LibError)
+	}
+	out, err := svc.Verify(context.Background(), core.VerifyInput{
+		Format: core.FormatCMS, Signature: ab.Signature, Data: data, Detached: true, InputPEM: true,
+	})
+	if err != nil {
+		t.Fatalf("verify multi-signature: %v", err)
+	}
+	if !out.Valid {
+		t.Fatalf("multi-signature not valid; libError=%+v", out.LibError)
+	}
+	if len(out.Signers) < 2 {
+		t.Fatalf("expected >=2 signers, got %d", len(out.Signers))
+	}
+	t.Logf("co-sign signers extracted: %d", len(out.Signers))
 }
