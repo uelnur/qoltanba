@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,6 +37,9 @@ type Cache struct {
 
 	mu      sync.Mutex
 	entries map[string]entry
+
+	hits   atomic.Uint64 // served from a fresh cached entry
+	misses atomic.Uint64 // required a network fetch (or fell back to stale)
 }
 
 // fetchFunc downloads raw bytes at a URL, reporting false on any failure. It is
@@ -55,6 +59,12 @@ func New(timeout time.Duration) *Cache {
 	}
 	c.fetch = c.httpFetch
 	return c
+}
+
+// Stats reports cumulative cache hits (served fresh) and misses (fetched or
+// stale-fallback) for metrics.
+func (c *Cache) Stats() (hits, misses uint64) {
+	return c.hits.Load(), c.misses.Load()
 }
 
 // CRLFor implements core.CRLSource: it parses certDER, tries each CRL
@@ -82,8 +92,10 @@ func (c *Cache) get(ctx context.Context, url string) ([]byte, bool) {
 
 	fresh := seen && !cached.nextUpdate.IsZero() && c.now().Before(cached.nextUpdate)
 	if fresh {
+		c.hits.Add(1)
 		return cached.der, true
 	}
+	c.misses.Add(1)
 
 	body, ok := c.fetch(ctx, url)
 	if !ok {

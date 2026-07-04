@@ -16,8 +16,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/transport/dispatch"
 )
 
@@ -54,10 +56,13 @@ type ReplyError struct {
 // Processor turns one raw message into one raw reply over the domain service.
 type Processor struct {
 	svc *core.Service
+	rec *metrics.Recorder // may be nil (metrics off)
 }
 
-// NewProcessor builds a Processor over the domain service.
-func NewProcessor(svc *core.Service) *Processor { return &Processor{svc: svc} }
+// NewProcessor builds a Processor over the domain service. rec may be nil.
+func NewProcessor(svc *core.Service, rec *metrics.Recorder) *Processor {
+	return &Processor{svc: svc, rec: rec}
+}
 
 // Process decodes the request envelope in body, dispatches to the domain service
 // and returns the encoded reply envelope together with the effective correlation
@@ -66,17 +71,26 @@ func NewProcessor(svc *core.Service) *Processor { return &Processor{svc: svc} }
 // the reply's Error field, so the caller can always publish a result and then
 // ack. Retry/DLQ policy is the consumer's — we impose none here.
 func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string) (reply []byte, corrID string) {
+	start := time.Now()
+	op, outcome := "unknown", "ok"
+	defer func() { p.rec.Observe("mq", op, outcome, time.Since(start)) }()
+
 	var req Request
 	if err := json.Unmarshal(body, &req); err != nil {
+		outcome = "client_error"
 		return encodeReply(Reply{CorrelationID: metaCorrID, Error: &ReplyError{
 			Kind: kindName(core.KindInvalid), Message: "invalid request envelope",
 		}}), metaCorrID
+	}
+	if req.Op != "" {
+		op = req.Op
 	}
 	corrID = req.CorrelationID
 	if corrID == "" {
 		corrID = metaCorrID
 	}
 	if !dispatch.Valid(req.Op) {
+		outcome = "client_error"
 		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
 			Kind: kindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
 		}}), corrID
@@ -84,15 +98,27 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string)
 
 	out, err := dispatch.Handle(ctx, p.svc, req.Op, req.Request)
 	if err != nil {
+		outcome = outcomeForKind(err)
 		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(err)}), corrID
 	}
 	result, merr := json.Marshal(out)
 	if merr != nil {
+		outcome = "server_error"
 		return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
 			Kind: kindName(core.KindInternal), Message: "encode result",
 		}}), corrID
 	}
 	return encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Result: result}), corrID
+}
+
+// outcomeForKind maps a domain error to a metric outcome label, matching the
+// HTTP transport's client_error/server_error split.
+func outcomeForKind(err error) string {
+	var de *core.Error
+	if errors.As(err, &de) && de.Kind == core.KindInvalid {
+		return "client_error"
+	}
+	return "server_error"
 }
 
 // encodeReply marshals a Reply, falling back to a minimal internal-error

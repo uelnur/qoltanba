@@ -23,7 +23,8 @@ type Pool struct {
 	closed  atomic.Bool
 	once    sync.Once
 	caps    provider.Capabilities
-	cleanup []string // temp files (the patched wrapper) to remove on Close
+	cleanup []string     // temp files (the patched wrapper) to remove on Close
+	inUse   atomic.Int64 // jobs currently dispatched to a worker (for metrics)
 }
 
 var _ provider.Provider = (*Pool)(nil)
@@ -63,6 +64,8 @@ func (p *Pool) submit(ctx context.Context, fn func(inst kalkanInstance) error) e
 	j := job{fn: fn, done: make(chan error, 1)}
 	select {
 	case p.jobs <- j: // picked up by a worker (the channel is unbuffered)
+		p.inUse.Add(1)
+		defer p.inUse.Add(-1)
 	case <-p.quit:
 		return provider.ErrClosed
 	case <-ctx.Done():
@@ -88,6 +91,12 @@ func (p *Pool) Close() error {
 
 // Capabilities returns the capability map of the loaded library version.
 func (p *Pool) Capabilities() provider.Capabilities { return p.caps }
+
+// Stats reports pool utilization for metrics: jobs currently running on a worker
+// and the total worker count.
+func (p *Pool) Stats() (inUse, size int) {
+	return int(p.inUse.Load()), p.caps.PoolSize
+}
 
 func (p *Pool) SignCMS(ctx context.Context, req provider.SignRequest) (provider.SignResult, error) {
 	if !p.caps.SignCMS {

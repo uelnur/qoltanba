@@ -21,7 +21,7 @@ func decodeReply(t *testing.T, b []byte) Reply {
 
 func TestProcess_Success(t *testing.T) {
 	f := &fake.Provider{VerifyResult: provider.VerifyResult{Valid: true}}
-	p := NewProcessor(core.New(f))
+	p := NewProcessor(core.New(f), nil)
 
 	body := []byte(`{"op":"verify","correlationId":"abc","request":{"format":"cms","signature":"eA=="}}`)
 	reply, corrID := p.Process(context.Background(), body, "meta")
@@ -45,7 +45,7 @@ func TestProcess_Success(t *testing.T) {
 }
 
 func TestProcess_CorrelationIDFallsBackToMeta(t *testing.T) {
-	p := NewProcessor(core.New(&fake.Provider{}))
+	p := NewProcessor(core.New(&fake.Provider{}), nil)
 	body := []byte(`{"op":"verify","request":{"format":"cms","signature":"eA=="}}`)
 	_, corrID := p.Process(context.Background(), body, "meta-id")
 	if corrID != "meta-id" {
@@ -54,7 +54,7 @@ func TestProcess_CorrelationIDFallsBackToMeta(t *testing.T) {
 }
 
 func TestProcess_MalformedEnvelope(t *testing.T) {
-	p := NewProcessor(core.New(&fake.Provider{}))
+	p := NewProcessor(core.New(&fake.Provider{}), nil)
 	reply, corrID := p.Process(context.Background(), []byte(`{not json`), "meta-id")
 	if corrID != "meta-id" {
 		t.Fatalf("corrID = %q, want meta-id echoed", corrID)
@@ -66,7 +66,7 @@ func TestProcess_MalformedEnvelope(t *testing.T) {
 }
 
 func TestProcess_UnknownOp(t *testing.T) {
-	p := NewProcessor(core.New(&fake.Provider{}))
+	p := NewProcessor(core.New(&fake.Provider{}), nil)
 	reply, _ := p.Process(context.Background(), []byte(`{"op":"frobnicate","request":{}}`), "")
 	r := decodeReply(t, reply)
 	if r.Error == nil || r.Error.Kind != "invalid" {
@@ -83,7 +83,7 @@ func TestProcess_UnknownOp(t *testing.T) {
 func TestProcess_ServiceFaultBecomesErrorReply(t *testing.T) {
 	f := &fake.Provider{SignErr: provider.ErrUnsupported}
 	// A sign needs a key source; without one the domain returns KindUnavailable.
-	p := NewProcessor(core.New(f))
+	p := NewProcessor(core.New(f), nil)
 	body := []byte(`{"op":"sign","request":{"format":"cms","data":"eA==","key":{"inlineP12":"eA=="}}}`)
 	reply, _ := p.Process(context.Background(), body, "")
 	r := decodeReply(t, reply)

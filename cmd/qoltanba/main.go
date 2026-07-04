@@ -36,6 +36,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/crl"
 	"github.com/uelnur/qoltanba/internal/keysource"
+	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/native"
 	"github.com/uelnur/qoltanba/internal/pki"
 	"github.com/uelnur/qoltanba/internal/transport/amqp"
@@ -157,7 +158,7 @@ func runCLI(op string, args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	svc, closer, _, _, err := buildService(l.Config, discardLogger())
+	svc, closer, _, _, err := buildService(l.Config, discardLogger(), nil) // CLI is one-shot: no metrics
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -201,7 +202,8 @@ func runServe(args []string) int {
 		return 2
 	}
 
-	svc, closer, refresher, report, err := buildService(cfg, log)
+	rec := metrics.New()
+	svc, closer, refresher, report, err := buildService(cfg, log, rec)
 	if err != nil {
 		log.Error("startup failed", "error", err)
 		return 1
@@ -221,12 +223,12 @@ func runServe(args []string) int {
 	}
 	ready := func() bool { return true } // library loaded, self-tested and gated before serving
 
-	return serve(cfg, svc, refresher, ready, status, log)
+	return serve(cfg, svc, refresher, rec, ready, status, log)
 }
 
 // serve starts every enabled transport (REST, gRPC, optional separate metrics
 // port) and drains them gracefully on a shutdown signal.
-func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
+func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -237,13 +239,14 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rea
 		go refresher.Run(ctx, interval)
 	}
 
+	obs := rest.Observability(ready, status)
 	var shutdowns []func(context.Context)
 
 	if cfg.HTTP.Enabled {
 		work := http.NewServeMux()
-		work.Handle("/", rest.New(svc).Routes())
-		obs := rest.Observability(ready, status)
+		work.Handle("/", rec.InstrumentHTTP("rest", rest.New(svc).Routes()))
 		mountObs(work, obs)
+		work.Handle("GET /metrics", rec.Handler())
 
 		ln, err := listen(cfg.HTTP.Addr)
 		if err != nil {
@@ -259,22 +262,27 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rea
 				stop()
 			}
 		}()
+	}
 
-		if cfg.Metrics.Enabled && cfg.Metrics.Addr != cfg.HTTP.Addr {
-			mln, err := listen(cfg.Metrics.Addr)
-			if err != nil {
-				log.Error("listen metrics", "addr", cfg.Metrics.Addr, "error", err)
-				return 1
-			}
-			obsSrv := &http.Server{Handler: obs, ReadHeaderTimeout: 10 * time.Second}
-			shutdowns = append(shutdowns, func(c context.Context) { _ = obsSrv.Shutdown(c) })
-			go func() {
-				log.Info("serving health/metrics", "addr", cfg.Metrics.Addr)
-				if err := obsSrv.Serve(mln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-					log.Error("metrics server", "error", err)
-				}
-			}()
+	// Separate observability/metrics port. Runs whenever metrics are enabled and it
+	// is not already the work port — so gRPC/MQ-only deployments expose /metrics too.
+	if cfg.Metrics.Enabled && (!cfg.HTTP.Enabled || cfg.Metrics.Addr != cfg.HTTP.Addr) {
+		obsMux := http.NewServeMux()
+		mountObs(obsMux, obs)
+		obsMux.Handle("GET /metrics", rec.Handler())
+		mln, err := listen(cfg.Metrics.Addr)
+		if err != nil {
+			log.Error("listen metrics", "addr", cfg.Metrics.Addr, "error", err)
+			return 1
 		}
+		obsSrv := &http.Server{Handler: obsMux, ReadHeaderTimeout: 10 * time.Second}
+		shutdowns = append(shutdowns, func(c context.Context) { _ = obsSrv.Shutdown(c) })
+		go func() {
+			log.Info("serving health/metrics", "addr", cfg.Metrics.Addr)
+			if err := obsSrv.Serve(mln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("metrics server", "error", err)
+			}
+		}()
 	}
 
 	if cfg.GRPC.Enabled {
@@ -283,7 +291,7 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rea
 			log.Error("listen grpc", "addr", cfg.GRPC.Addr, "error", err)
 			return 1
 		}
-		gs := grpclib.NewServer()
+		gs := grpclib.NewServer(grpclib.UnaryInterceptor(rec.UnaryInterceptor()))
 		grpctransport.New(svc).Register(gs)
 		shutdowns = append(shutdowns, func(context.Context) { gs.GracefulStop() })
 		go func() {
@@ -299,7 +307,7 @@ func serve(cfg config.Config, svc *core.Service, refresher *trust.Refresher, rea
 	// the whole service. A shared processor fans out to every broker.
 	var mqWG sync.WaitGroup
 	if cfg.AnyMQEnabled() {
-		startMQ(ctx, &mqWG, cfg, mq.NewProcessor(svc), log, stop)
+		startMQ(ctx, &mqWG, cfg, mq.NewProcessor(svc, rec), log, stop)
 	}
 
 	<-ctx.Done()
@@ -385,11 +393,12 @@ func openLibrary(cfg config.Config) (*native.Pool, compat.Report, error) {
 // assembles the domain service with its infrastructure (key source, trust
 // store). It refuses to build the service when the library is incompatible under
 // the configured policy (a self-test failure always refuses).
-func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), *trust.Refresher, compat.Report, error) {
+func buildService(cfg config.Config, log *slog.Logger, rec *metrics.Recorder) (*core.Service, func(), *trust.Refresher, compat.Report, error) {
 	pool, report, err := openLibrary(cfg)
 	if err != nil {
 		return nil, nil, nil, compat.Report{}, err
 	}
+	rec.BindPool(pool.Stats)
 	policy, _ := compat.ParsePolicy(cfg.Lib.Compat) // validated by config.Validate
 	if log != nil {
 		logReport(log, report, policy)
@@ -418,6 +427,7 @@ func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), *
 	// resolved interval is > 0). refs is empty when the registry is off, so it then
 	// only re-scans the CA directory.
 	refresher := trust.NewRefresher(store, cfg.Trust.CADir, refs, fetch, log)
+	rec.BindTrust(store.Count)
 
 	opts := []core.Option{
 		core.WithTrustStore(store),
@@ -431,7 +441,9 @@ func buildService(cfg config.Config, log *slog.Logger) (*core.Service, func(), *
 		opts = append(opts, core.WithIssuerFetcher(aia.New(time.Duration(cfg.Trust.AIATimeout)*time.Second)))
 	}
 	if cfg.Trust.CRLCache {
-		opts = append(opts, core.WithCRLSource(crl.New(time.Duration(cfg.Trust.AIATimeout)*time.Second)))
+		cache := crl.New(time.Duration(cfg.Trust.AIATimeout) * time.Second)
+		rec.BindCRL(cache.Stats)
+		opts = append(opts, core.WithCRLSource(cache))
 	}
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))
