@@ -69,6 +69,9 @@ func registry() []entry {
 		{key: "trust.verify-chain", flag: "trust-verify-chain", env: "TRUST_VERIFY_CHAIN", kind: kindBool, def: false, usage: "cryptographically validate the signer chain via Kalkan (incl. GOST)"},
 		{key: "trust.refresh-interval", flag: "trust-refresh-interval", env: "TRUST_REFRESH_INTERVAL", kind: kindString, def: "", usage: "background anchor-refresh cadence (e.g. 24h); empty=auto (24h with RK registry), 0/off=disabled"},
 		{key: "trust.crl-cache", flag: "trust-crl-cache", env: "TRUST_CRL_CACHE", kind: kindBool, def: false, usage: "cache CRLs by distribution point for Method=CRL validation without inline CRL"},
+		{key: "trust.crl-spool-dir", flag: "trust-crl-spool-dir", env: "TRUST_CRL_SPOOL_DIR", kind: kindString, def: "", usage: "spool CRL bodies to this directory (persistent, warm-started); empty keeps them in memory"},
+		{key: "trust.crl-cache-max-mb", flag: "trust-crl-cache-max-mb", env: "TRUST_CRL_CACHE_MAX_MB", kind: kindInt, def: 0, usage: "cap on total cached CRL bytes in MiB (0 = default 256)"},
+		{key: "trust.crl-fail-policy", flag: "trust-crl-fail-policy", env: "TRUST_CRL_FAIL_POLICY", kind: kindString, def: "soft", usage: "CRL fail policy when a managed CRL is unreliable: soft (fall back to OCSP) | hard (fail closed)"},
 		{key: "log.level", flag: "log-level", env: "LOG_LEVEL", kind: kindString, def: "info", usage: "log level: debug|info|warn|error"},
 		{key: "log.format", flag: "log-format", env: "LOG_FORMAT", kind: kindString, def: "text", usage: "log format: text|json"},
 		{key: "metrics.enabled", flag: "metrics", env: "METRICS_ENABLED", kind: kindBool, def: false, usage: "enable the metrics/health endpoint"},
@@ -257,6 +260,12 @@ func (l *Loaded) value(e entry) string {
 		return c.Trust.RefreshInterval
 	case "trust.crl-cache":
 		return strconv.FormatBool(c.Trust.CRLCache)
+	case "trust.crl-spool-dir":
+		return c.Trust.CRLSpoolDir
+	case "trust.crl-cache-max-mb":
+		return strconv.Itoa(c.Trust.CRLCacheMaxMB)
+	case "trust.crl-fail-policy":
+		return c.Trust.CRLFailPolicy
 	case "log.level":
 		return c.Log.Level
 	case "log.format":
