@@ -128,13 +128,27 @@ KcInstance *kc_open(const char *wrapperPath, int isolated,
 
 unsigned long kc_init(KcInstance *in) { return in->kc->KC_Init(); }
 
-void kc_close(KcInstance *in) {
+void kc_close(KcInstance *in, int isolated) {
     if (!in) return;
-    if (in->kc) {
-        if (in->kc->KC_XMLFinalize) in->kc->KC_XMLFinalize();
-        if (in->kc->KC_Finalize) in->kc->KC_Finalize();
+    if (isolated) {
+        /* Private dlmopen namespace: this instance owns its copy of the crypto
+         * engine and libxml2, so finalizing and unloading them is safe. */
+        if (in->kc) {
+            if (in->kc->KC_XMLFinalize) in->kc->KC_XMLFinalize();
+            if (in->kc->KC_Finalize) in->kc->KC_Finalize();
+        }
+        if (in->handle) kc_unload(in->handle);
     }
-    if (in->handle) kc_unload(in->handle);
+    /* Non-isolated: the wrapper is loaded process-globally (RTLD_GLOBAL) and its
+     * libxml2/OpenSSL state is process-global. KC_Finalize + dlclose here tear
+     * down state that a later kc_open in the SAME process reuses (dlopen returns
+     * the still-mapped image, and libxml2 is not re-initialized), so the reopened
+     * instance's first XML/WSSE signature dereferences torn-down globals and
+     * SIGSEGVs — an intermittent, heap-layout-dependent crash. We keep the shared
+     * library mapped and warm for the process lifetime; the OS reclaims it at
+     * exit. The service opens its pool once, so this is a harmless shutdown-time
+     * leak. Verified: 300 open/close+XML/WSSE cycles crash without this, clean
+     * with it. */
     free(in);
 }
 

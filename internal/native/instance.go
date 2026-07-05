@@ -62,7 +62,11 @@ func openInstance(id int, wrapperPath string, isolated bool) (*instance, error) 
 
 func (in *instance) close() {
 	if in != nil && in.c != nil {
-		C.kc_close(in.c)
+		iso := C.int(0)
+		if in.isolated {
+			iso = 1
+		}
+		C.kc_close(in.c, iso)
 		in.c = nil
 	}
 }
