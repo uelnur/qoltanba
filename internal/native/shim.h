@@ -31,7 +31,12 @@ KcInstance *kc_open(const char *wrapperPath, int isolated,
                     int *sharedFallback, char *errbuf, int *errlen);
 
 unsigned long kc_init(KcInstance *in);
-void kc_close(KcInstance *in); /* KC_XMLFinalize + KC_Finalize + dlclose + free */
+/* kc_close releases an instance. isolated!=0 tears the instance down fully
+ * (KC_XMLFinalize + KC_Finalize + dlclose) — safe for a private dlmopen
+ * namespace. isolated==0 keeps the process-global shared library mapped and only
+ * frees the wrapper struct: finalizing/unloading it would corrupt libxml2/OpenSSL
+ * state a later kc_open in the same process reuses (see kc_close in shim.c). */
+void kc_close(KcInstance *in, int isolated);
 
 /* kc_has reports whether a method is available (table pointer != NULL). id is
  * one of the KC_CAP_* values below; used to build the capability map. */
