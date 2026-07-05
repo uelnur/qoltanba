@@ -45,6 +45,7 @@ type Config struct {
 	Jobs       JobsConfig    `koanf:"jobs"`
 	Input      InputConfig   `koanf:"input"`
 	OIDC       OIDCConfig    `koanf:"oidc"`
+	QR         QRConfig      `koanf:"qr"`
 }
 
 // LibConfig configures the native Kalkan library (BYOL).
@@ -234,6 +235,31 @@ func (c OIDCConfig) OIDCChallengeTTL() time.Duration { return parseDurationOr0(c
 // OIDCChallengeTTL.
 func (c OIDCConfig) OIDCTokenTTL() time.Duration { return parseDurationOr0(c.TokenTTL) }
 
+// QRConfig configures the eGov Mobile QR signing/authorization orchestrator (REST
+// /qr/*). Off by default. Three profiles select how the QR reaches eGov Mobile:
+// agnostic (generic self-hosted session), egov (we act as the gateway), relay (we
+// are a client of an upstream gateway such as SIGEX).
+type QRConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// PublicBaseURL is the externally reachable base URL (behind the consumer's
+	// reverse proxy) used to build the app-facing links embedded in the QR. Empty
+	// falls back to the request's X-Forwarded-*/Host headers.
+	PublicBaseURL  string `koanf:"public-base-url"`
+	DefaultProfile string `koanf:"default-profile"` // agnostic | egov | relay
+	DefaultMode    string `koanf:"default-mode"`    // sign | auth
+	SessionTTL     string `koanf:"session-ttl"`     // Go duration (e.g. "5m")
+	Store          string `koanf:"store"`           // memory | bolt
+	BoltPath       string `koanf:"bolt-path"`       // required when store=bolt
+	RequireOCSP    bool   `koanf:"require-ocsp"`
+	RelayURL       string `koanf:"relay-url"` // upstream gateway base (required for relay profile)
+	RelayID        string `koanf:"relay-id"`  // optional upstream org id path segment
+	Organization   string `koanf:"organization"`
+}
+
+// QRSessionTTL resolves the session validity window (empty/malformed → 0, the
+// orchestrator's default; Validate rejects a malformed value up front).
+func (c QRConfig) QRSessionTTL() time.Duration { return parseDurationOr0(c.SessionTTL) }
+
 // parseDurationOr0 parses a Go duration, returning 0 on empty/malformed input.
 func parseDurationOr0(raw string) time.Duration {
 	d, err := time.ParseDuration(strings.TrimSpace(raw))
@@ -418,6 +444,39 @@ func (l *Loaded) Validate() error {
 				if _, err := time.ParseDuration(raw); err != nil {
 					errs = append(errs, d.name+" must be a Go duration (e.g. 5m)")
 				}
+			}
+		}
+	}
+	if c.QR.Enabled {
+		switch c.QR.DefaultProfile {
+		case "", "agnostic", "egov":
+		case "relay":
+			if strings.TrimSpace(c.QR.RelayURL) == "" {
+				errs = append(errs, "qr.relay-url is required when qr.default-profile=relay")
+			}
+		default:
+			errs = append(errs, "qr.default-profile must be agnostic, egov or relay")
+		}
+		switch c.QR.DefaultMode {
+		case "", "sign", "auth":
+		default:
+			errs = append(errs, "qr.default-mode must be sign or auth")
+		}
+		if c.QR.DefaultMode == "auth" && !c.OIDC.Enabled {
+			errs = append(errs, "qr.default-mode=auth requires oidc.enabled (shared token signer)")
+		}
+		switch c.QR.Store {
+		case "", "memory":
+		case "bolt":
+			if strings.TrimSpace(c.QR.BoltPath) == "" {
+				errs = append(errs, "qr.bolt-path is required when qr.store=bolt")
+			}
+		default:
+			errs = append(errs, "qr.store must be memory or bolt")
+		}
+		if raw := strings.TrimSpace(c.QR.SessionTTL); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "qr.session-ttl must be a Go duration (e.g. 5m)")
 			}
 		}
 	}

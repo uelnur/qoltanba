@@ -19,6 +19,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/oidc"
+	"github.com/uelnur/qoltanba/internal/qr"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
@@ -66,6 +67,10 @@ var topTypes = []schemaType{
 	{"OIDCTokenResponse", &oidc.TokenResponse{}},
 	{"OIDCDiscovery", &oidc.DiscoveryDoc{}},
 	{"OIDCJWKS", &oidc.JWKSet{}},
+	// eGov Mobile QR wire types. QRView is hand-authored (its result is polymorphic)
+	// in addQRSchemas; Document is pulled in by reflection from QRCreateRequest.
+	{"QRCreateRequest", &qr.CreateRequest{}},
+	{"QRCreateResponse", &qr.CreateResponse{}},
 }
 
 // enums enriches specific properties the reflector cannot infer (Go string types
@@ -87,6 +92,9 @@ var enums = map[string][]string{
 	"Claims.gender":            {"male", "female"},
 	"Signer.cadesLevel":        {"BES", "T"},
 	"SignResponse.cadesLevel":  {"BES", "T"},
+	"QRCreateRequest.mode":     {"sign", "auth"},
+	"QRCreateRequest.profile":  {"agnostic", "egov", "relay"},
+	"QRCreateRequest.format":   {"cms", "xml", "wsse"},
 }
 
 func main() {
@@ -95,6 +103,7 @@ func main() {
 
 	schemas := reflectSchemas()
 	applyEnums(schemas)
+	addQRSchemas(schemas)
 	addBatchSchemas(schemas)
 	addOIDCSchemas(schemas)
 

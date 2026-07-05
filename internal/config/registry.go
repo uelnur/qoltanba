@@ -94,6 +94,17 @@ func registry() []entry {
 		{key: "oidc.bolt-path", flag: "oidc-bolt-path", env: "OIDC_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when oidc.store=bolt)"},
 		{key: "oidc.require-ocsp", flag: "oidc-require-ocsp", env: "OIDC_REQUIRE_OCSP", kind: kindBool, def: true, usage: "require a good OCSP status for the signer certificate before issuing tokens"},
 		{key: "oidc.audience", flag: "oidc-audience", env: "OIDC_AUDIENCE", kind: kindString, def: "", usage: "default id_token audience when a verify request omits clientId"},
+		{key: "qr.enabled", flag: "qr", env: "QR_ENABLED", kind: kindBool, def: false, usage: "enable the eGov Mobile QR signing/auth endpoints (REST /qr/*)"},
+		{key: "qr.public-base-url", flag: "qr-public-base-url", env: "QR_PUBLIC_BASE_URL", kind: kindString, def: "", usage: "external base URL for the QR app-facing links (behind a reverse proxy; empty uses X-Forwarded-*/Host)"},
+		{key: "qr.default-profile", flag: "qr-default-profile", env: "QR_DEFAULT_PROFILE", kind: kindString, def: "agnostic", usage: "QR profile: agnostic | egov | relay (overridable per request)"},
+		{key: "qr.default-mode", flag: "qr-default-mode", env: "QR_DEFAULT_MODE", kind: kindString, def: "sign", usage: "session outcome: sign (return signature) | auth (issue OIDC tokens; requires oidc.enabled)"},
+		{key: "qr.session-ttl", flag: "qr-session-ttl", env: "QR_SESSION_TTL", kind: kindString, def: "5m", usage: "session validity window, as a Go duration (e.g. 5m)"},
+		{key: "qr.store", flag: "qr-store", env: "QR_STORE", kind: kindString, def: "memory", usage: "session store: memory (ephemeral) | bolt (on-disk, survives restart)"},
+		{key: "qr.bolt-path", flag: "qr-bolt-path", env: "QR_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when qr.store=bolt)"},
+		{key: "qr.require-ocsp", flag: "qr-require-ocsp", env: "QR_REQUIRE_OCSP", kind: kindBool, def: false, usage: "require a good OCSP status for the signer certificate before accepting a QR signature"},
+		{key: "qr.relay-url", flag: "qr-relay-url", env: "QR_RELAY_URL", kind: kindString, def: "", usage: "upstream eGov QR gateway base URL (required for the relay profile, e.g. https://sigex.kz)"},
+		{key: "qr.relay-id", flag: "qr-relay-id", env: "QR_RELAY_ID", kind: kindString, def: "", usage: "optional upstream gateway org id path segment (/api/{id}/egovQr)"},
+		{key: "qr.organization", flag: "qr-organization", env: "QR_ORGANIZATION", kind: kindString, def: "", usage: "organization name shown in eGov Mobile (egov/relay profiles)"},
 	}
 }
 
@@ -296,6 +307,28 @@ func (l *Loaded) value(e entry) string {
 		return strconv.FormatBool(c.OIDC.RequireOCSP)
 	case "oidc.audience":
 		return c.OIDC.Audience
+	case "qr.enabled":
+		return strconv.FormatBool(c.QR.Enabled)
+	case "qr.public-base-url":
+		return c.QR.PublicBaseURL
+	case "qr.default-profile":
+		return c.QR.DefaultProfile
+	case "qr.default-mode":
+		return c.QR.DefaultMode
+	case "qr.session-ttl":
+		return c.QR.SessionTTL
+	case "qr.store":
+		return c.QR.Store
+	case "qr.bolt-path":
+		return c.QR.BoltPath
+	case "qr.require-ocsp":
+		return strconv.FormatBool(c.QR.RequireOCSP)
+	case "qr.relay-url":
+		return c.QR.RelayURL
+	case "qr.relay-id":
+		return c.QR.RelayID
+	case "qr.organization":
+		return c.QR.Organization
 	default:
 		return ""
 	}

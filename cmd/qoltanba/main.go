@@ -44,6 +44,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/native"
 	"github.com/uelnur/qoltanba/internal/oidc"
 	"github.com/uelnur/qoltanba/internal/pki"
+	"github.com/uelnur/qoltanba/internal/qr"
 	"github.com/uelnur/qoltanba/internal/transport/amqp"
 	"github.com/uelnur/qoltanba/internal/transport/cli"
 	"github.com/uelnur/qoltanba/internal/transport/dispatch"
@@ -244,7 +245,16 @@ func runServe(args []string) int {
 		rec.BindOIDC(oidcProv.ActiveChallenges)
 	}
 
-	return serve(cfg, svc, mgr, oidcProv, refresher, rec, ready, status, log)
+	qrOrch, err := buildQR(cfg, svc, oidcProv, log)
+	if err != nil {
+		log.Error("qr subsystem setup failed", "error", err)
+		return 1
+	}
+	if qrOrch != nil {
+		rec.BindQR(qrOrch.ActiveSessions)
+	}
+
+	return serve(cfg, svc, mgr, oidcProv, qrOrch, refresher, rec, ready, status, log)
 }
 
 // buildOIDC constructs the OIDC "login with ЭЦП" provider when enabled: an RS256
@@ -288,6 +298,74 @@ func buildOIDC(cfg config.Config, svc *core.Service, log *slog.Logger) (*oidc.Pr
 		RequireOCSP:  cfg.OIDC.RequireOCSP,
 	}, oidc.WithLogger(log))
 	return prov, nil
+}
+
+// buildQR constructs the eGov Mobile QR orchestrator when enabled: a session store,
+// the enabled profiles (agnostic + egov always; relay when a gateway URL is set)
+// and, for auth-mode sessions, the OIDC provider as the shared token issuer. It
+// returns a nil orchestrator (no error) when QR is disabled.
+func buildQR(cfg config.Config, svc *core.Service, oidcProv *oidc.Provider, log *slog.Logger) (*qr.Orchestrator, error) {
+	if !cfg.QR.Enabled {
+		return nil, nil
+	}
+	var store qr.SessionStore
+	switch cfg.QR.Store {
+	case "bolt":
+		bs, err := qr.OpenBoltStore(cfg.QR.BoltPath)
+		if err != nil {
+			return nil, fmt.Errorf("open qr session store: %w", err)
+		}
+		store = bs
+	default:
+		store = qr.NewMemStore()
+	}
+	profiles := map[qr.Profile]qr.Profiler{
+		qr.ProfileAgnostic: qr.NewAgnosticProfile(),
+		qr.ProfileEGov:     qr.NewEGovProfile(qr.EGovConfig{Organization: cfg.QR.Organization}),
+	}
+	if cfg.QR.RelayURL != "" {
+		profiles[qr.ProfileRelay] = qr.NewRelayProfile(qr.RelayConfig{BaseURL: cfg.QR.RelayURL, OrgID: cfg.QR.RelayID})
+	}
+	// The QR flow verifies the returned signature — the same trust-anchor boundary
+	// as OIDC applies (the chain must validate to a NUC root), so warn if none.
+	if !cfg.Trust.UseRKRegistry && cfg.Trust.CADir == "" {
+		log.Warn("qr enabled without trust anchors: set trust.use-rk-registry or trust.ca-dir so the signer chain validates (verification rejects otherwise)")
+	}
+	opts := []qr.Option{qr.WithLogger(log), qr.WithWebhook(qrWebhook(log))}
+	if oidcProv != nil {
+		opts = append(opts, qr.WithTokenIssuer(oidcProv))
+	}
+	orch := qr.New(svc, store, profiles, qr.Config{
+		DefaultProfile: qr.Profile(cfg.QR.DefaultProfile),
+		DefaultMode:    qr.Mode(cfg.QR.DefaultMode),
+		TTL:            cfg.QR.QRSessionTTL(),
+		RequireOCSP:    cfg.QR.RequireOCSP,
+	}, opts...)
+	return orch, nil
+}
+
+// qrWebhook delivers a terminal QR-session notification by POSTing the client-safe
+// view to the consumer's callbackUrl. Best-effort: a failure is logged, not
+// retried. The view carries no secrets or signature bytes beyond the result.
+func qrWebhook(log *slog.Logger) qr.Webhook {
+	return func(ctx context.Context, url string, v qr.View) {
+		body, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+		if err != nil {
+			log.Warn("qr webhook build failed", "session", v.ID, "error", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Warn("qr webhook delivery failed", "session", v.ID, "error", err)
+			return
+		}
+		_ = resp.Body.Close()
+	}
 }
 
 // buildJobs constructs the async-job manager when enabled, wiring its executor to
@@ -351,7 +429,7 @@ func jobWebhook(log *slog.Logger) jobs.Webhook {
 
 // serve starts every enabled transport (REST, gRPC, optional separate metrics
 // port) and drains them gracefully on a shutdown signal.
-func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oidc.Provider, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
+func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oidc.Provider, qrOrch *qr.Orchestrator, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -376,6 +454,14 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oi
 		oidcProv.Start(ctx)
 	}
 
+	// The QR orchestrator is served over REST only. Its session reaper drains with ctx.
+	if qrOrch != nil {
+		if !cfg.HTTP.Enabled {
+			log.Warn("qr enabled but REST is off: the /qr endpoints will not be reachable")
+		}
+		qrOrch.Start(ctx)
+	}
+
 	// Background trust-anchor refresh drains with ctx. A resolved interval of 0
 	// (default without the RK registry, or an explicit 0/off) makes Run a no-op.
 	if interval := cfg.TrustRefreshInterval(); interval > 0 {
@@ -393,6 +479,9 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oi
 		}
 		if oidcProv != nil {
 			restOpts = append(restOpts, rest.WithOIDC(oidcProv))
+		}
+		if qrOrch != nil {
+			restOpts = append(restOpts, rest.WithQR(qrOrch, cfg.QR.PublicBaseURL))
 		}
 		work := http.NewServeMux()
 		work.Handle("/", rec.InstrumentHTTP("rest", rest.New(svc, restOpts...).Routes()))
@@ -486,6 +575,11 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oi
 	if oidcProv != nil {
 		if err := oidcProv.Close(); err != nil {
 			log.Warn("oidc store close", "error", err)
+		}
+	}
+	if qrOrch != nil {
+		if err := qrOrch.Close(); err != nil {
+			log.Warn("qr store close", "error", err)
 		}
 	}
 	return 0

@@ -12,14 +12,17 @@ import (
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/oidc"
+	"github.com/uelnur/qoltanba/internal/qr"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
 // Server adapts the domain service to HTTP handlers.
 type Server struct {
-	svc  *core.Service
-	jobs *jobs.Manager  // nil disables the async-job endpoints
-	oidc *oidc.Provider // nil disables the OIDC endpoints
+	svc    *core.Service
+	jobs   *jobs.Manager    // nil disables the async-job endpoints
+	oidc   *oidc.Provider   // nil disables the OIDC endpoints
+	qr     *qr.Orchestrator // nil disables the QR endpoints
+	qrBase string           // configured public base URL for QR app-facing links
 }
 
 // Option configures a Server.
@@ -30,6 +33,13 @@ func WithJobs(m *jobs.Manager) Option { return func(s *Server) { s.jobs = m } }
 
 // WithOIDC enables the "login with ЭЦП" OIDC endpoints backed by the given provider.
 func WithOIDC(p *oidc.Provider) Option { return func(s *Server) { s.oidc = p } }
+
+// WithQR enables the eGov Mobile QR signing/auth endpoints. publicBase is the
+// externally reachable base URL used to build the app-facing links embedded in the
+// QR (empty falls back to X-Forwarded-*/Host per request).
+func WithQR(o *qr.Orchestrator, publicBase string) Option {
+	return func(s *Server) { s.qr = o; s.qrBase = publicBase }
+}
 
 // New builds a REST server over the domain service.
 func New(svc *core.Service, opts ...Option) *Server {
@@ -66,6 +76,14 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("POST /oidc/challenge", s.handleOIDCChallenge)
 		mux.HandleFunc("POST /oidc/verify", s.handleOIDCVerify)
 		mux.HandleFunc("GET /oidc/userinfo", s.handleOIDCUserInfo)
+	}
+	if s.qr != nil {
+		mux.HandleFunc("POST /qr/sessions", s.handleQRCreate)
+		mux.HandleFunc("GET /qr/sessions/{id}", s.handleQRGet)
+		// App-facing (public): eGov Mobile fetches data-to-sign and returns the
+		// signature. The unguessable session id in the path is the capability token.
+		mux.HandleFunc("GET /qr/a/{id}", s.handleQRAppData)
+		mux.HandleFunc("POST /qr/a/{id}", s.handleQRAppSubmit)
 	}
 	return mux
 }

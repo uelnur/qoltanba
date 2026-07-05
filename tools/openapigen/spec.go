@@ -199,6 +199,73 @@ func oidcGet(opID, summary, respDesc, schema string) map[string]any {
 	}
 }
 
+// qrEndpoints drive the Postman collection for the QR flow. The app-facing pair
+// (/qr/a/{id}) is hit by eGov Mobile, not the consumer, so it is documented but
+// carries no Postman example body beyond a placeholder.
+var qrEndpoints = []endpoint{
+	{"POST", "/qr/sessions", "qrCreate", "qr", "Start an eGov Mobile QR signing/auth session",
+		"QRCreateRequest", "QRCreateResponse", "Session created (render qr as a PNG; poll the session)",
+		`{"mode":"sign","profile":"agnostic","data":"{{dataBase64}}","callbackUrl":"{{callbackUrl}}"}`},
+	{"GET", "/qr/sessions/{id}", "qrGet", "qr", "Poll a QR session for the verified result or tokens", "", "QRView", "Session view", ""},
+	{"GET", "/qr/a/{id}", "qrAppData", "qr", "App-facing: eGov Mobile fetches the data-to-sign", "", "", "Data-to-sign", ""},
+	{"POST", "/qr/a/{id}", "qrAppSubmit", "qr", "App-facing: eGov Mobile returns the signature", "", "", "Accepted", `{"signature":"{{signatureBase64}}"}`},
+}
+
+// addQRSchemas hand-authors the QR session view (its result is polymorphic — a
+// SignResult or an OIDC token set — so it does not reflect cleanly).
+func addQRSchemas(schemas map[string]any) {
+	schemas["QRView"] = map[string]any{
+		"type":        "object",
+		"description": "Client-safe QR session view (no data-to-sign or callback).",
+		"properties": map[string]any{
+			"id":        map[string]any{"type": "string"},
+			"mode":      map[string]any{"type": "string", "enum": []any{"sign", "auth"}},
+			"profile":   map[string]any{"type": "string", "enum": []any{"agnostic", "egov", "relay"}},
+			"status":    map[string]any{"type": "string", "enum": []any{"pending", "verified", "failed", "expired"}},
+			"expiresAt": map[string]any{"type": "string", "format": "date-time"},
+			"result":    map[string]any{"type": "object", "description": "SignResult (sign mode) or OIDC token set (auth mode)"},
+			"error":     ref("BatchItemError"),
+		},
+	}
+}
+
+// addQRPaths declares the QR endpoints (mixed methods with path params).
+func addQRPaths(paths map[string]any) {
+	idParam := []any{map[string]any{
+		"name": "id", "in": "path", "required": true,
+		"schema": map[string]any{"type": "string"},
+	}}
+	errs := map[string]any{"400": ref2("responses", "Error"), "404": ref2("responses", "Error"), "500": ref2("responses", "Error")}
+	withErrs := func(m map[string]any) map[string]any {
+		for k, v := range errs {
+			m[k] = v
+		}
+		return m
+	}
+	paths["/qr/sessions"] = map[string]any{"post": map[string]any{
+		"tags": []any{"qr"}, "summary": "Start an eGov Mobile QR signing/auth session", "operationId": "qrCreate",
+		"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("QRCreateRequest")}}},
+		"responses":   withErrs(map[string]any{"201": jsonResponse("Session created", "QRCreateResponse")}),
+	}}
+	paths["/qr/sessions/{id}"] = map[string]any{"get": map[string]any{
+		"tags": []any{"qr"}, "summary": "Poll a QR session for the verified result or tokens", "operationId": "qrGet",
+		"parameters": idParam,
+		"responses":  withErrs(map[string]any{"200": jsonResponse("Session view", "QRView")}),
+	}}
+	paths["/qr/a/{id}"] = map[string]any{
+		"get": map[string]any{
+			"tags": []any{"qr"}, "summary": "App-facing: eGov Mobile fetches the data-to-sign", "operationId": "qrAppData",
+			"parameters": idParam,
+			"responses":  withErrs(map[string]any{"200": map[string]any{"description": "Data-to-sign (profile-specific)"}}),
+		},
+		"post": map[string]any{
+			"tags": []any{"qr"}, "summary": "App-facing: eGov Mobile returns the signature", "operationId": "qrAppSubmit",
+			"parameters": idParam,
+			"responses":  withErrs(map[string]any{"200": map[string]any{"description": "Signature accepted"}}),
+		},
+	}
+}
+
 var obsEndpoints = []endpoint{
 	{"GET", "/healthz", "healthz", "observability", "Liveness — the process is up", "", "", "ok", ""},
 	{"GET", "/readyz", "readyz", "observability", "Readiness — library loaded and self-tested", "", "", "ready", ""},
@@ -228,6 +295,7 @@ func buildDoc(schemas map[string]any) map[string]any {
 			map[string]any{"name": "batch", "description": "Batched operations (aggregated or NDJSON stream)"},
 			map[string]any{"name": "jobs", "description": "Async jobs for large/slow work (submit, poll, cancel)"},
 			map[string]any{"name": "oidc", "description": "Login with ЭЦП: OpenID Connect discovery, challenge/verify, tokens"},
+			map[string]any{"name": "qr", "description": "eGov Mobile QR signing/authorization sessions"},
 			map[string]any{"name": "observability", "description": "Health, status, metrics"},
 		},
 		"paths": buildPaths(),
@@ -285,6 +353,7 @@ func buildPaths() map[string]any {
 	}
 	addJobPaths(paths)
 	addOIDCPaths(paths)
+	addQRPaths(paths)
 	return paths
 }
 
@@ -434,6 +503,7 @@ func writePostman(path string) {
 	}
 	all := append([]endpoint{}, endpoints...)
 	all = append(all, oidcEndpoints...)
+	all = append(all, qrEndpoints...)
 	all = append(all, obsEndpoints...)
 	for _, e := range all {
 		add(e.tag, pmItem{Name: e.summary, Request: pmRequestFor(e)})

@@ -275,6 +275,22 @@ components:
         sub:
           type: string
       type: object
+    Document:
+      properties:
+        data:
+          contentEncoding: base64
+          type: string
+        mime:
+          type: string
+        nameEn:
+          type: string
+        nameKz:
+          type: string
+        nameRu:
+          type: string
+      required:
+      - data
+      type: object
     ErrorEnvelope:
       properties:
         error:
@@ -616,6 +632,108 @@ components:
           type: string
       required:
       - path
+      type: object
+    QRCreateRequest:
+      properties:
+        callbackUrl:
+          type: string
+        clientId:
+          type: string
+        data:
+          contentEncoding: base64
+          type: string
+        description:
+          type: string
+        detached:
+          type: boolean
+        documents:
+          items:
+            $ref: '#/components/schemas/Document'
+          type: array
+        format:
+          enum:
+          - cms
+          - xml
+          - wsse
+          type: string
+        mode:
+          enum:
+          - sign
+          - auth
+          type: string
+        nonce:
+          type: string
+        profile:
+          enum:
+          - agnostic
+          - egov
+          - relay
+          type: string
+        signMethod:
+          type: string
+        state:
+          type: string
+        ttlSeconds:
+          type: integer
+      type: object
+    QRCreateResponse:
+      properties:
+        dataUrl:
+          type: string
+        eGovBusinessLink:
+          type: string
+        eGovMobileLink:
+          type: string
+        expiresIn:
+          type: integer
+        payload:
+          type: string
+        qr:
+          type: string
+        sessionId:
+          type: string
+        signUrl:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+      required:
+      - sessionId
+      - status
+      - expiresIn
+      type: object
+    QRView:
+      description: Client-safe QR session view (no data-to-sign or callback).
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        expiresAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        mode:
+          enum:
+          - sign
+          - auth
+          type: string
+        profile:
+          enum:
+          - agnostic
+          - egov
+          - relay
+          type: string
+        result:
+          description: SignResult (sign mode) or OIDC token set (auth mode)
+          type: object
+        status:
+          enum:
+          - pending
+          - verified
+          - failed
+          - expired
+          type: string
       type: object
     RevocationStatus:
       properties:
@@ -1422,6 +1540,97 @@ paths:
       summary: Verify the signed challenge and issue OIDC tokens
       tags:
       - oidc
+  /qr/a/{id}:
+    get:
+      operationId: qrAppData
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Data-to-sign (profile-specific)
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: 'App-facing: eGov Mobile fetches the data-to-sign'
+      tags:
+      - qr
+    post:
+      operationId: qrAppSubmit
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Signature accepted
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: 'App-facing: eGov Mobile returns the signature'
+      tags:
+      - qr
+  /qr/sessions:
+    post:
+      operationId: qrCreate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QRCreateRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QRCreateResponse'
+          description: Session created
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: Start an eGov Mobile QR signing/auth session
+      tags:
+      - qr
+  /qr/sessions/{id}:
+    get:
+      operationId: qrGet
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QRView'
+          description: Session view
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: Poll a QR session for the verified result or tokens
+      tags:
+      - qr
   /readyz:
     get:
       operationId: readyz
@@ -1580,5 +1789,7 @@ tags:
   name: jobs
 - description: 'Login with ЭЦП: OpenID Connect discovery, challenge/verify, tokens'
   name: oidc
+- description: eGov Mobile QR signing/authorization sessions
+  name: qr
 - description: Health, status, metrics
   name: observability

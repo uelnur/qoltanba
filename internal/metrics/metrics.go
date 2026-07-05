@@ -111,6 +111,18 @@ func (r *Recorder) BindOIDC(count func() int) {
 	}, func() float64 { return float64(count()) }))
 }
 
+// BindQR registers a gauge for the current stored QR-session count. count is read
+// at scrape time. No-op on a nil Recorder or nil count.
+func (r *Recorder) BindQR(count func() int) {
+	if r == nil || count == nil {
+		return
+	}
+	r.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "qoltanba_qr_sessions",
+		Help: "eGov Mobile QR sessions currently outstanding.",
+	}, func() float64 { return float64(count()) }))
+}
+
 // poolCollector emits busy/idle worker gauges from a live stats function.
 type poolCollector struct {
 	stats func() (inUse, size int)

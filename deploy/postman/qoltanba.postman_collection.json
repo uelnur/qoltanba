@@ -417,6 +417,98 @@
       ]
     },
     {
+      "name": "Qr",
+      "item": [
+        {
+          "name": "Start an eGov Mobile QR signing/auth session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"mode\":\"sign\",\"profile\":\"agnostic\",\"data\":\"{{dataBase64}}\",\"callbackUrl\":\"{{callbackUrl}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/qr/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "sessions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Poll a QR session for the verified result or tokens",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/qr/sessions/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "sessions",
+                "{id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "App-facing: eGov Mobile fetches the data-to-sign",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/qr/a/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "a",
+                "{id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "App-facing: eGov Mobile returns the signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"signature\":\"{{signatureBase64}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/qr/a/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "a",
+                "{id}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Observability",
       "item": [
         {

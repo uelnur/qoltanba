@@ -166,22 +166,30 @@ func (p *Provider) Verify(ctx context.Context, req VerifyRequest) (TokenResponse
 		}
 	}
 
-	now := p.now()
-	sub := signer.Claims.Sub
-	aud := firstNonEmpty(req.ClientID, p.cfg.Audience, p.cfg.Issuer)
+	return p.IssueTokens(ctx, *signer.Claims, req.ClientID, ch.ClientNonce)
+}
 
-	idClaims := claimsToMap(*signer.Claims)
+// IssueTokens mints the OIDC id_token/access_token set from certificate-derived
+// claims. It is exposed so other ЭЦП flows (e.g. QR-based login) issue tokens
+// through the same signer, JWKS and issuer as the challenge/verify flow. clientID
+// sets the id_token audience; nonce, when non-empty, is bound into the id_token.
+func (p *Provider) IssueTokens(_ context.Context, claims core.Claims, clientID, nonce string) (TokenResponse, error) {
+	now := p.now()
+	sub := claims.Sub
+	aud := firstNonEmpty(clientID, p.cfg.Audience, p.cfg.Issuer)
+
+	idClaims := claimsToMap(claims)
 	idClaims["iss"] = p.cfg.Issuer
 	idClaims["sub"] = sub
 	idClaims["aud"] = aud
 	idClaims["iat"] = now.Unix()
 	idClaims["auth_time"] = now.Unix()
 	idClaims["exp"] = now.Add(p.cfg.TokenTTL).Unix()
-	if ch.ClientNonce != "" {
-		idClaims["nonce"] = ch.ClientNonce
+	if nonce != "" {
+		idClaims["nonce"] = nonce
 	}
 
-	accClaims := claimsToMap(*signer.Claims)
+	accClaims := claimsToMap(claims)
 	accClaims["iss"] = p.cfg.Issuer
 	accClaims["sub"] = sub
 	accClaims["iat"] = now.Unix()
