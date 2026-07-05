@@ -42,6 +42,8 @@ type Config struct {
 	Trust      TrustConfig   `koanf:"trust"`
 	Log        LogConfig     `koanf:"log"`
 	Metrics    MetricsConfig `koanf:"metrics"`
+	Jobs       JobsConfig    `koanf:"jobs"`
+	Input      InputConfig   `koanf:"input"`
 }
 
 // LibConfig configures the native Kalkan library (BYOL).
@@ -159,6 +161,46 @@ type TrustConfig struct {
 	RefreshInterval string `koanf:"refresh-interval"`
 	CRLCache        bool   `koanf:"crl-cache"` // cache CRLs by distribution point for Method=CRL validation
 }
+
+// JobsConfig configures the async-job subsystem (REST /jobs endpoints). It is
+// off by default; enabling it stands up the manager and its store.
+type JobsConfig struct {
+	Enabled       bool   `koanf:"enabled"`
+	Store         string `koanf:"store"`     // memory | bolt
+	BoltPath      string `koanf:"bolt-path"` // required when store=bolt
+	MaxConcurrent int    `koanf:"max-concurrent"`
+	QueueSize     int    `koanf:"queue-size"`
+	MaxInputMB    int    `koanf:"max-input-mb"` // 0 = unlimited
+	// TTL is how long a finished job is retained, as a Go duration (e.g. "1h").
+	// Resolve via JobsTTL.
+	TTL string `koanf:"ttl"`
+}
+
+// JobsTTL resolves the retention duration for finished jobs. A malformed or empty
+// value yields 0 (the manager then applies its own default); config.Validate
+// rejects a malformed value up front.
+func (c JobsConfig) JobsTTL() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.TTL))
+	if err != nil {
+		return 0
+	}
+	return d
+}
+
+// InputConfig configures by-reference payloads (DataRef path/URL) for large
+// files. Both sources are off by default: a local path is a file-read risk and a
+// URL fetch is an SSRF vector, so each is opt-in.
+type InputConfig struct {
+	AllowLocalPath bool     `koanf:"allow-local-path"`
+	AllowURL       bool     `koanf:"allow-url"`
+	AllowedSchemes []string `koanf:"allowed-schemes"` // default https
+	MaxMB          int      `koanf:"max-mb"`          // 0 = unlimited
+	SpoolDir       string   `koanf:"spool-dir"`       // empty = os.TempDir()
+}
+
+// Enabled reports whether any by-reference source is turned on (so the resolver
+// is worth wiring).
+func (c InputConfig) Enabled() bool { return c.AllowLocalPath || c.AllowURL }
 
 // LogConfig configures logging.
 type LogConfig struct {
@@ -296,6 +338,22 @@ func (l *Loaded) Validate() error {
 	if raw := strings.TrimSpace(c.Trust.RefreshInterval); raw != "" && raw != "0" && raw != "off" {
 		if _, err := time.ParseDuration(raw); err != nil {
 			errs = append(errs, "trust.refresh-interval must be a Go duration (e.g. 24h), empty, 0 or off")
+		}
+	}
+	if c.Jobs.Enabled {
+		switch c.Jobs.Store {
+		case "memory":
+		case "bolt":
+			if strings.TrimSpace(c.Jobs.BoltPath) == "" {
+				errs = append(errs, "jobs.bolt-path is required when jobs.store=bolt")
+			}
+		default:
+			errs = append(errs, "jobs.store must be memory or bolt")
+		}
+		if raw := strings.TrimSpace(c.Jobs.TTL); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "jobs.ttl must be a Go duration (e.g. 1h)")
+			}
 		}
 	}
 	if len(errs) == 0 {

@@ -73,6 +73,18 @@ func registry() []entry {
 		{key: "log.format", flag: "log-format", env: "LOG_FORMAT", kind: kindString, def: "text", usage: "log format: text|json"},
 		{key: "metrics.enabled", flag: "metrics", env: "METRICS_ENABLED", kind: kindBool, def: false, usage: "enable the metrics/health endpoint"},
 		{key: "metrics.addr", flag: "metrics-addr", env: "METRICS_ADDR", kind: kindString, def: ":9090", usage: "metrics/health listen address"},
+		{key: "jobs.enabled", flag: "jobs", env: "JOBS_ENABLED", kind: kindBool, def: false, usage: "enable the async-job endpoints (REST /jobs)"},
+		{key: "jobs.store", flag: "jobs-store", env: "JOBS_STORE", kind: kindString, def: "memory", usage: "job store: memory (ephemeral) | bolt (on-disk, survives restart)"},
+		{key: "jobs.bolt-path", flag: "jobs-bolt-path", env: "JOBS_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when jobs.store=bolt)"},
+		{key: "jobs.max-concurrent", flag: "jobs-max-concurrent", env: "JOBS_MAX_CONCURRENT", kind: kindInt, def: 0, usage: "max concurrent job executors (0 uses the worker count)"},
+		{key: "jobs.queue-size", flag: "jobs-queue-size", env: "JOBS_QUEUE_SIZE", kind: kindInt, def: 128, usage: "pending-job queue depth before backpressure (503)"},
+		{key: "jobs.max-input-mb", flag: "jobs-max-input-mb", env: "JOBS_MAX_INPUT_MB", kind: kindInt, def: 0, usage: "reject job requests larger than this many MiB (0 = unlimited)"},
+		{key: "jobs.ttl", flag: "jobs-ttl", env: "JOBS_TTL", kind: kindString, def: "1h", usage: "retention for finished jobs, as a Go duration (e.g. 1h)"},
+		{key: "input.allow-local-path", flag: "input-allow-local-path", env: "INPUT_ALLOW_LOCAL_PATH", kind: kindBool, def: false, usage: "accept by-reference data from a local file path (file-read risk; off by default)"},
+		{key: "input.allow-url", flag: "input-allow-url", env: "INPUT_ALLOW_URL", kind: kindBool, def: false, usage: "accept by-reference data from a URL (SSRF risk; off by default)"},
+		{key: "input.allowed-schemes", flag: "input-allowed-schemes", env: "INPUT_ALLOWED_SCHEMES", kind: kindStringSlice, def: []string{"https"}, usage: "URL schemes accepted for by-reference data"},
+		{key: "input.max-mb", flag: "input-max-mb", env: "INPUT_MAX_MB", kind: kindInt, def: 0, usage: "cap a by-reference payload in MiB (0 = unlimited)"},
+		{key: "input.spool-dir", flag: "input-spool-dir", env: "INPUT_SPOOL_DIR", kind: kindString, def: "", usage: "directory for fetched-URL spool files (empty = system temp)"},
 	}
 }
 
@@ -233,6 +245,30 @@ func (l *Loaded) value(e entry) string {
 		return strconv.FormatBool(c.Metrics.Enabled)
 	case "metrics.addr":
 		return c.Metrics.Addr
+	case "jobs.enabled":
+		return strconv.FormatBool(c.Jobs.Enabled)
+	case "jobs.store":
+		return c.Jobs.Store
+	case "jobs.bolt-path":
+		return c.Jobs.BoltPath
+	case "jobs.max-concurrent":
+		return strconv.Itoa(c.Jobs.MaxConcurrent)
+	case "jobs.queue-size":
+		return strconv.Itoa(c.Jobs.QueueSize)
+	case "jobs.max-input-mb":
+		return strconv.Itoa(c.Jobs.MaxInputMB)
+	case "jobs.ttl":
+		return c.Jobs.TTL
+	case "input.allow-local-path":
+		return strconv.FormatBool(c.Input.AllowLocalPath)
+	case "input.allow-url":
+		return strconv.FormatBool(c.Input.AllowURL)
+	case "input.allowed-schemes":
+		return strings.Join(c.Input.AllowedSchemes, ",")
+	case "input.max-mb":
+		return strconv.Itoa(c.Input.MaxMB)
+	case "input.spool-dir":
+		return c.Input.SpoolDir
 	default:
 		return ""
 	}

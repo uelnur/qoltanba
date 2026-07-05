@@ -96,26 +96,27 @@ func (c *Consumer) Run(ctx context.Context) error {
 	return nil
 }
 
-// handle processes one message and publishes its reply, acking only after a
-// successful publish so a failure leaves the message for JetStream redelivery.
+// handle processes one message and publishes its reply(ies), acking only after
+// they are all published so a failure leaves the message for JetStream
+// redelivery. A batch op publishes one message per item plus a summary, all
+// keyed by the same correlation id.
 func (c *Consumer) handle(ctx context.Context, nc *nats.Conn, m *nats.Msg) {
-	reply, corrID := c.proc.Process(ctx, m.Data, corrIDFromHeader(m))
-
 	replyTo := m.Reply
 	if replyTo == "" {
 		replyTo = c.cfg.ReplySubject
 	}
-	if replyTo == "" {
-		_ = m.Ack() // nowhere to reply — fire-and-forget
-		return
+	publish := func(corrID string, reply []byte) error {
+		if replyTo == "" {
+			return nil // nowhere to reply — fire-and-forget
+		}
+		msg := nats.NewMsg(replyTo)
+		msg.Data = reply
+		if corrID != "" {
+			msg.Header.Set(nats.MsgIdHdr, corrID)
+		}
+		return nc.PublishMsg(msg)
 	}
-
-	msg := nats.NewMsg(replyTo)
-	msg.Data = reply
-	if corrID != "" {
-		msg.Header.Set(nats.MsgIdHdr, corrID)
-	}
-	if err := nc.PublishMsg(msg); err != nil {
+	if err := c.proc.Process(ctx, m.Data, corrIDFromHeader(m), publish); err != nil {
 		c.log.Error("nats publish reply", "error", err, "subject", replyTo)
 		return // no ack → redelivered
 	}

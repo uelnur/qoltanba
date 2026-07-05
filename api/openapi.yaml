@@ -9,6 +9,68 @@ components:
             $ref: '#/components/schemas/ErrorEnvelope'
       description: Hard failure envelope (friendly message from the error catalog)
   schemas:
+    BatchItemError:
+      properties:
+        action:
+          type: string
+        code:
+          type: string
+        kind:
+          type: string
+        message:
+          type: string
+      required:
+      - kind
+      - message
+      type: object
+    CertInfoBatchItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          description: position in the request
+          type: integer
+        output:
+          $ref: '#/components/schemas/CertInfoResponse'
+        status:
+          enum:
+          - ok
+          - error
+          - skipped
+          type: string
+      type: object
+    CertInfoBatchRequest:
+      description: A batch of CertInfoRequest items with batch-wide controls.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/CertInfoRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
+    CertInfoBatchResponse:
+      properties:
+        failed:
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/CertInfoBatchItem'
+          type: array
+        succeeded:
+          type: integer
+        total:
+          type: integer
+      type: object
     CertInfoRequest:
       properties:
         buildChain:
@@ -56,6 +118,54 @@ components:
           type: array
       required:
       - certificate
+      type: object
+    CertValidateBatchItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          description: position in the request
+          type: integer
+        output:
+          $ref: '#/components/schemas/ValidateResponse'
+        status:
+          enum:
+          - ok
+          - error
+          - skipped
+          type: string
+      type: object
+    CertValidateBatchRequest:
+      description: A batch of ValidateRequest items with batch-wide controls.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ValidateRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
+    CertValidateBatchResponse:
+      properties:
+        failed:
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/CertValidateBatchItem'
+          type: array
+        succeeded:
+          type: integer
+        total:
+          type: integer
       type: object
     Certificate:
       properties:
@@ -184,6 +294,54 @@ components:
       required:
       - error
       type: object
+    ExtractBatchItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          description: position in the request
+          type: integer
+        output:
+          $ref: '#/components/schemas/ExtractResponse'
+        status:
+          enum:
+          - ok
+          - error
+          - skipped
+          type: string
+      type: object
+    ExtractBatchRequest:
+      description: A batch of ExtractRequest items with batch-wide controls.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ExtractRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
+    ExtractBatchResponse:
+      properties:
+        failed:
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/ExtractBatchItem'
+          type: array
+        succeeded:
+          type: integer
+        total:
+          type: integer
+      type: object
     ExtractRequest:
       properties:
         data:
@@ -226,6 +384,51 @@ components:
       required:
       - p12
       - password
+      type: object
+    JobStatus:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        expiresAt:
+          format: date-time
+          type: string
+        finishedAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        op:
+          type: string
+        startedAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+        submittedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - op
+      - status
+      - submittedAt
+      type: object
+    JobSubmitRequest:
+      description: Submit an operation to run as an async job. request is the op payload
+        (the same JSON as the sync endpoint, single or batch).
+      properties:
+        callbackUrl:
+          description: optional webhook POSTed the job status view on completion
+          type: string
+        op:
+          description: operation name, e.g. sign, verify, sign-batch
+          type: string
+        request:
+          description: the op payload
+          type: object
+      required:
+      - op
+      - request
       type: object
     KeySpec:
       properties:
@@ -295,10 +498,62 @@ components:
       required:
       - revoked
       type: object
+    SignBatchItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          description: position in the request
+          type: integer
+        output:
+          $ref: '#/components/schemas/SignResponse'
+        status:
+          enum:
+          - ok
+          - error
+          - skipped
+          type: string
+      type: object
+    SignBatchRequest:
+      description: A batch of SignRequest items with batch-wide controls.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/SignRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
+    SignBatchResponse:
+      properties:
+        failed:
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/SignBatchItem'
+          type: array
+        succeeded:
+          type: integer
+        total:
+          type: integer
+      type: object
     SignRequest:
       properties:
         data:
           contentEncoding: base64
+          type: string
+        dataPath:
+          type: string
+        dataUrl:
           type: string
         detached:
           type: boolean
@@ -518,6 +773,54 @@ components:
       required:
       - status
       type: object
+    VerifyBatchItem:
+      properties:
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          description: position in the request
+          type: integer
+        output:
+          $ref: '#/components/schemas/VerifyResponse'
+        status:
+          enum:
+          - ok
+          - error
+          - skipped
+          type: string
+      type: object
+    VerifyBatchRequest:
+      description: A batch of VerifyRequest items with batch-wide controls.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/VerifyRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
+    VerifyBatchResponse:
+      properties:
+        failed:
+          type: integer
+        results:
+          items:
+            $ref: '#/components/schemas/VerifyBatchItem'
+          type: array
+        succeeded:
+          type: integer
+        total:
+          type: integer
+      type: object
     VerifyRequest:
       properties:
         checkCertTime:
@@ -526,6 +829,10 @@ components:
           type: boolean
         data:
           contentEncoding: base64
+          type: string
+        dataPath:
+          type: string
+        dataUrl:
           type: string
         detached:
           type: boolean
@@ -626,6 +933,31 @@ paths:
         claims)
       tags:
       - certificate
+  /cert/info/batch:
+    post:
+      operationId: certInfoBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertInfoBatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertInfoBatchResponse'
+          description: Per-item results in request order, plus a summary
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Parse many certificates
+      tags:
+      - batch
   /cert/validate:
     post:
       operationId: certValidate
@@ -651,6 +983,31 @@ paths:
       summary: Check a certificate's revocation status (OCSP / CRL)
       tags:
       - certificate
+  /cert/validate/batch:
+    post:
+      operationId: certValidateBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertValidateBatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertValidateBatchResponse'
+          description: Per-item results in request order, plus a summary
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Check revocation for many certificates
+      tags:
+      - batch
   /extract:
     post:
       operationId: extract
@@ -676,6 +1033,31 @@ paths:
       summary: Recover the original content from an attached signature
       tags:
       - signature
+  /extract/batch:
+    post:
+      operationId: extractBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractBatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractBatchResponse'
+          description: Per-item results in request order, plus a summary
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Recover content from many attached signatures
+      tags:
+      - batch
   /healthz:
     get:
       operationId: healthz
@@ -685,6 +1067,105 @@ paths:
       summary: Liveness — the process is up
       tags:
       - observability
+  /jobs:
+    post:
+      operationId: submitJob
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobSubmitRequest'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+          description: Job accepted; poll /jobs/{id}. The Location header points at
+            the job.
+        "400":
+          $ref: '#/components/responses/Error'
+        "413":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Submit an operation as an async job
+      tags:
+      - jobs
+  /jobs/{id}:
+    delete:
+      operationId: cancelJob
+      parameters:
+      - description: job id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+          description: Job status after cancellation
+        "404":
+          $ref: '#/components/responses/Error'
+      summary: Cancel a job (idempotent)
+      tags:
+      - jobs
+    get:
+      operationId: getJob
+      parameters:
+      - description: job id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+          description: Job status view
+        "404":
+          $ref: '#/components/responses/Error'
+      summary: Job status (no request payload or result — poll until terminal)
+      tags:
+      - jobs
+  /jobs/{id}/result:
+    get:
+      operationId: getJobResult
+      parameters:
+      - description: job id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The operation output (shape depends on the job's op)
+        "404":
+          $ref: '#/components/responses/Error'
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+          description: Job not finished yet — keep polling
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+          description: Job failed or was canceled (see error in the view)
+      summary: Job result — the operation output once the job succeeded
+      tags:
+      - jobs
   /metrics:
     get:
       operationId: metrics
@@ -753,6 +1234,31 @@ paths:
       summary: Co-sign — add a signer to an already-signed container
       tags:
       - signature
+  /sign/batch:
+    post:
+      operationId: signBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignBatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignBatchResponse'
+          description: Per-item results in request order, plus a summary
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: 'Sign many items (aggregated JSON, or NDJSON stream with Accept: application/x-ndjson)'
+      tags:
+      - batch
   /statusz:
     get:
       operationId: statusz
@@ -788,6 +1294,31 @@ paths:
       summary: Verify a signature and extract everything available
       tags:
       - signature
+  /verify/batch:
+    post:
+      operationId: verifyBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyBatchResponse'
+          description: Per-item results in request order, plus a summary
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Verify many signatures
+      tags:
+      - batch
 servers:
 - description: Default REST work port (-http :8080)
   url: http://localhost:8080
@@ -796,5 +1327,9 @@ tags:
   name: signature
 - description: Certificate parsing and revocation
   name: certificate
+- description: Batched operations (aggregated or NDJSON stream)
+  name: batch
+- description: Async jobs for large/slow work (submit, poll, cancel)
+  name: jobs
 - description: Health, status, metrics
   name: observability

@@ -115,23 +115,23 @@ func (c *Consumer) handleBatch(ctx context.Context, cl *kgo.Client, records []*k
 	return ok
 }
 
-// handle processes one record and produces its reply. It reports success: a
+// handle processes one record and produces its reply(ies). It reports success: a
 // fire-and-forget record (no reply topic) succeeds immediately; a record with a
-// reply topic succeeds only once the reply is acked by the broker.
+// reply topic succeeds only once every reply is acked by the broker. A batch op
+// produces one record per item plus a summary, all keyed by the correlation id.
 func (c *Consumer) handle(ctx context.Context, cl *kgo.Client, r *kgo.Record) bool {
-	reply, corrID := c.proc.Process(ctx, r.Value, string(r.Key))
-
 	replyTopic := c.replyTopicFor(r)
-	if replyTopic == "" {
-		return true // nowhere to reply
+	publish := func(corrID string, reply []byte) error {
+		if replyTopic == "" {
+			return nil // nowhere to reply — fire-and-forget
+		}
+		return cl.ProduceSync(ctx, &kgo.Record{
+			Topic: replyTopic,
+			Key:   []byte(corrID),
+			Value: reply,
+		}).FirstErr()
 	}
-
-	res := cl.ProduceSync(ctx, &kgo.Record{
-		Topic: replyTopic,
-		Key:   []byte(corrID),
-		Value: reply,
-	})
-	if err := res.FirstErr(); err != nil {
+	if err := c.proc.Process(ctx, r.Value, string(r.Key), publish); err != nil {
 		c.log.Error("kafka produce reply", "error", err, "topic", replyTopic)
 		return false
 	}

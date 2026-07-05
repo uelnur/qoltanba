@@ -18,6 +18,22 @@ service SignatureService {
   rpc Extract(ExtractRequest) returns (ExtractResponse);
   rpc CertInfo(CertInfoRequest) returns (CertInfoResponse);
   rpc CertValidate(CertValidateRequest) returns (CertValidateResponse);
+
+  // Batch operations stream one event per item as it completes (a BatchItem),
+  // then a final BatchSummary — so a large batch never buffers server-side. Items
+  // carry their request index for reordering.
+  rpc SignBatch(SignBatchRequest) returns (stream SignBatchEvent);
+  rpc VerifyBatch(VerifyBatchRequest) returns (stream VerifyBatchEvent);
+  rpc ExtractBatch(ExtractBatchRequest) returns (stream ExtractBatchEvent);
+  rpc CertInfoBatch(CertInfoBatchRequest) returns (stream CertInfoBatchEvent);
+  rpc CertValidateBatch(CertValidateBatchRequest) returns (stream CertValidateBatchEvent);
+
+  // Async jobs run an operation off the request path. SubmitJob returns a jobId
+  // and QUEUED; poll GetJob for status and GetJobResult for the output.
+  rpc SubmitJob(SubmitJobRequest) returns (JobStatus);
+  rpc GetJob(JobId) returns (JobStatus);
+  rpc GetJobResult(JobId) returns (JobResult);
+  rpc CancelJob(JobId) returns (JobStatus);
 }
 
 enum SignatureFormat {
@@ -94,6 +110,8 @@ message SignRequest {
   string parent_node = 11;
   string parent_namespace = 12;
   bytes existing_signature = 13;
+  string data_path = 14; // by-reference: local file path (gated by config)
+  string data_url = 15;  // by-reference: URL streamed to a spool file (gated)
 }
 message SignResponse {
   bytes signature = 1;
@@ -113,6 +131,8 @@ message VerifyRequest {
   bool extract_content = 7;
   repeated TrustedCert trusted_certs = 8;
   bool claims = 9; // add OIDC claims per signer
+  string data_path = 10; // by-reference detached source: local path (gated)
+  string data_url = 11;  // by-reference detached source: URL (gated)
 }
 message VerifyResponse {
   bool valid = 1;
@@ -261,4 +281,145 @@ message RevocationStatus {
   string this_update = 7;
   string next_update = 8;
   string produced_at = 9;
+}
+
+// --- Batch ---
+//
+// A batch runs the same operation over many items; a single call is a batch of
+// one. Per-op wrappers exist because proto has no generics, but the shape is
+// uniform: {items, policy, concurrency} in, a stream of {index, status,
+// output|error} events out, ending in a summary.
+
+// BatchItemError renders a failed item's error without secrets (mirrors the
+// REST/CLI per-item error).
+message BatchItemError {
+  string kind = 1;
+  string code = 2;
+  string message = 3;
+  string action = 4;
+}
+
+// BatchSummary is the final stream event of every batch.
+message BatchSummary {
+  int32 total = 1;
+  int32 succeeded = 2;
+  int32 failed = 3;
+}
+
+message SignBatchRequest {
+  repeated SignRequest items = 1;
+  string policy = 2;      // continue-on-error (default) | fail-fast
+  int32 concurrency = 3;  // 0 = driver pool size
+}
+message SignBatchItem {
+  int32 index = 1;
+  string status = 2; // ok | error | skipped
+  SignResponse output = 3;
+  BatchItemError error = 4;
+}
+message SignBatchEvent {
+  oneof event {
+    SignBatchItem item = 1;
+    BatchSummary summary = 2;
+  }
+}
+
+message VerifyBatchRequest {
+  repeated VerifyRequest items = 1;
+  string policy = 2;
+  int32 concurrency = 3;
+}
+message VerifyBatchItem {
+  int32 index = 1;
+  string status = 2;
+  VerifyResponse output = 3;
+  BatchItemError error = 4;
+}
+message VerifyBatchEvent {
+  oneof event {
+    VerifyBatchItem item = 1;
+    BatchSummary summary = 2;
+  }
+}
+
+message ExtractBatchRequest {
+  repeated ExtractRequest items = 1;
+  string policy = 2;
+  int32 concurrency = 3;
+}
+message ExtractBatchItem {
+  int32 index = 1;
+  string status = 2;
+  ExtractResponse output = 3;
+  BatchItemError error = 4;
+}
+message ExtractBatchEvent {
+  oneof event {
+    ExtractBatchItem item = 1;
+    BatchSummary summary = 2;
+  }
+}
+
+message CertInfoBatchRequest {
+  repeated CertInfoRequest items = 1;
+  string policy = 2;
+  int32 concurrency = 3;
+}
+message CertInfoBatchItem {
+  int32 index = 1;
+  string status = 2;
+  CertInfoResponse output = 3;
+  BatchItemError error = 4;
+}
+message CertInfoBatchEvent {
+  oneof event {
+    CertInfoBatchItem item = 1;
+    BatchSummary summary = 2;
+  }
+}
+
+message CertValidateBatchRequest {
+  repeated CertValidateRequest items = 1;
+  string policy = 2;
+  int32 concurrency = 3;
+}
+message CertValidateBatchItem {
+  int32 index = 1;
+  string status = 2;
+  CertValidateResponse output = 3;
+  BatchItemError error = 4;
+}
+message CertValidateBatchEvent {
+  oneof event {
+    CertValidateBatchItem item = 1;
+    BatchSummary summary = 2;
+  }
+}
+
+// --- Async jobs ---
+
+message SubmitJobRequest {
+  string op = 1;           // operation name, e.g. sign, verify, sign-batch
+  bytes request = 2;       // the op payload as JSON (same shape as the sync RPC/REST body)
+  string callback_url = 3; // optional webhook POSTed the JobStatus on completion
+}
+message JobId {
+  string id = 1;
+}
+// JobStatus is the client-safe view: never the request payload or callback URL.
+message JobStatus {
+  string id = 1;
+  string op = 2;
+  string status = 3; // queued | running | succeeded | failed | canceled
+  string submitted_at = 4;
+  string started_at = 5;
+  string finished_at = 6;
+  string expires_at = 7;
+  BatchItemError error = 8;
+}
+// JobResult carries the finished job's output as JSON bytes (the op's response
+// shape). Status lets a caller tell success from a failed/canceled job.
+message JobResult {
+  string status = 1;
+  bytes result = 2;
 }

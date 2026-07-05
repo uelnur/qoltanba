@@ -59,8 +59,12 @@ type KeyRef struct {
 
 // SignRequest is a signing request. XML has its own SignXMLRequest below.
 type SignRequest struct {
-	Key      KeyRef
-	Data     []byte
+	Key  KeyRef
+	Data []byte
+	// Path, when set, makes the library read the content from this file directly
+	// (KC_IN_FILE) instead of Data — the driver streams it, nothing is buffered in
+	// Go. Data is ignored when Path is set.
+	Path     string
 	Detached bool // detach the content from the signature (KC_DETACHED_DATA)
 	InputPEM bool // input data is already PEM
 	OutPEM   bool // output as PEM (otherwise DER)
@@ -141,8 +145,12 @@ type SignHashRequest struct {
 
 // VerifyRequest verifies a CMS or XML signature.
 type VerifyRequest struct {
-	Signature     []byte
-	Data          []byte // source data for detached CMS; nil for attached/XML
+	Signature []byte
+	Data      []byte // source data for detached CMS; nil for attached/XML
+	// Path, when set, makes the library read the detached source content from this
+	// file (KC_IN_FILE) instead of Data — no buffering in Go. Data is ignored when
+	// Path is set.
+	Path          string
 	Detached      bool
 	InputPEM      bool
 	OutPEM        bool

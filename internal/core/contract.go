@@ -58,7 +58,11 @@ type Warning struct {
 type SignInput struct {
 	Format SignatureFormat
 	Data   []byte
-	Key    KeySpec
+	// DataRef signs a payload by reference (a local path or a URL) instead of
+	// inline Data — for large files. It requires a configured DataResolver and is
+	// supported for CMS. When set, Data is ignored.
+	DataRef DataRef
+	Key     KeySpec
 
 	Detached bool
 	// WithTimestamp adds an RFC 3161 TSA timestamp (CAdES-T). Tri-state: nil uses
@@ -103,8 +107,11 @@ type VerifyInput struct {
 	Format    SignatureFormat
 	Signature []byte
 	Data      []byte // source data for detached CMS; nil for attached/XML
-	Detached  bool
-	InputPEM  bool
+	// DataRef supplies the detached source content by reference (path/URL) for a
+	// large original, instead of inline Data. Requires a DataResolver; CMS only.
+	DataRef  DataRef
+	Detached bool
+	InputPEM bool
 
 	CheckCertTime  bool
 	ExtractContent bool // recover the original content (attached)

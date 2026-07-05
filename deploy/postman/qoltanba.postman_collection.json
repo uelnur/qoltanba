@@ -175,6 +175,143 @@
       ]
     },
     {
+      "name": "Batch",
+      "item": [
+        {
+          "name": "Sign many items (aggregated JSON, or NDJSON stream with Accept: application/x-ndjson)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"format\":\"cms\",\"data\":\"{{dataBase64}}\",\"key\":{\"path\":{\"path\":\"/keys/signer.p12\",\"password\":\"{{keyPassword}}\"}}}],\"policy\":\"continue-on-error\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sign/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sign",
+                "batch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify many signatures",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\"}],\"policy\":\"continue-on-error\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/verify/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify",
+                "batch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recover content from many attached signatures",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\"}]}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/extract/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "extract",
+                "batch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Parse many certificates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"cert\":\"{{certBase64}}\",\"encoding\":\"der\"}]}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cert/info/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cert",
+                "info",
+                "batch"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check revocation for many certificates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"cert\":\"{{certBase64}}\",\"encoding\":\"der\",\"method\":\"ocsp\"}]}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cert/validate/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cert",
+                "validate",
+                "batch"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Observability",
       "item": [
         {

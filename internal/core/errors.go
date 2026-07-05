@@ -26,6 +26,31 @@ const (
 	KindInternal
 )
 
+// NewError builds a domain Error with a message and classified kind. It lets an
+// infrastructure adapter (e.g. the data resolver) surface a typed failure the
+// transports render consistently, instead of a bare error the domain would
+// classify as internal.
+func NewError(kind ErrorKind, op, msg string) *Error {
+	return &Error{Kind: kind, Op: op, err: errors.New(msg)}
+}
+
+// KindName is the stable lowercase label for an ErrorKind, shared by every
+// transport's error envelope so the wire vocabulary is defined once.
+func KindName(k ErrorKind) string {
+	switch k {
+	case KindInvalid:
+		return "invalid"
+	case KindUnsupported:
+		return "unsupported"
+	case KindUnavailable:
+		return "unavailable"
+	case KindCanceled:
+		return "canceled"
+	default:
+		return "internal"
+	}
+}
+
 // Error is a domain-level error carrying a Kind and the operation name. It wraps
 // the underlying provider error so errors.Is/As still reach the sentinels.
 type Error struct {

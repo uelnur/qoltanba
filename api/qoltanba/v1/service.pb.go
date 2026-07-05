@@ -672,6 +672,8 @@ type SignRequest struct {
 	ParentNode        string                 `protobuf:"bytes,11,opt,name=parent_node,json=parentNode,proto3" json:"parent_node,omitempty"`
 	ParentNamespace   string                 `protobuf:"bytes,12,opt,name=parent_namespace,json=parentNamespace,proto3" json:"parent_namespace,omitempty"`
 	ExistingSignature []byte                 `protobuf:"bytes,13,opt,name=existing_signature,json=existingSignature,proto3" json:"existing_signature,omitempty"`
+	DataPath          string                 `protobuf:"bytes,14,opt,name=data_path,json=dataPath,proto3" json:"data_path,omitempty"` // by-reference: local file path (gated by config)
+	DataUrl           string                 `protobuf:"bytes,15,opt,name=data_url,json=dataUrl,proto3" json:"data_url,omitempty"`    // by-reference: URL streamed to a spool file (gated)
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -797,6 +799,20 @@ func (x *SignRequest) GetExistingSignature() []byte {
 	return nil
 }
 
+func (x *SignRequest) GetDataPath() string {
+	if x != nil {
+		return x.DataPath
+	}
+	return ""
+}
+
+func (x *SignRequest) GetDataUrl() string {
+	if x != nil {
+		return x.DataUrl
+	}
+	return ""
+}
+
 type SignResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Signature     []byte                 `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
@@ -883,7 +899,9 @@ type VerifyRequest struct {
 	CheckCertTime  bool                   `protobuf:"varint,6,opt,name=check_cert_time,json=checkCertTime,proto3" json:"check_cert_time,omitempty"`
 	ExtractContent bool                   `protobuf:"varint,7,opt,name=extract_content,json=extractContent,proto3" json:"extract_content,omitempty"`
 	TrustedCerts   []*TrustedCert         `protobuf:"bytes,8,rep,name=trusted_certs,json=trustedCerts,proto3" json:"trusted_certs,omitempty"`
-	Claims         bool                   `protobuf:"varint,9,opt,name=claims,proto3" json:"claims,omitempty"` // add OIDC claims per signer
+	Claims         bool                   `protobuf:"varint,9,opt,name=claims,proto3" json:"claims,omitempty"`                     // add OIDC claims per signer
+	DataPath       string                 `protobuf:"bytes,10,opt,name=data_path,json=dataPath,proto3" json:"data_path,omitempty"` // by-reference detached source: local path (gated)
+	DataUrl        string                 `protobuf:"bytes,11,opt,name=data_url,json=dataUrl,proto3" json:"data_url,omitempty"`    // by-reference detached source: URL (gated)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -979,6 +997,20 @@ func (x *VerifyRequest) GetClaims() bool {
 		return x.Claims
 	}
 	return false
+}
+
+func (x *VerifyRequest) GetDataPath() string {
+	if x != nil {
+		return x.DataPath
+	}
+	return ""
+}
+
+func (x *VerifyRequest) GetDataUrl() string {
+	if x != nil {
+		return x.DataUrl
+	}
+	return ""
 }
 
 type VerifyResponse struct {
@@ -2353,6 +2385,1446 @@ func (x *RevocationStatus) GetProducedAt() string {
 	return ""
 }
 
+// BatchItemError renders a failed item's error without secrets (mirrors the
+// REST/CLI per-item error).
+type BatchItemError struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchItemError) Reset() {
+	*x = BatchItemError{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchItemError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchItemError) ProtoMessage() {}
+
+func (x *BatchItemError) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchItemError.ProtoReflect.Descriptor instead.
+func (*BatchItemError) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *BatchItemError) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *BatchItemError) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *BatchItemError) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *BatchItemError) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+// BatchSummary is the final stream event of every batch.
+type BatchSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         int32                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Succeeded     int32                  `protobuf:"varint,2,opt,name=succeeded,proto3" json:"succeeded,omitempty"`
+	Failed        int32                  `protobuf:"varint,3,opt,name=failed,proto3" json:"failed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchSummary) Reset() {
+	*x = BatchSummary{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchSummary) ProtoMessage() {}
+
+func (x *BatchSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchSummary.ProtoReflect.Descriptor instead.
+func (*BatchSummary) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *BatchSummary) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *BatchSummary) GetSucceeded() int32 {
+	if x != nil {
+		return x.Succeeded
+	}
+	return 0
+}
+
+func (x *BatchSummary) GetFailed() int32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+type SignBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*SignRequest         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Policy        string                 `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`            // continue-on-error (default) | fail-fast
+	Concurrency   int32                  `protobuf:"varint,3,opt,name=concurrency,proto3" json:"concurrency,omitempty"` // 0 = driver pool size
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignBatchRequest) Reset() {
+	*x = SignBatchRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignBatchRequest) ProtoMessage() {}
+
+func (x *SignBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignBatchRequest.ProtoReflect.Descriptor instead.
+func (*SignBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *SignBatchRequest) GetItems() []*SignRequest {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *SignBatchRequest) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+func (x *SignBatchRequest) GetConcurrency() int32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+type SignBatchItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` // ok | error | skipped
+	Output        *SignResponse          `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignBatchItem) Reset() {
+	*x = SignBatchItem{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignBatchItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignBatchItem) ProtoMessage() {}
+
+func (x *SignBatchItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignBatchItem.ProtoReflect.Descriptor instead.
+func (*SignBatchItem) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *SignBatchItem) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *SignBatchItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SignBatchItem) GetOutput() *SignResponse {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *SignBatchItem) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+type SignBatchEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*SignBatchEvent_Item
+	//	*SignBatchEvent_Summary
+	Event         isSignBatchEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignBatchEvent) Reset() {
+	*x = SignBatchEvent{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignBatchEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignBatchEvent) ProtoMessage() {}
+
+func (x *SignBatchEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignBatchEvent.ProtoReflect.Descriptor instead.
+func (*SignBatchEvent) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *SignBatchEvent) GetEvent() isSignBatchEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *SignBatchEvent) GetItem() *SignBatchItem {
+	if x != nil {
+		if x, ok := x.Event.(*SignBatchEvent_Item); ok {
+			return x.Item
+		}
+	}
+	return nil
+}
+
+func (x *SignBatchEvent) GetSummary() *BatchSummary {
+	if x != nil {
+		if x, ok := x.Event.(*SignBatchEvent_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+type isSignBatchEvent_Event interface {
+	isSignBatchEvent_Event()
+}
+
+type SignBatchEvent_Item struct {
+	Item *SignBatchItem `protobuf:"bytes,1,opt,name=item,proto3,oneof"`
+}
+
+type SignBatchEvent_Summary struct {
+	Summary *BatchSummary `protobuf:"bytes,2,opt,name=summary,proto3,oneof"`
+}
+
+func (*SignBatchEvent_Item) isSignBatchEvent_Event() {}
+
+func (*SignBatchEvent_Summary) isSignBatchEvent_Event() {}
+
+type VerifyBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*VerifyRequest       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Policy        string                 `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
+	Concurrency   int32                  `protobuf:"varint,3,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyBatchRequest) Reset() {
+	*x = VerifyBatchRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyBatchRequest) ProtoMessage() {}
+
+func (x *VerifyBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyBatchRequest.ProtoReflect.Descriptor instead.
+func (*VerifyBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *VerifyBatchRequest) GetItems() []*VerifyRequest {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *VerifyBatchRequest) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+func (x *VerifyBatchRequest) GetConcurrency() int32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+type VerifyBatchItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Output        *VerifyResponse        `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyBatchItem) Reset() {
+	*x = VerifyBatchItem{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyBatchItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyBatchItem) ProtoMessage() {}
+
+func (x *VerifyBatchItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyBatchItem.ProtoReflect.Descriptor instead.
+func (*VerifyBatchItem) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *VerifyBatchItem) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *VerifyBatchItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *VerifyBatchItem) GetOutput() *VerifyResponse {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *VerifyBatchItem) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+type VerifyBatchEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*VerifyBatchEvent_Item
+	//	*VerifyBatchEvent_Summary
+	Event         isVerifyBatchEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyBatchEvent) Reset() {
+	*x = VerifyBatchEvent{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyBatchEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyBatchEvent) ProtoMessage() {}
+
+func (x *VerifyBatchEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyBatchEvent.ProtoReflect.Descriptor instead.
+func (*VerifyBatchEvent) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *VerifyBatchEvent) GetEvent() isVerifyBatchEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *VerifyBatchEvent) GetItem() *VerifyBatchItem {
+	if x != nil {
+		if x, ok := x.Event.(*VerifyBatchEvent_Item); ok {
+			return x.Item
+		}
+	}
+	return nil
+}
+
+func (x *VerifyBatchEvent) GetSummary() *BatchSummary {
+	if x != nil {
+		if x, ok := x.Event.(*VerifyBatchEvent_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+type isVerifyBatchEvent_Event interface {
+	isVerifyBatchEvent_Event()
+}
+
+type VerifyBatchEvent_Item struct {
+	Item *VerifyBatchItem `protobuf:"bytes,1,opt,name=item,proto3,oneof"`
+}
+
+type VerifyBatchEvent_Summary struct {
+	Summary *BatchSummary `protobuf:"bytes,2,opt,name=summary,proto3,oneof"`
+}
+
+func (*VerifyBatchEvent_Item) isVerifyBatchEvent_Event() {}
+
+func (*VerifyBatchEvent_Summary) isVerifyBatchEvent_Event() {}
+
+type ExtractBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ExtractRequest      `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Policy        string                 `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
+	Concurrency   int32                  `protobuf:"varint,3,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtractBatchRequest) Reset() {
+	*x = ExtractBatchRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractBatchRequest) ProtoMessage() {}
+
+func (x *ExtractBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractBatchRequest.ProtoReflect.Descriptor instead.
+func (*ExtractBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ExtractBatchRequest) GetItems() []*ExtractRequest {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ExtractBatchRequest) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+func (x *ExtractBatchRequest) GetConcurrency() int32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+type ExtractBatchItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Output        *ExtractResponse       `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtractBatchItem) Reset() {
+	*x = ExtractBatchItem{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractBatchItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractBatchItem) ProtoMessage() {}
+
+func (x *ExtractBatchItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractBatchItem.ProtoReflect.Descriptor instead.
+func (*ExtractBatchItem) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ExtractBatchItem) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *ExtractBatchItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ExtractBatchItem) GetOutput() *ExtractResponse {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *ExtractBatchItem) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+type ExtractBatchEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*ExtractBatchEvent_Item
+	//	*ExtractBatchEvent_Summary
+	Event         isExtractBatchEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtractBatchEvent) Reset() {
+	*x = ExtractBatchEvent{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractBatchEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractBatchEvent) ProtoMessage() {}
+
+func (x *ExtractBatchEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractBatchEvent.ProtoReflect.Descriptor instead.
+func (*ExtractBatchEvent) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ExtractBatchEvent) GetEvent() isExtractBatchEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *ExtractBatchEvent) GetItem() *ExtractBatchItem {
+	if x != nil {
+		if x, ok := x.Event.(*ExtractBatchEvent_Item); ok {
+			return x.Item
+		}
+	}
+	return nil
+}
+
+func (x *ExtractBatchEvent) GetSummary() *BatchSummary {
+	if x != nil {
+		if x, ok := x.Event.(*ExtractBatchEvent_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+type isExtractBatchEvent_Event interface {
+	isExtractBatchEvent_Event()
+}
+
+type ExtractBatchEvent_Item struct {
+	Item *ExtractBatchItem `protobuf:"bytes,1,opt,name=item,proto3,oneof"`
+}
+
+type ExtractBatchEvent_Summary struct {
+	Summary *BatchSummary `protobuf:"bytes,2,opt,name=summary,proto3,oneof"`
+}
+
+func (*ExtractBatchEvent_Item) isExtractBatchEvent_Event() {}
+
+func (*ExtractBatchEvent_Summary) isExtractBatchEvent_Event() {}
+
+type CertInfoBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*CertInfoRequest     `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Policy        string                 `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
+	Concurrency   int32                  `protobuf:"varint,3,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertInfoBatchRequest) Reset() {
+	*x = CertInfoBatchRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertInfoBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertInfoBatchRequest) ProtoMessage() {}
+
+func (x *CertInfoBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertInfoBatchRequest.ProtoReflect.Descriptor instead.
+func (*CertInfoBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *CertInfoBatchRequest) GetItems() []*CertInfoRequest {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *CertInfoBatchRequest) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+func (x *CertInfoBatchRequest) GetConcurrency() int32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+type CertInfoBatchItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Output        *CertInfoResponse      `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertInfoBatchItem) Reset() {
+	*x = CertInfoBatchItem{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertInfoBatchItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertInfoBatchItem) ProtoMessage() {}
+
+func (x *CertInfoBatchItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertInfoBatchItem.ProtoReflect.Descriptor instead.
+func (*CertInfoBatchItem) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *CertInfoBatchItem) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CertInfoBatchItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CertInfoBatchItem) GetOutput() *CertInfoResponse {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *CertInfoBatchItem) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+type CertInfoBatchEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*CertInfoBatchEvent_Item
+	//	*CertInfoBatchEvent_Summary
+	Event         isCertInfoBatchEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertInfoBatchEvent) Reset() {
+	*x = CertInfoBatchEvent{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertInfoBatchEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertInfoBatchEvent) ProtoMessage() {}
+
+func (x *CertInfoBatchEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertInfoBatchEvent.ProtoReflect.Descriptor instead.
+func (*CertInfoBatchEvent) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *CertInfoBatchEvent) GetEvent() isCertInfoBatchEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *CertInfoBatchEvent) GetItem() *CertInfoBatchItem {
+	if x != nil {
+		if x, ok := x.Event.(*CertInfoBatchEvent_Item); ok {
+			return x.Item
+		}
+	}
+	return nil
+}
+
+func (x *CertInfoBatchEvent) GetSummary() *BatchSummary {
+	if x != nil {
+		if x, ok := x.Event.(*CertInfoBatchEvent_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+type isCertInfoBatchEvent_Event interface {
+	isCertInfoBatchEvent_Event()
+}
+
+type CertInfoBatchEvent_Item struct {
+	Item *CertInfoBatchItem `protobuf:"bytes,1,opt,name=item,proto3,oneof"`
+}
+
+type CertInfoBatchEvent_Summary struct {
+	Summary *BatchSummary `protobuf:"bytes,2,opt,name=summary,proto3,oneof"`
+}
+
+func (*CertInfoBatchEvent_Item) isCertInfoBatchEvent_Event() {}
+
+func (*CertInfoBatchEvent_Summary) isCertInfoBatchEvent_Event() {}
+
+type CertValidateBatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*CertValidateRequest `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Policy        string                 `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
+	Concurrency   int32                  `protobuf:"varint,3,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertValidateBatchRequest) Reset() {
+	*x = CertValidateBatchRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertValidateBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertValidateBatchRequest) ProtoMessage() {}
+
+func (x *CertValidateBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertValidateBatchRequest.ProtoReflect.Descriptor instead.
+func (*CertValidateBatchRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *CertValidateBatchRequest) GetItems() []*CertValidateRequest {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *CertValidateBatchRequest) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+func (x *CertValidateBatchRequest) GetConcurrency() int32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+type CertValidateBatchItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Index         int32                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Output        *CertValidateResponse  `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertValidateBatchItem) Reset() {
+	*x = CertValidateBatchItem{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertValidateBatchItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertValidateBatchItem) ProtoMessage() {}
+
+func (x *CertValidateBatchItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertValidateBatchItem.ProtoReflect.Descriptor instead.
+func (*CertValidateBatchItem) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CertValidateBatchItem) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CertValidateBatchItem) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *CertValidateBatchItem) GetOutput() *CertValidateResponse {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *CertValidateBatchItem) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+type CertValidateBatchEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*CertValidateBatchEvent_Item
+	//	*CertValidateBatchEvent_Summary
+	Event         isCertValidateBatchEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertValidateBatchEvent) Reset() {
+	*x = CertValidateBatchEvent{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertValidateBatchEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertValidateBatchEvent) ProtoMessage() {}
+
+func (x *CertValidateBatchEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertValidateBatchEvent.ProtoReflect.Descriptor instead.
+func (*CertValidateBatchEvent) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *CertValidateBatchEvent) GetEvent() isCertValidateBatchEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *CertValidateBatchEvent) GetItem() *CertValidateBatchItem {
+	if x != nil {
+		if x, ok := x.Event.(*CertValidateBatchEvent_Item); ok {
+			return x.Item
+		}
+	}
+	return nil
+}
+
+func (x *CertValidateBatchEvent) GetSummary() *BatchSummary {
+	if x != nil {
+		if x, ok := x.Event.(*CertValidateBatchEvent_Summary); ok {
+			return x.Summary
+		}
+	}
+	return nil
+}
+
+type isCertValidateBatchEvent_Event interface {
+	isCertValidateBatchEvent_Event()
+}
+
+type CertValidateBatchEvent_Item struct {
+	Item *CertValidateBatchItem `protobuf:"bytes,1,opt,name=item,proto3,oneof"`
+}
+
+type CertValidateBatchEvent_Summary struct {
+	Summary *BatchSummary `protobuf:"bytes,2,opt,name=summary,proto3,oneof"`
+}
+
+func (*CertValidateBatchEvent_Item) isCertValidateBatchEvent_Event() {}
+
+func (*CertValidateBatchEvent_Summary) isCertValidateBatchEvent_Event() {}
+
+type SubmitJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Op            string                 `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`                                      // operation name, e.g. sign, verify, sign-batch
+	Request       []byte                 `protobuf:"bytes,2,opt,name=request,proto3" json:"request,omitempty"`                            // the op payload as JSON (same shape as the sync RPC/REST body)
+	CallbackUrl   string                 `protobuf:"bytes,3,opt,name=callback_url,json=callbackUrl,proto3" json:"callback_url,omitempty"` // optional webhook POSTed the JobStatus on completion
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitJobRequest) Reset() {
+	*x = SubmitJobRequest{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitJobRequest) ProtoMessage() {}
+
+func (x *SubmitJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubmitJobRequest.ProtoReflect.Descriptor instead.
+func (*SubmitJobRequest) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *SubmitJobRequest) GetOp() string {
+	if x != nil {
+		return x.Op
+	}
+	return ""
+}
+
+func (x *SubmitJobRequest) GetRequest() []byte {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+func (x *SubmitJobRequest) GetCallbackUrl() string {
+	if x != nil {
+		return x.CallbackUrl
+	}
+	return ""
+}
+
+type JobId struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobId) Reset() {
+	*x = JobId{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobId) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobId) ProtoMessage() {}
+
+func (x *JobId) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobId.ProtoReflect.Descriptor instead.
+func (*JobId) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *JobId) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// JobStatus is the client-safe view: never the request payload or callback URL.
+type JobStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Op            string                 `protobuf:"bytes,2,opt,name=op,proto3" json:"op,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // queued | running | succeeded | failed | canceled
+	SubmittedAt   string                 `protobuf:"bytes,4,opt,name=submitted_at,json=submittedAt,proto3" json:"submitted_at,omitempty"`
+	StartedAt     string                 `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    string                 `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	ExpiresAt     string                 `protobuf:"bytes,7,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Error         *BatchItemError        `protobuf:"bytes,8,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobStatus) Reset() {
+	*x = JobStatus{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobStatus) ProtoMessage() {}
+
+func (x *JobStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobStatus.ProtoReflect.Descriptor instead.
+func (*JobStatus) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *JobStatus) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *JobStatus) GetOp() string {
+	if x != nil {
+		return x.Op
+	}
+	return ""
+}
+
+func (x *JobStatus) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *JobStatus) GetSubmittedAt() string {
+	if x != nil {
+		return x.SubmittedAt
+	}
+	return ""
+}
+
+func (x *JobStatus) GetStartedAt() string {
+	if x != nil {
+		return x.StartedAt
+	}
+	return ""
+}
+
+func (x *JobStatus) GetFinishedAt() string {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return ""
+}
+
+func (x *JobStatus) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *JobStatus) GetError() *BatchItemError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+// JobResult carries the finished job's output as JSON bytes (the op's response
+// shape). Status lets a caller tell success from a failed/canceled job.
+type JobResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Result        []byte                 `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JobResult) Reset() {
+	*x = JobResult{}
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JobResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JobResult) ProtoMessage() {}
+
+func (x *JobResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_qoltanba_v1_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JobResult.ProtoReflect.Descriptor instead.
+func (*JobResult) Descriptor() ([]byte, []int) {
+	return file_api_qoltanba_v1_service_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *JobResult) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *JobResult) GetResult() []byte {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
 var File_api_qoltanba_v1_service_proto protoreflect.FileDescriptor
 
 const file_api_qoltanba_v1_service_proto_rawDesc = "" +
@@ -2387,7 +3859,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x06action\x18\x05 \x01(\tR\x06action\"7\n" +
 	"\aWarning\x12\x14\n" +
 	"\x05field\x18\x01 \x01(\tR\x05field\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xf0\x03\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xa8\x04\n" +
 	"\vSignRequest\x124\n" +
 	"\x06format\x18\x01 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\x12&\n" +
@@ -2404,7 +3876,9 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\vparent_node\x18\v \x01(\tR\n" +
 	"parentNode\x12)\n" +
 	"\x10parent_namespace\x18\f \x01(\tR\x0fparentNamespace\x12-\n" +
-	"\x12existing_signature\x18\r \x01(\fR\x11existingSignatureB\x11\n" +
+	"\x12existing_signature\x18\r \x01(\fR\x11existingSignature\x12\x1b\n" +
+	"\tdata_path\x18\x0e \x01(\tR\bdataPath\x12\x19\n" +
+	"\bdata_url\x18\x0f \x01(\tR\adataUrlB\x11\n" +
 	"\x0f_with_timestamp\"\xed\x01\n" +
 	"\fSignResponse\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\x124\n" +
@@ -2412,7 +3886,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\tlib_error\x18\x03 \x01(\v2\x15.qoltanba.v1.LibErrorR\blibError\x124\n" +
 	"\ttimestamp\x18\x04 \x01(\v2\x16.qoltanba.v1.TimestampR\ttimestamp\x12\x1f\n" +
 	"\vcades_level\x18\x05 \x01(\tR\n" +
-	"cadesLevel\"\xd8\x02\n" +
+	"cadesLevel\"\x90\x03\n" +
 	"\rVerifyRequest\x124\n" +
 	"\x06format\x18\x01 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1c\n" +
 	"\tsignature\x18\x02 \x01(\fR\tsignature\x12\x12\n" +
@@ -2422,7 +3896,10 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x0fcheck_cert_time\x18\x06 \x01(\bR\rcheckCertTime\x12'\n" +
 	"\x0fextract_content\x18\a \x01(\bR\x0eextractContent\x12=\n" +
 	"\rtrusted_certs\x18\b \x03(\v2\x18.qoltanba.v1.TrustedCertR\ftrustedCerts\x12\x16\n" +
-	"\x06claims\x18\t \x01(\bR\x06claims\"\xa7\x02\n" +
+	"\x06claims\x18\t \x01(\bR\x06claims\x12\x1b\n" +
+	"\tdata_path\x18\n" +
+	" \x01(\tR\bdataPath\x12\x19\n" +
+	"\bdata_url\x18\v \x01(\tR\adataUrl\"\xa7\x02\n" +
 	"\x0eVerifyResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x124\n" +
 	"\x06format\x18\x02 \x01(\x0e2\x1c.qoltanba.v1.SignatureFormatR\x06format\x12\x1a\n" +
@@ -2568,7 +4045,102 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\vnext_update\x18\b \x01(\tR\n" +
 	"nextUpdate\x12\x1f\n" +
 	"\vproduced_at\x18\t \x01(\tR\n" +
-	"producedAt*O\n" +
+	"producedAt\"j\n" +
+	"\x0eBatchItemError\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\x12\x16\n" +
+	"\x06action\x18\x04 \x01(\tR\x06action\"Z\n" +
+	"\fBatchSummary\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x05R\x05total\x12\x1c\n" +
+	"\tsucceeded\x18\x02 \x01(\x05R\tsucceeded\x12\x16\n" +
+	"\x06failed\x18\x03 \x01(\x05R\x06failed\"|\n" +
+	"\x10SignBatchRequest\x12.\n" +
+	"\x05items\x18\x01 \x03(\v2\x18.qoltanba.v1.SignRequestR\x05items\x12\x16\n" +
+	"\x06policy\x18\x02 \x01(\tR\x06policy\x12 \n" +
+	"\vconcurrency\x18\x03 \x01(\x05R\vconcurrency\"\xa3\x01\n" +
+	"\rSignBatchItem\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x121\n" +
+	"\x06output\x18\x03 \x01(\v2\x19.qoltanba.v1.SignResponseR\x06output\x121\n" +
+	"\x05error\x18\x04 \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\"\x82\x01\n" +
+	"\x0eSignBatchEvent\x120\n" +
+	"\x04item\x18\x01 \x01(\v2\x1a.qoltanba.v1.SignBatchItemH\x00R\x04item\x125\n" +
+	"\asummary\x18\x02 \x01(\v2\x19.qoltanba.v1.BatchSummaryH\x00R\asummaryB\a\n" +
+	"\x05event\"\x80\x01\n" +
+	"\x12VerifyBatchRequest\x120\n" +
+	"\x05items\x18\x01 \x03(\v2\x1a.qoltanba.v1.VerifyRequestR\x05items\x12\x16\n" +
+	"\x06policy\x18\x02 \x01(\tR\x06policy\x12 \n" +
+	"\vconcurrency\x18\x03 \x01(\x05R\vconcurrency\"\xa7\x01\n" +
+	"\x0fVerifyBatchItem\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x123\n" +
+	"\x06output\x18\x03 \x01(\v2\x1b.qoltanba.v1.VerifyResponseR\x06output\x121\n" +
+	"\x05error\x18\x04 \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\"\x86\x01\n" +
+	"\x10VerifyBatchEvent\x122\n" +
+	"\x04item\x18\x01 \x01(\v2\x1c.qoltanba.v1.VerifyBatchItemH\x00R\x04item\x125\n" +
+	"\asummary\x18\x02 \x01(\v2\x19.qoltanba.v1.BatchSummaryH\x00R\asummaryB\a\n" +
+	"\x05event\"\x82\x01\n" +
+	"\x13ExtractBatchRequest\x121\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.qoltanba.v1.ExtractRequestR\x05items\x12\x16\n" +
+	"\x06policy\x18\x02 \x01(\tR\x06policy\x12 \n" +
+	"\vconcurrency\x18\x03 \x01(\x05R\vconcurrency\"\xa9\x01\n" +
+	"\x10ExtractBatchItem\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x124\n" +
+	"\x06output\x18\x03 \x01(\v2\x1c.qoltanba.v1.ExtractResponseR\x06output\x121\n" +
+	"\x05error\x18\x04 \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\"\x88\x01\n" +
+	"\x11ExtractBatchEvent\x123\n" +
+	"\x04item\x18\x01 \x01(\v2\x1d.qoltanba.v1.ExtractBatchItemH\x00R\x04item\x125\n" +
+	"\asummary\x18\x02 \x01(\v2\x19.qoltanba.v1.BatchSummaryH\x00R\asummaryB\a\n" +
+	"\x05event\"\x84\x01\n" +
+	"\x14CertInfoBatchRequest\x122\n" +
+	"\x05items\x18\x01 \x03(\v2\x1c.qoltanba.v1.CertInfoRequestR\x05items\x12\x16\n" +
+	"\x06policy\x18\x02 \x01(\tR\x06policy\x12 \n" +
+	"\vconcurrency\x18\x03 \x01(\x05R\vconcurrency\"\xab\x01\n" +
+	"\x11CertInfoBatchItem\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x125\n" +
+	"\x06output\x18\x03 \x01(\v2\x1d.qoltanba.v1.CertInfoResponseR\x06output\x121\n" +
+	"\x05error\x18\x04 \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\"\x8a\x01\n" +
+	"\x12CertInfoBatchEvent\x124\n" +
+	"\x04item\x18\x01 \x01(\v2\x1e.qoltanba.v1.CertInfoBatchItemH\x00R\x04item\x125\n" +
+	"\asummary\x18\x02 \x01(\v2\x19.qoltanba.v1.BatchSummaryH\x00R\asummaryB\a\n" +
+	"\x05event\"\x8c\x01\n" +
+	"\x18CertValidateBatchRequest\x126\n" +
+	"\x05items\x18\x01 \x03(\v2 .qoltanba.v1.CertValidateRequestR\x05items\x12\x16\n" +
+	"\x06policy\x18\x02 \x01(\tR\x06policy\x12 \n" +
+	"\vconcurrency\x18\x03 \x01(\x05R\vconcurrency\"\xb3\x01\n" +
+	"\x15CertValidateBatchItem\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x129\n" +
+	"\x06output\x18\x03 \x01(\v2!.qoltanba.v1.CertValidateResponseR\x06output\x121\n" +
+	"\x05error\x18\x04 \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\"\x92\x01\n" +
+	"\x16CertValidateBatchEvent\x128\n" +
+	"\x04item\x18\x01 \x01(\v2\".qoltanba.v1.CertValidateBatchItemH\x00R\x04item\x125\n" +
+	"\asummary\x18\x02 \x01(\v2\x19.qoltanba.v1.BatchSummaryH\x00R\asummaryB\a\n" +
+	"\x05event\"_\n" +
+	"\x10SubmitJobRequest\x12\x0e\n" +
+	"\x02op\x18\x01 \x01(\tR\x02op\x12\x18\n" +
+	"\arequest\x18\x02 \x01(\fR\arequest\x12!\n" +
+	"\fcallback_url\x18\x03 \x01(\tR\vcallbackUrl\"\x17\n" +
+	"\x05JobId\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xf8\x01\n" +
+	"\tJobStatus\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
+	"\x02op\x18\x02 \x01(\tR\x02op\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12!\n" +
+	"\fsubmitted_at\x18\x04 \x01(\tR\vsubmittedAt\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\tR\tstartedAt\x12\x1f\n" +
+	"\vfinished_at\x18\x06 \x01(\tR\n" +
+	"finishedAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\a \x01(\tR\texpiresAt\x121\n" +
+	"\x05error\x18\b \x01(\v2\x1b.qoltanba.v1.BatchItemErrorR\x05error\";\n" +
+	"\tJobResult\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x16\n" +
+	"\x06result\x18\x02 \x01(\fR\x06result*O\n" +
 	"\x0fSignatureFormat\x12 \n" +
 	"\x1cSIGNATURE_FORMAT_UNSPECIFIED\x10\x00\x12\a\n" +
 	"\x03CMS\x10\x01\x12\a\n" +
@@ -2583,13 +4155,22 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\x10ValidationMethod\x12!\n" +
 	"\x1dVALIDATION_METHOD_UNSPECIFIED\x10\x00\x12\b\n" +
 	"\x04OCSP\x10\x01\x12\a\n" +
-	"\x03CRL\x10\x022\xf6\x02\n" +
+	"\x03CRL\x10\x022\x8f\b\n" +
 	"\x10SignatureService\x12;\n" +
 	"\x04Sign\x12\x18.qoltanba.v1.SignRequest\x1a\x19.qoltanba.v1.SignResponse\x12A\n" +
 	"\x06Verify\x12\x1a.qoltanba.v1.VerifyRequest\x1a\x1b.qoltanba.v1.VerifyResponse\x12D\n" +
 	"\aExtract\x12\x1b.qoltanba.v1.ExtractRequest\x1a\x1c.qoltanba.v1.ExtractResponse\x12G\n" +
 	"\bCertInfo\x12\x1c.qoltanba.v1.CertInfoRequest\x1a\x1d.qoltanba.v1.CertInfoResponse\x12S\n" +
-	"\fCertValidate\x12 .qoltanba.v1.CertValidateRequest\x1a!.qoltanba.v1.CertValidateResponseB7Z5github.com/uelnur/qoltanba/api/qoltanba/v1;qoltanbav1b\x06proto3"
+	"\fCertValidate\x12 .qoltanba.v1.CertValidateRequest\x1a!.qoltanba.v1.CertValidateResponse\x12I\n" +
+	"\tSignBatch\x12\x1d.qoltanba.v1.SignBatchRequest\x1a\x1b.qoltanba.v1.SignBatchEvent0\x01\x12O\n" +
+	"\vVerifyBatch\x12\x1f.qoltanba.v1.VerifyBatchRequest\x1a\x1d.qoltanba.v1.VerifyBatchEvent0\x01\x12R\n" +
+	"\fExtractBatch\x12 .qoltanba.v1.ExtractBatchRequest\x1a\x1e.qoltanba.v1.ExtractBatchEvent0\x01\x12U\n" +
+	"\rCertInfoBatch\x12!.qoltanba.v1.CertInfoBatchRequest\x1a\x1f.qoltanba.v1.CertInfoBatchEvent0\x01\x12a\n" +
+	"\x11CertValidateBatch\x12%.qoltanba.v1.CertValidateBatchRequest\x1a#.qoltanba.v1.CertValidateBatchEvent0\x01\x12B\n" +
+	"\tSubmitJob\x12\x1d.qoltanba.v1.SubmitJobRequest\x1a\x16.qoltanba.v1.JobStatus\x124\n" +
+	"\x06GetJob\x12\x12.qoltanba.v1.JobId\x1a\x16.qoltanba.v1.JobStatus\x12:\n" +
+	"\fGetJobResult\x12\x12.qoltanba.v1.JobId\x1a\x16.qoltanba.v1.JobResult\x127\n" +
+	"\tCancelJob\x12\x12.qoltanba.v1.JobId\x1a\x16.qoltanba.v1.JobStatusB7Z5github.com/uelnur/qoltanba/api/qoltanba/v1;qoltanbav1b\x06proto3"
 
 var (
 	file_api_qoltanba_v1_service_proto_rawDescOnce sync.Once
@@ -2604,34 +4185,55 @@ func file_api_qoltanba_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_api_qoltanba_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_qoltanba_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_qoltanba_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_api_qoltanba_v1_service_proto_goTypes = []any{
-	(SignatureFormat)(0),         // 0: qoltanba.v1.SignatureFormat
-	(CertEncoding)(0),            // 1: qoltanba.v1.CertEncoding
-	(ValidationMethod)(0),        // 2: qoltanba.v1.ValidationMethod
-	(*KeySpec)(nil),              // 3: qoltanba.v1.KeySpec
-	(*InlineKey)(nil),            // 4: qoltanba.v1.InlineKey
-	(*PathKey)(nil),              // 5: qoltanba.v1.PathKey
-	(*TokenKey)(nil),             // 6: qoltanba.v1.TokenKey
-	(*TrustedCert)(nil),          // 7: qoltanba.v1.TrustedCert
-	(*LibError)(nil),             // 8: qoltanba.v1.LibError
-	(*Warning)(nil),              // 9: qoltanba.v1.Warning
-	(*SignRequest)(nil),          // 10: qoltanba.v1.SignRequest
-	(*SignResponse)(nil),         // 11: qoltanba.v1.SignResponse
-	(*VerifyRequest)(nil),        // 12: qoltanba.v1.VerifyRequest
-	(*VerifyResponse)(nil),       // 13: qoltanba.v1.VerifyResponse
-	(*ExtractRequest)(nil),       // 14: qoltanba.v1.ExtractRequest
-	(*ExtractResponse)(nil),      // 15: qoltanba.v1.ExtractResponse
-	(*CertInfoRequest)(nil),      // 16: qoltanba.v1.CertInfoRequest
-	(*CertInfoResponse)(nil),     // 17: qoltanba.v1.CertInfoResponse
-	(*CertValidateRequest)(nil),  // 18: qoltanba.v1.CertValidateRequest
-	(*CertValidateResponse)(nil), // 19: qoltanba.v1.CertValidateResponse
-	(*Subject)(nil),              // 20: qoltanba.v1.Subject
-	(*Certificate)(nil),          // 21: qoltanba.v1.Certificate
-	(*Timestamp)(nil),            // 22: qoltanba.v1.Timestamp
-	(*Signer)(nil),               // 23: qoltanba.v1.Signer
-	(*Claims)(nil),               // 24: qoltanba.v1.Claims
-	(*RevocationStatus)(nil),     // 25: qoltanba.v1.RevocationStatus
+	(SignatureFormat)(0),             // 0: qoltanba.v1.SignatureFormat
+	(CertEncoding)(0),                // 1: qoltanba.v1.CertEncoding
+	(ValidationMethod)(0),            // 2: qoltanba.v1.ValidationMethod
+	(*KeySpec)(nil),                  // 3: qoltanba.v1.KeySpec
+	(*InlineKey)(nil),                // 4: qoltanba.v1.InlineKey
+	(*PathKey)(nil),                  // 5: qoltanba.v1.PathKey
+	(*TokenKey)(nil),                 // 6: qoltanba.v1.TokenKey
+	(*TrustedCert)(nil),              // 7: qoltanba.v1.TrustedCert
+	(*LibError)(nil),                 // 8: qoltanba.v1.LibError
+	(*Warning)(nil),                  // 9: qoltanba.v1.Warning
+	(*SignRequest)(nil),              // 10: qoltanba.v1.SignRequest
+	(*SignResponse)(nil),             // 11: qoltanba.v1.SignResponse
+	(*VerifyRequest)(nil),            // 12: qoltanba.v1.VerifyRequest
+	(*VerifyResponse)(nil),           // 13: qoltanba.v1.VerifyResponse
+	(*ExtractRequest)(nil),           // 14: qoltanba.v1.ExtractRequest
+	(*ExtractResponse)(nil),          // 15: qoltanba.v1.ExtractResponse
+	(*CertInfoRequest)(nil),          // 16: qoltanba.v1.CertInfoRequest
+	(*CertInfoResponse)(nil),         // 17: qoltanba.v1.CertInfoResponse
+	(*CertValidateRequest)(nil),      // 18: qoltanba.v1.CertValidateRequest
+	(*CertValidateResponse)(nil),     // 19: qoltanba.v1.CertValidateResponse
+	(*Subject)(nil),                  // 20: qoltanba.v1.Subject
+	(*Certificate)(nil),              // 21: qoltanba.v1.Certificate
+	(*Timestamp)(nil),                // 22: qoltanba.v1.Timestamp
+	(*Signer)(nil),                   // 23: qoltanba.v1.Signer
+	(*Claims)(nil),                   // 24: qoltanba.v1.Claims
+	(*RevocationStatus)(nil),         // 25: qoltanba.v1.RevocationStatus
+	(*BatchItemError)(nil),           // 26: qoltanba.v1.BatchItemError
+	(*BatchSummary)(nil),             // 27: qoltanba.v1.BatchSummary
+	(*SignBatchRequest)(nil),         // 28: qoltanba.v1.SignBatchRequest
+	(*SignBatchItem)(nil),            // 29: qoltanba.v1.SignBatchItem
+	(*SignBatchEvent)(nil),           // 30: qoltanba.v1.SignBatchEvent
+	(*VerifyBatchRequest)(nil),       // 31: qoltanba.v1.VerifyBatchRequest
+	(*VerifyBatchItem)(nil),          // 32: qoltanba.v1.VerifyBatchItem
+	(*VerifyBatchEvent)(nil),         // 33: qoltanba.v1.VerifyBatchEvent
+	(*ExtractBatchRequest)(nil),      // 34: qoltanba.v1.ExtractBatchRequest
+	(*ExtractBatchItem)(nil),         // 35: qoltanba.v1.ExtractBatchItem
+	(*ExtractBatchEvent)(nil),        // 36: qoltanba.v1.ExtractBatchEvent
+	(*CertInfoBatchRequest)(nil),     // 37: qoltanba.v1.CertInfoBatchRequest
+	(*CertInfoBatchItem)(nil),        // 38: qoltanba.v1.CertInfoBatchItem
+	(*CertInfoBatchEvent)(nil),       // 39: qoltanba.v1.CertInfoBatchEvent
+	(*CertValidateBatchRequest)(nil), // 40: qoltanba.v1.CertValidateBatchRequest
+	(*CertValidateBatchItem)(nil),    // 41: qoltanba.v1.CertValidateBatchItem
+	(*CertValidateBatchEvent)(nil),   // 42: qoltanba.v1.CertValidateBatchEvent
+	(*SubmitJobRequest)(nil),         // 43: qoltanba.v1.SubmitJobRequest
+	(*JobId)(nil),                    // 44: qoltanba.v1.JobId
+	(*JobStatus)(nil),                // 45: qoltanba.v1.JobStatus
+	(*JobResult)(nil),                // 46: qoltanba.v1.JobResult
 }
 var file_api_qoltanba_v1_service_proto_depIdxs = []int32{
 	4,  // 0: qoltanba.v1.KeySpec.inline:type_name -> qoltanba.v1.InlineKey
@@ -2673,21 +4275,65 @@ var file_api_qoltanba_v1_service_proto_depIdxs = []int32{
 	24, // 36: qoltanba.v1.Signer.claims:type_name -> qoltanba.v1.Claims
 	2,  // 37: qoltanba.v1.RevocationStatus.method:type_name -> qoltanba.v1.ValidationMethod
 	8,  // 38: qoltanba.v1.RevocationStatus.lib_error:type_name -> qoltanba.v1.LibError
-	10, // 39: qoltanba.v1.SignatureService.Sign:input_type -> qoltanba.v1.SignRequest
-	12, // 40: qoltanba.v1.SignatureService.Verify:input_type -> qoltanba.v1.VerifyRequest
-	14, // 41: qoltanba.v1.SignatureService.Extract:input_type -> qoltanba.v1.ExtractRequest
-	16, // 42: qoltanba.v1.SignatureService.CertInfo:input_type -> qoltanba.v1.CertInfoRequest
-	18, // 43: qoltanba.v1.SignatureService.CertValidate:input_type -> qoltanba.v1.CertValidateRequest
-	11, // 44: qoltanba.v1.SignatureService.Sign:output_type -> qoltanba.v1.SignResponse
-	13, // 45: qoltanba.v1.SignatureService.Verify:output_type -> qoltanba.v1.VerifyResponse
-	15, // 46: qoltanba.v1.SignatureService.Extract:output_type -> qoltanba.v1.ExtractResponse
-	17, // 47: qoltanba.v1.SignatureService.CertInfo:output_type -> qoltanba.v1.CertInfoResponse
-	19, // 48: qoltanba.v1.SignatureService.CertValidate:output_type -> qoltanba.v1.CertValidateResponse
-	44, // [44:49] is the sub-list for method output_type
-	39, // [39:44] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	10, // 39: qoltanba.v1.SignBatchRequest.items:type_name -> qoltanba.v1.SignRequest
+	11, // 40: qoltanba.v1.SignBatchItem.output:type_name -> qoltanba.v1.SignResponse
+	26, // 41: qoltanba.v1.SignBatchItem.error:type_name -> qoltanba.v1.BatchItemError
+	29, // 42: qoltanba.v1.SignBatchEvent.item:type_name -> qoltanba.v1.SignBatchItem
+	27, // 43: qoltanba.v1.SignBatchEvent.summary:type_name -> qoltanba.v1.BatchSummary
+	12, // 44: qoltanba.v1.VerifyBatchRequest.items:type_name -> qoltanba.v1.VerifyRequest
+	13, // 45: qoltanba.v1.VerifyBatchItem.output:type_name -> qoltanba.v1.VerifyResponse
+	26, // 46: qoltanba.v1.VerifyBatchItem.error:type_name -> qoltanba.v1.BatchItemError
+	32, // 47: qoltanba.v1.VerifyBatchEvent.item:type_name -> qoltanba.v1.VerifyBatchItem
+	27, // 48: qoltanba.v1.VerifyBatchEvent.summary:type_name -> qoltanba.v1.BatchSummary
+	14, // 49: qoltanba.v1.ExtractBatchRequest.items:type_name -> qoltanba.v1.ExtractRequest
+	15, // 50: qoltanba.v1.ExtractBatchItem.output:type_name -> qoltanba.v1.ExtractResponse
+	26, // 51: qoltanba.v1.ExtractBatchItem.error:type_name -> qoltanba.v1.BatchItemError
+	35, // 52: qoltanba.v1.ExtractBatchEvent.item:type_name -> qoltanba.v1.ExtractBatchItem
+	27, // 53: qoltanba.v1.ExtractBatchEvent.summary:type_name -> qoltanba.v1.BatchSummary
+	16, // 54: qoltanba.v1.CertInfoBatchRequest.items:type_name -> qoltanba.v1.CertInfoRequest
+	17, // 55: qoltanba.v1.CertInfoBatchItem.output:type_name -> qoltanba.v1.CertInfoResponse
+	26, // 56: qoltanba.v1.CertInfoBatchItem.error:type_name -> qoltanba.v1.BatchItemError
+	38, // 57: qoltanba.v1.CertInfoBatchEvent.item:type_name -> qoltanba.v1.CertInfoBatchItem
+	27, // 58: qoltanba.v1.CertInfoBatchEvent.summary:type_name -> qoltanba.v1.BatchSummary
+	18, // 59: qoltanba.v1.CertValidateBatchRequest.items:type_name -> qoltanba.v1.CertValidateRequest
+	19, // 60: qoltanba.v1.CertValidateBatchItem.output:type_name -> qoltanba.v1.CertValidateResponse
+	26, // 61: qoltanba.v1.CertValidateBatchItem.error:type_name -> qoltanba.v1.BatchItemError
+	41, // 62: qoltanba.v1.CertValidateBatchEvent.item:type_name -> qoltanba.v1.CertValidateBatchItem
+	27, // 63: qoltanba.v1.CertValidateBatchEvent.summary:type_name -> qoltanba.v1.BatchSummary
+	26, // 64: qoltanba.v1.JobStatus.error:type_name -> qoltanba.v1.BatchItemError
+	10, // 65: qoltanba.v1.SignatureService.Sign:input_type -> qoltanba.v1.SignRequest
+	12, // 66: qoltanba.v1.SignatureService.Verify:input_type -> qoltanba.v1.VerifyRequest
+	14, // 67: qoltanba.v1.SignatureService.Extract:input_type -> qoltanba.v1.ExtractRequest
+	16, // 68: qoltanba.v1.SignatureService.CertInfo:input_type -> qoltanba.v1.CertInfoRequest
+	18, // 69: qoltanba.v1.SignatureService.CertValidate:input_type -> qoltanba.v1.CertValidateRequest
+	28, // 70: qoltanba.v1.SignatureService.SignBatch:input_type -> qoltanba.v1.SignBatchRequest
+	31, // 71: qoltanba.v1.SignatureService.VerifyBatch:input_type -> qoltanba.v1.VerifyBatchRequest
+	34, // 72: qoltanba.v1.SignatureService.ExtractBatch:input_type -> qoltanba.v1.ExtractBatchRequest
+	37, // 73: qoltanba.v1.SignatureService.CertInfoBatch:input_type -> qoltanba.v1.CertInfoBatchRequest
+	40, // 74: qoltanba.v1.SignatureService.CertValidateBatch:input_type -> qoltanba.v1.CertValidateBatchRequest
+	43, // 75: qoltanba.v1.SignatureService.SubmitJob:input_type -> qoltanba.v1.SubmitJobRequest
+	44, // 76: qoltanba.v1.SignatureService.GetJob:input_type -> qoltanba.v1.JobId
+	44, // 77: qoltanba.v1.SignatureService.GetJobResult:input_type -> qoltanba.v1.JobId
+	44, // 78: qoltanba.v1.SignatureService.CancelJob:input_type -> qoltanba.v1.JobId
+	11, // 79: qoltanba.v1.SignatureService.Sign:output_type -> qoltanba.v1.SignResponse
+	13, // 80: qoltanba.v1.SignatureService.Verify:output_type -> qoltanba.v1.VerifyResponse
+	15, // 81: qoltanba.v1.SignatureService.Extract:output_type -> qoltanba.v1.ExtractResponse
+	17, // 82: qoltanba.v1.SignatureService.CertInfo:output_type -> qoltanba.v1.CertInfoResponse
+	19, // 83: qoltanba.v1.SignatureService.CertValidate:output_type -> qoltanba.v1.CertValidateResponse
+	30, // 84: qoltanba.v1.SignatureService.SignBatch:output_type -> qoltanba.v1.SignBatchEvent
+	33, // 85: qoltanba.v1.SignatureService.VerifyBatch:output_type -> qoltanba.v1.VerifyBatchEvent
+	36, // 86: qoltanba.v1.SignatureService.ExtractBatch:output_type -> qoltanba.v1.ExtractBatchEvent
+	39, // 87: qoltanba.v1.SignatureService.CertInfoBatch:output_type -> qoltanba.v1.CertInfoBatchEvent
+	42, // 88: qoltanba.v1.SignatureService.CertValidateBatch:output_type -> qoltanba.v1.CertValidateBatchEvent
+	45, // 89: qoltanba.v1.SignatureService.SubmitJob:output_type -> qoltanba.v1.JobStatus
+	45, // 90: qoltanba.v1.SignatureService.GetJob:output_type -> qoltanba.v1.JobStatus
+	46, // 91: qoltanba.v1.SignatureService.GetJobResult:output_type -> qoltanba.v1.JobResult
+	45, // 92: qoltanba.v1.SignatureService.CancelJob:output_type -> qoltanba.v1.JobStatus
+	79, // [79:93] is the sub-list for method output_type
+	65, // [65:79] is the sub-list for method input_type
+	65, // [65:65] is the sub-list for extension type_name
+	65, // [65:65] is the sub-list for extension extendee
+	0,  // [0:65] is the sub-list for field type_name
 }
 
 func init() { file_api_qoltanba_v1_service_proto_init() }
@@ -2702,13 +4348,33 @@ func file_api_qoltanba_v1_service_proto_init() {
 		(*KeySpec_KeyId)(nil),
 	}
 	file_api_qoltanba_v1_service_proto_msgTypes[7].OneofWrappers = []any{}
+	file_api_qoltanba_v1_service_proto_msgTypes[27].OneofWrappers = []any{
+		(*SignBatchEvent_Item)(nil),
+		(*SignBatchEvent_Summary)(nil),
+	}
+	file_api_qoltanba_v1_service_proto_msgTypes[30].OneofWrappers = []any{
+		(*VerifyBatchEvent_Item)(nil),
+		(*VerifyBatchEvent_Summary)(nil),
+	}
+	file_api_qoltanba_v1_service_proto_msgTypes[33].OneofWrappers = []any{
+		(*ExtractBatchEvent_Item)(nil),
+		(*ExtractBatchEvent_Summary)(nil),
+	}
+	file_api_qoltanba_v1_service_proto_msgTypes[36].OneofWrappers = []any{
+		(*CertInfoBatchEvent_Item)(nil),
+		(*CertInfoBatchEvent_Summary)(nil),
+	}
+	file_api_qoltanba_v1_service_proto_msgTypes[39].OneofWrappers = []any{
+		(*CertValidateBatchEvent_Item)(nil),
+		(*CertValidateBatchEvent_Summary)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_qoltanba_v1_service_proto_rawDesc), len(file_api_qoltanba_v1_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   23,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
