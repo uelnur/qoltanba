@@ -85,6 +85,15 @@ func registry() []entry {
 		{key: "input.allowed-schemes", flag: "input-allowed-schemes", env: "INPUT_ALLOWED_SCHEMES", kind: kindStringSlice, def: []string{"https"}, usage: "URL schemes accepted for by-reference data"},
 		{key: "input.max-mb", flag: "input-max-mb", env: "INPUT_MAX_MB", kind: kindInt, def: 0, usage: "cap a by-reference payload in MiB (0 = unlimited)"},
 		{key: "input.spool-dir", flag: "input-spool-dir", env: "INPUT_SPOOL_DIR", kind: kindString, def: "", usage: "directory for fetched-URL spool files (empty = system temp)"},
+		{key: "oidc.enabled", flag: "oidc", env: "OIDC_ENABLED", kind: kindBool, def: false, usage: "enable the OIDC 'login with ЭЦП' endpoints (REST /oidc/*)"},
+		{key: "oidc.issuer", flag: "oidc-issuer", env: "OIDC_ISSUER", kind: kindString, def: "", usage: "OIDC issuer URL, base for discovery links (required when oidc enabled)"},
+		{key: "oidc.key-path", flag: "oidc-key-path", env: "OIDC_KEY_PATH", kind: kindString, def: "", secret: true, usage: "RS256 signing key PEM path (empty = ephemeral in-memory key; JWKS rotates on restart)"},
+		{key: "oidc.challenge-ttl", flag: "oidc-challenge-ttl", env: "OIDC_CHALLENGE_TTL", kind: kindString, def: "5m", usage: "challenge validity window, as a Go duration (e.g. 5m)"},
+		{key: "oidc.token-ttl", flag: "oidc-token-ttl", env: "OIDC_TOKEN_TTL", kind: kindString, def: "1h", usage: "issued id_token/access_token lifetime, as a Go duration (e.g. 1h)"},
+		{key: "oidc.store", flag: "oidc-store", env: "OIDC_STORE", kind: kindString, def: "memory", usage: "challenge store: memory (ephemeral) | bolt (on-disk, survives restart)"},
+		{key: "oidc.bolt-path", flag: "oidc-bolt-path", env: "OIDC_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when oidc.store=bolt)"},
+		{key: "oidc.require-ocsp", flag: "oidc-require-ocsp", env: "OIDC_REQUIRE_OCSP", kind: kindBool, def: true, usage: "require a good OCSP status for the signer certificate before issuing tokens"},
+		{key: "oidc.audience", flag: "oidc-audience", env: "OIDC_AUDIENCE", kind: kindString, def: "", usage: "default id_token audience when a verify request omits clientId"},
 	}
 }
 
@@ -269,6 +278,24 @@ func (l *Loaded) value(e entry) string {
 		return strconv.Itoa(c.Input.MaxMB)
 	case "input.spool-dir":
 		return c.Input.SpoolDir
+	case "oidc.enabled":
+		return strconv.FormatBool(c.OIDC.Enabled)
+	case "oidc.issuer":
+		return c.OIDC.Issuer
+	case "oidc.key-path":
+		return c.OIDC.KeyPath
+	case "oidc.challenge-ttl":
+		return c.OIDC.ChallengeTTL
+	case "oidc.token-ttl":
+		return c.OIDC.TokenTTL
+	case "oidc.store":
+		return c.OIDC.Store
+	case "oidc.bolt-path":
+		return c.OIDC.BoltPath
+	case "oidc.require-ocsp":
+		return strconv.FormatBool(c.OIDC.RequireOCSP)
+	case "oidc.audience":
+		return c.OIDC.Audience
 	default:
 		return ""
 	}

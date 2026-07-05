@@ -99,6 +99,18 @@ func (r *Recorder) BindCRL(stats func() (hits, misses uint64)) {
 		"qoltanba_crl_cache_total", "CRL cache lookups by result.", []string{"result"}, nil)})
 }
 
+// BindOIDC registers a gauge for the current stored-challenge count. count is
+// read at scrape time. No-op on a nil Recorder or nil count.
+func (r *Recorder) BindOIDC(count func() int) {
+	if r == nil || count == nil {
+		return
+	}
+	r.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "qoltanba_oidc_challenges",
+		Help: "OIDC login challenges currently outstanding.",
+	}, func() float64 { return float64(count()) }))
+}
+
 // poolCollector emits busy/idle worker gauges from a live stats function.
 type poolCollector struct {
 	stats func() (inUse, size int)

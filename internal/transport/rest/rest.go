@@ -11,13 +11,15 @@ import (
 
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/jobs"
+	"github.com/uelnur/qoltanba/internal/oidc"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
 // Server adapts the domain service to HTTP handlers.
 type Server struct {
 	svc  *core.Service
-	jobs *jobs.Manager // nil disables the async-job endpoints
+	jobs *jobs.Manager  // nil disables the async-job endpoints
+	oidc *oidc.Provider // nil disables the OIDC endpoints
 }
 
 // Option configures a Server.
@@ -25,6 +27,9 @@ type Option func(*Server)
 
 // WithJobs enables the async-job endpoints backed by the given manager.
 func WithJobs(m *jobs.Manager) Option { return func(s *Server) { s.jobs = m } }
+
+// WithOIDC enables the "login with ЭЦП" OIDC endpoints backed by the given provider.
+func WithOIDC(p *oidc.Provider) Option { return func(s *Server) { s.oidc = p } }
 
 // New builds a REST server over the domain service.
 func New(svc *core.Service, opts ...Option) *Server {
@@ -54,6 +59,13 @@ func (s *Server) Routes() http.Handler {
 		mux.HandleFunc("GET /jobs/{id}", s.handleJobGet)
 		mux.HandleFunc("GET /jobs/{id}/result", s.handleJobResult)
 		mux.HandleFunc("DELETE /jobs/{id}", s.handleJobCancel)
+	}
+	if s.oidc != nil {
+		mux.HandleFunc("GET /.well-known/openid-configuration", s.handleOIDCDiscovery)
+		mux.HandleFunc("GET /oidc/jwks.json", s.handleOIDCJWKS)
+		mux.HandleFunc("POST /oidc/challenge", s.handleOIDCChallenge)
+		mux.HandleFunc("POST /oidc/verify", s.handleOIDCVerify)
+		mux.HandleFunc("GET /oidc/userinfo", s.handleOIDCUserInfo)
 	}
 	return mux
 }

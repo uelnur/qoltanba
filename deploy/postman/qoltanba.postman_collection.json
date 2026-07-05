@@ -312,6 +312,111 @@
       ]
     },
     {
+      "name": "Oidc",
+      "item": [
+        {
+          "name": "OpenID Connect discovery document",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/openid-configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ".well-known",
+                "openid-configuration"
+              ]
+            }
+          }
+        },
+        {
+          "name": "JSON Web Key Set for token verification",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/oidc/jwks.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "jwks.json"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Issue a challenge nonce to sign with ЭЦП",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nonce\":\"{{rpNonce}}\",\"state\":\"{{rpState}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/oidc/challenge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "challenge"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify the signed challenge and issue OIDC tokens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"challengeId\":\"{{challengeId}}\",\"signature\":\"{{signatureBase64}}\",\"clientId\":\"{{clientId}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/oidc/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Claims for a bearer access token",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/oidc/userinfo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "userinfo"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Observability",
       "item": [
         {

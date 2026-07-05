@@ -44,6 +44,7 @@ type Config struct {
 	Metrics    MetricsConfig `koanf:"metrics"`
 	Jobs       JobsConfig    `koanf:"jobs"`
 	Input      InputConfig   `koanf:"input"`
+	OIDC       OIDCConfig    `koanf:"oidc"`
 }
 
 // LibConfig configures the native Kalkan library (BYOL).
@@ -202,6 +203,46 @@ type InputConfig struct {
 // is worth wiring).
 func (c InputConfig) Enabled() bool { return c.AllowLocalPath || c.AllowURL }
 
+// OIDCConfig configures the "login with ЭЦП" OpenID Connect provider (REST
+// /oidc/* + discovery). It is off by default; enabling it stands up the flow, an
+// RS256 token signer and a challenge store.
+type OIDCConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// Issuer is the OIDC issuer identifier and base URL for discovery links.
+	// Required when enabled.
+	Issuer string `koanf:"issuer"`
+	// KeyPath is the RS256 signing-key PEM file. Empty generates an ephemeral
+	// in-memory key (the JWKS kid then rotates on restart, invalidating tokens);
+	// a path loads it or generates-and-persists 0600 for a stable kid.
+	KeyPath string `koanf:"key-path"`
+	// ChallengeTTL and TokenTTL are Go durations (e.g. "5m", "1h"). Resolve via
+	// the helpers below.
+	ChallengeTTL string `koanf:"challenge-ttl"`
+	TokenTTL     string `koanf:"token-ttl"`
+	Store        string `koanf:"store"`     // memory | bolt
+	BoltPath     string `koanf:"bolt-path"` // required when store=bolt
+	RequireOCSP  bool   `koanf:"require-ocsp"`
+	Audience     string `koanf:"audience"` // default id_token aud when a verify request omits clientId
+}
+
+// OIDCChallengeTTL resolves the challenge validity window. A malformed or empty
+// value yields 0 (the provider applies its own default); Validate rejects a
+// malformed value up front.
+func (c OIDCConfig) OIDCChallengeTTL() time.Duration { return parseDurationOr0(c.ChallengeTTL) }
+
+// OIDCTokenTTL resolves the issued-token lifetime, with the same semantics as
+// OIDCChallengeTTL.
+func (c OIDCConfig) OIDCTokenTTL() time.Duration { return parseDurationOr0(c.TokenTTL) }
+
+// parseDurationOr0 parses a Go duration, returning 0 on empty/malformed input.
+func parseDurationOr0(raw string) time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return d
+}
+
 // LogConfig configures logging.
 type LogConfig struct {
 	Level  string `koanf:"level"`  // debug | info | warn | error
@@ -353,6 +394,30 @@ func (l *Loaded) Validate() error {
 		if raw := strings.TrimSpace(c.Jobs.TTL); raw != "" {
 			if _, err := time.ParseDuration(raw); err != nil {
 				errs = append(errs, "jobs.ttl must be a Go duration (e.g. 1h)")
+			}
+		}
+	}
+	if c.OIDC.Enabled {
+		if strings.TrimSpace(c.OIDC.Issuer) == "" {
+			errs = append(errs, "oidc.issuer is required when oidc.enabled (the OIDC issuer URL)")
+		}
+		switch c.OIDC.Store {
+		case "", "memory":
+		case "bolt":
+			if strings.TrimSpace(c.OIDC.BoltPath) == "" {
+				errs = append(errs, "oidc.bolt-path is required when oidc.store=bolt")
+			}
+		default:
+			errs = append(errs, "oidc.store must be memory or bolt")
+		}
+		for _, d := range []struct{ name, raw string }{
+			{"oidc.challenge-ttl", c.OIDC.ChallengeTTL},
+			{"oidc.token-ttl", c.OIDC.TokenTTL},
+		} {
+			if raw := strings.TrimSpace(d.raw); raw != "" {
+				if _, err := time.ParseDuration(raw); err != nil {
+					errs = append(errs, d.name+" must be a Go duration (e.g. 5m)")
+				}
 			}
 		}
 	}

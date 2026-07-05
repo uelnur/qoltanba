@@ -385,6 +385,28 @@ components:
       - p12
       - password
       type: object
+    JWK:
+      properties:
+        alg:
+          type: string
+        e:
+          type: string
+        kid:
+          type: string
+        kty:
+          type: string
+        "n":
+          type: string
+        use:
+          type: string
+      required:
+      - kty
+      - use
+      - alg
+      - kid
+      - "n"
+      - e
+      type: object
     JobStatus:
       properties:
         error:
@@ -455,6 +477,134 @@ components:
           type: string
       required:
       - code
+      type: object
+    OAuthError:
+      description: OAuth2/OIDC error response.
+      properties:
+        error:
+          enum:
+          - invalid_request
+          - invalid_grant
+          - access_denied
+          - invalid_token
+          - server_error
+          type: string
+        error_description:
+          type: string
+      required:
+      - error
+      type: object
+    OIDCChallengeRequest:
+      properties:
+        nonce:
+          type: string
+        state:
+          type: string
+      type: object
+    OIDCChallengeResponse:
+      properties:
+        alg:
+          type: string
+        challengeId:
+          type: string
+        data:
+          type: string
+        expiresIn:
+          type: integer
+        state:
+          type: string
+      required:
+      - challengeId
+      - data
+      - alg
+      - expiresIn
+      type: object
+    OIDCDiscovery:
+      properties:
+        challenge_endpoint:
+          type: string
+        claims_supported:
+          items:
+            type: string
+          type: array
+        grant_types_supported:
+          items:
+            type: string
+          type: array
+        id_token_signing_alg_values_supported:
+          items:
+            type: string
+          type: array
+        issuer:
+          type: string
+        jwks_uri:
+          type: string
+        response_types_supported:
+          items:
+            type: string
+          type: array
+        scopes_supported:
+          items:
+            type: string
+          type: array
+        subject_types_supported:
+          items:
+            type: string
+          type: array
+        token_endpoint:
+          type: string
+        userinfo_endpoint:
+          type: string
+      required:
+      - issuer
+      - jwks_uri
+      - token_endpoint
+      - userinfo_endpoint
+      - challenge_endpoint
+      - grant_types_supported
+      - response_types_supported
+      - subject_types_supported
+      - id_token_signing_alg_values_supported
+      - scopes_supported
+      - claims_supported
+      type: object
+    OIDCJWKS:
+      properties:
+        keys:
+          items:
+            $ref: '#/components/schemas/JWK'
+          type: array
+      required:
+      - keys
+      type: object
+    OIDCTokenResponse:
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+        id_token:
+          type: string
+        token_type:
+          type: string
+      required:
+      - id_token
+      - access_token
+      - token_type
+      - expires_in
+      type: object
+    OIDCVerifyRequest:
+      properties:
+        challengeId:
+          type: string
+        clientId:
+          type: string
+        signature:
+          contentEncoding: base64
+          type: string
+      required:
+      - challengeId
+      - signature
       type: object
     PathKey:
       properties:
@@ -907,6 +1057,19 @@ info:
   version: v1
 openapi: 3.1.0
 paths:
+  /.well-known/openid-configuration:
+    get:
+      operationId: oidcDiscovery
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCDiscovery'
+          description: Discovery metadata
+      summary: OpenID Connect discovery document
+      tags:
+      - oidc
   /cert/info:
     post:
       operationId: certInfo
@@ -1175,6 +1338,90 @@ paths:
       summary: Prometheus metrics
       tags:
       - observability
+  /oidc/challenge:
+    post:
+      operationId: oidcChallenge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OIDCChallengeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCChallengeResponse'
+          description: Challenge to sign (detached CMS over the nonce)
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+      summary: Issue a challenge nonce to sign with ЭЦП
+      tags:
+      - oidc
+  /oidc/jwks.json:
+    get:
+      operationId: oidcJWKS
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCJWKS'
+          description: Public signing keys
+      summary: JSON Web Key Set for token verification
+      tags:
+      - oidc
+  /oidc/userinfo:
+    get:
+      operationId: oidcUserInfo
+      responses:
+        "200":
+          description: Claim set for the token subject
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+      summary: 'Claims for a bearer access token (Authorization: Bearer <access_token>)'
+      tags:
+      - oidc
+  /oidc/verify:
+    post:
+      operationId: oidcVerify
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OIDCVerifyRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCTokenResponse'
+          description: Token set (id_token, access_token)
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+      summary: Verify the signed challenge and issue OIDC tokens
+      tags:
+      - oidc
   /readyz:
     get:
       operationId: readyz
@@ -1331,5 +1578,7 @@ tags:
   name: batch
 - description: Async jobs for large/slow work (submit, poll, cancel)
   name: jobs
+- description: 'Login with ЭЦП: OpenID Connect discovery, challenge/verify, tokens'
+  name: oidc
 - description: Health, status, metrics
   name: observability

@@ -107,6 +107,98 @@ func addBatchSchemas(schemas map[string]any) {
 	}
 }
 
+// oidcEndpoints drive the Postman collection for the OIDC flow. Their OpenAPI
+// paths are authored in addOIDCPaths (they mix GET/POST and use the OAuth2 error
+// shape), but the summaries and example bodies live here so Postman stays in sync.
+var oidcEndpoints = []endpoint{
+	{"GET", "/.well-known/openid-configuration", "oidcDiscovery", "oidc", "OpenID Connect discovery document", "", "OIDCDiscovery", "Discovery metadata", ""},
+	{"GET", "/oidc/jwks.json", "oidcJWKS", "oidc", "JSON Web Key Set for token verification", "", "OIDCJWKS", "Public signing keys", ""},
+	{"POST", "/oidc/challenge", "oidcChallenge", "oidc", "Issue a challenge nonce to sign with ЭЦП",
+		"OIDCChallengeRequest", "OIDCChallengeResponse", "Challenge to sign (detached CMS over the nonce)",
+		`{"nonce":"{{rpNonce}}","state":"{{rpState}}"}`},
+	{"POST", "/oidc/verify", "oidcVerify", "oidc", "Verify the signed challenge and issue OIDC tokens",
+		"OIDCVerifyRequest", "OIDCTokenResponse", "Token set (id_token, access_token)",
+		`{"challengeId":"{{challengeId}}","signature":"{{signatureBase64}}","clientId":"{{clientId}}"}`},
+	{"GET", "/oidc/userinfo", "oidcUserInfo", "oidc", "Claims for a bearer access token", "", "", "Claim set for the token subject", ""},
+}
+
+// addOIDCSchemas declares the OAuth2 error envelope used by the OIDC endpoints
+// (distinct from the service's generic ErrorEnvelope, per the OIDC contract).
+func addOIDCSchemas(schemas map[string]any) {
+	schemas["OAuthError"] = map[string]any{
+		"type":        "object",
+		"description": "OAuth2/OIDC error response.",
+		"properties": map[string]any{
+			"error":             map[string]any{"type": "string", "enum": []any{"invalid_request", "invalid_grant", "access_denied", "invalid_token", "server_error"}},
+			"error_description": map[string]any{"type": "string"},
+		},
+		"required": []any{"error"},
+	}
+}
+
+// addOIDCPaths declares the OIDC endpoints. They mix methods and use the OAuth2
+// error envelope, so they are authored here rather than via the POST-only table.
+func addOIDCPaths(paths map[string]any) {
+	oauthErr := func(codes ...string) map[string]any {
+		r := map[string]any{}
+		for _, c := range codes {
+			r[c] = map[string]any{
+				"description": "OAuth2 error",
+				"content":     map[string]any{"application/json": map[string]any{"schema": ref("OAuthError")}},
+			}
+		}
+		return r
+	}
+	paths["/.well-known/openid-configuration"] = map[string]any{
+		"get": oidcGet("oidcDiscovery", "OpenID Connect discovery document", "Discovery metadata", "OIDCDiscovery"),
+	}
+	paths["/oidc/jwks.json"] = map[string]any{
+		"get": oidcGet("oidcJWKS", "JSON Web Key Set for token verification", "Public signing keys", "OIDCJWKS"),
+	}
+	paths["/oidc/userinfo"] = map[string]any{
+		"get": func() map[string]any {
+			op := oidcGet("oidcUserInfo", "Claims for a bearer access token (Authorization: Bearer <access_token>)", "Claim set for the token subject", "")
+			resp := op["responses"].(map[string]any)
+			for k, v := range oauthErr("401") {
+				resp[k] = v
+			}
+			return op
+		}(),
+	}
+	post := func(opID, summary, req, resp, respDesc string, errCodes ...string) map[string]any {
+		responses := map[string]any{"200": jsonResponse(respDesc, resp)}
+		for k, v := range oauthErr(errCodes...) {
+			responses[k] = v
+		}
+		return map[string]any{
+			"tags":        []any{"oidc"},
+			"summary":     summary,
+			"operationId": opID,
+			"requestBody": map[string]any{
+				"required": true,
+				"content":  map[string]any{"application/json": map[string]any{"schema": ref(req)}},
+			},
+			"responses": responses,
+		}
+	}
+	paths["/oidc/challenge"] = map[string]any{
+		"post": post("oidcChallenge", "Issue a challenge nonce to sign with ЭЦП", "OIDCChallengeRequest", "OIDCChallengeResponse", "Challenge to sign (detached CMS over the nonce)", "400"),
+	}
+	paths["/oidc/verify"] = map[string]any{
+		"post": post("oidcVerify", "Verify the signed challenge and issue OIDC tokens", "OIDCVerifyRequest", "OIDCTokenResponse", "Token set (id_token, access_token)", "400", "401"),
+	}
+}
+
+// oidcGet builds a GET operation with a single JSON 200 response.
+func oidcGet(opID, summary, respDesc, schema string) map[string]any {
+	return map[string]any{
+		"tags":        []any{"oidc"},
+		"summary":     summary,
+		"operationId": opID,
+		"responses":   map[string]any{"200": jsonResponse(respDesc, schema)},
+	}
+}
+
 var obsEndpoints = []endpoint{
 	{"GET", "/healthz", "healthz", "observability", "Liveness — the process is up", "", "", "ok", ""},
 	{"GET", "/readyz", "readyz", "observability", "Readiness — library loaded and self-tested", "", "", "ready", ""},
@@ -135,6 +227,7 @@ func buildDoc(schemas map[string]any) map[string]any {
 			map[string]any{"name": "certificate", "description": "Certificate parsing and revocation"},
 			map[string]any{"name": "batch", "description": "Batched operations (aggregated or NDJSON stream)"},
 			map[string]any{"name": "jobs", "description": "Async jobs for large/slow work (submit, poll, cancel)"},
+			map[string]any{"name": "oidc", "description": "Login with ЭЦП: OpenID Connect discovery, challenge/verify, tokens"},
 			map[string]any{"name": "observability", "description": "Health, status, metrics"},
 		},
 		"paths": buildPaths(),
@@ -191,6 +284,7 @@ func buildPaths() map[string]any {
 		}
 	}
 	addJobPaths(paths)
+	addOIDCPaths(paths)
 	return paths
 }
 
@@ -338,7 +432,10 @@ func writePostman(path string) {
 		}
 		col.Item[idx].Item = append(col.Item[idx].Item, it)
 	}
-	for _, e := range append(append([]endpoint{}, endpoints...), obsEndpoints...) {
+	all := append([]endpoint{}, endpoints...)
+	all = append(all, oidcEndpoints...)
+	all = append(all, obsEndpoints...)
+	for _, e := range all {
 		add(e.tag, pmItem{Name: e.summary, Request: pmRequestFor(e)})
 	}
 
