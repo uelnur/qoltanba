@@ -9,19 +9,10 @@ import (
 
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/keysource"
-	"github.com/uelnur/qoltanba/internal/native"
 )
 
 func TestFunctionalE2E_OCSPStructured(t *testing.T) {
-	lib := os.Getenv("QOLTANBA_LIB")
-	if lib == "" {
-		t.Skip("QOLTANBA_LIB not set")
-	}
-	pool, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
-	if err != nil {
-		t.Fatalf("open driver: %v", err)
-	}
-	defer pool.Close()
+	pool := requirePool(t)
 	svc := core.New(pool,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
@@ -51,19 +42,11 @@ func TestFunctionalE2E_OCSPStructured(t *testing.T) {
 // service and asserts the OCSP leg reports it revoked (the CRL leg is covered by
 // the driver-level TestFunctional_Revocation).
 func TestFunctionalE2E_RevokedViaOCSP(t *testing.T) {
-	lib := os.Getenv("QOLTANBA_LIB")
-	if lib == "" {
-		t.Skip("QOLTANBA_LIB not set")
-	}
 	ocspURL := os.Getenv("QOLTANBA_OCSP_URL")
 	if ocspURL == "" {
 		t.Skip("QOLTANBA_OCSP_URL not set")
 	}
-	pool, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
-	if err != nil {
-		t.Fatalf("open driver: %v", err)
-	}
-	defer pool.Close()
+	pool := requirePool(t)
 	svc := core.New(pool,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),

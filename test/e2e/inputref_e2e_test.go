@@ -11,22 +11,13 @@ import (
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/dataref"
 	"github.com/uelnur/qoltanba/internal/keysource"
-	"github.com/uelnur/qoltanba/internal/native"
 )
 
 // TestFunctionalE2E_SignByReferenceFile signs a file by reference (KC_IN_FILE):
 // the driver reads the content from the path instead of an inline buffer. It
 // exercises the input-by-reference path end-to-end against real Kalkan.
 func TestFunctionalE2E_SignByReferenceFile(t *testing.T) {
-	lib := os.Getenv("QOLTANBA_LIB")
-	if lib == "" {
-		t.Skip("QOLTANBA_LIB not set")
-	}
-	pool, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
-	if err != nil {
-		t.Fatalf("open driver: %v", err)
-	}
-	defer pool.Close()
+	pool := requirePool(t)
 	svc := core.New(pool,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
