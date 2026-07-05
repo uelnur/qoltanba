@@ -138,6 +138,12 @@ func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provi
 	}
 	var res provider.VerifyResult
 	err := p.submit(ctx, func(inst kalkanInstance) error {
+		// With CheckCertTime the library anchors the signer's chain to a trusted
+		// root, so the CA(s) must be loaded first — same as VerifyXML. Without this
+		// a time-checked CMS verify fails with 0x08F00042 even for a valid cert.
+		if err := loadTrusted(inst, req.TrustedCerts); err != nil {
+			return err
+		}
 		flags := verifyCMSFlags(req) // must match the signing flags
 		data := req.Data
 		if req.Path != "" {

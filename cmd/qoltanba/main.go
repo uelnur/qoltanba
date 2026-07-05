@@ -42,6 +42,7 @@ import (
 	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/native"
+	"github.com/uelnur/qoltanba/internal/oidc"
 	"github.com/uelnur/qoltanba/internal/pki"
 	"github.com/uelnur/qoltanba/internal/transport/amqp"
 	"github.com/uelnur/qoltanba/internal/transport/cli"
@@ -234,7 +235,59 @@ func runServe(args []string) int {
 		return 1
 	}
 
-	return serve(cfg, svc, mgr, refresher, rec, ready, status, log)
+	oidcProv, err := buildOIDC(cfg, svc, log)
+	if err != nil {
+		log.Error("oidc subsystem setup failed", "error", err)
+		return 1
+	}
+	if oidcProv != nil {
+		rec.BindOIDC(oidcProv.ActiveChallenges)
+	}
+
+	return serve(cfg, svc, mgr, oidcProv, refresher, rec, ready, status, log)
+}
+
+// buildOIDC constructs the OIDC "login with ЭЦП" provider when enabled: an RS256
+// token signer (loaded or generated), a challenge store, and the flow over the
+// domain service. It returns a nil provider (no error) when OIDC is disabled.
+func buildOIDC(cfg config.Config, svc *core.Service, log *slog.Logger) (*oidc.Provider, error) {
+	if !cfg.OIDC.Enabled {
+		return nil, nil
+	}
+	signer, err := oidc.LoadOrGenerate(cfg.OIDC.KeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("oidc signing key: %w", err)
+	}
+	if signer.Ephemeral {
+		log.Warn("oidc signing key is ephemeral: set oidc.key-path to persist it (JWKS kid rotates on restart, invalidating live tokens)")
+	}
+	// Trust anchors are the auth boundary: OIDC verifies with a cert-time check that
+	// forces the signer chain to validate to a trusted NUC root, so a cert that does
+	// not chain to a configured anchor cannot grant a login. Without anchors that
+	// check fails for every certificate — OIDC would be unusable and, more to the
+	// point, unsafe. Warn loudly.
+	if !cfg.Trust.UseRKRegistry && cfg.Trust.CADir == "" {
+		log.Warn("oidc enabled without trust anchors: set trust.use-rk-registry or trust.ca-dir so the signer chain validates to a NUC root (login rejects otherwise)")
+	}
+	var store oidc.ChallengeStore
+	switch cfg.OIDC.Store {
+	case "bolt":
+		bs, err := oidc.OpenBoltStore(cfg.OIDC.BoltPath)
+		if err != nil {
+			return nil, fmt.Errorf("open oidc challenge store: %w", err)
+		}
+		store = bs
+	default:
+		store = oidc.NewMemStore()
+	}
+	prov := oidc.New(svc, signer, store, oidc.Config{
+		Issuer:       cfg.OIDC.Issuer,
+		Audience:     cfg.OIDC.Audience,
+		ChallengeTTL: cfg.OIDC.OIDCChallengeTTL(),
+		TokenTTL:     cfg.OIDC.OIDCTokenTTL(),
+		RequireOCSP:  cfg.OIDC.RequireOCSP,
+	}, oidc.WithLogger(log))
+	return prov, nil
 }
 
 // buildJobs constructs the async-job manager when enabled, wiring its executor to
@@ -298,7 +351,7 @@ func jobWebhook(log *slog.Logger) jobs.Webhook {
 
 // serve starts every enabled transport (REST, gRPC, optional separate metrics
 // port) and drains them gracefully on a shutdown signal.
-func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
+func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, oidcProv *oidc.Provider, refresher *trust.Refresher, rec *metrics.Recorder, ready func() bool, status func() rest.StatusInfo, log *slog.Logger) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -312,6 +365,15 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 			log.Error("job manager start failed", "error", err)
 			return 1
 		}
+	}
+
+	// The OIDC provider is served over REST only. Its challenge reaper drains with
+	// ctx.
+	if oidcProv != nil {
+		if !cfg.HTTP.Enabled {
+			log.Warn("oidc enabled but REST is off: the /oidc endpoints will not be reachable")
+		}
+		oidcProv.Start(ctx)
 	}
 
 	// Background trust-anchor refresh drains with ctx. A resolved interval of 0
@@ -328,6 +390,9 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 		var restOpts []rest.Option
 		if mgr != nil {
 			restOpts = append(restOpts, rest.WithJobs(mgr))
+		}
+		if oidcProv != nil {
+			restOpts = append(restOpts, rest.WithOIDC(oidcProv))
 		}
 		work := http.NewServeMux()
 		work.Handle("/", rec.InstrumentHTTP("rest", rest.New(svc, restOpts...).Routes()))
@@ -416,6 +481,11 @@ func serve(cfg config.Config, svc *core.Service, mgr *jobs.Manager, refresher *t
 		mgr.Wait() // workers drain on ctx cancel
 		if err := mgr.Close(); err != nil {
 			log.Warn("job store close", "error", err)
+		}
+	}
+	if oidcProv != nil {
+		if err := oidcProv.Close(); err != nil {
+			log.Warn("oidc store close", "error", err)
 		}
 	}
 	return 0

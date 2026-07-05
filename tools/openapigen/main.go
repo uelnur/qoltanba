@@ -18,6 +18,7 @@ import (
 
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/jobs"
+	"github.com/uelnur/qoltanba/internal/oidc"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
@@ -58,6 +59,13 @@ var topTypes = []schemaType{
 	// the job status view and the per-item error reflect cleanly.
 	{"BatchItemError", &core.BatchItemError{}},
 	{"JobStatus", &jobs.View{}},
+	// OIDC "login with ЭЦП" wire types. JWK is pulled in by reflection from JWKSet.
+	{"OIDCChallengeRequest", &oidc.ChallengeRequest{}},
+	{"OIDCChallengeResponse", &oidc.ChallengeResponse{}},
+	{"OIDCVerifyRequest", &oidc.VerifyRequest{}},
+	{"OIDCTokenResponse", &oidc.TokenResponse{}},
+	{"OIDCDiscovery", &oidc.DiscoveryDoc{}},
+	{"OIDCJWKS", &oidc.JWKSet{}},
 }
 
 // enums enriches specific properties the reflector cannot infer (Go string types
@@ -88,6 +96,7 @@ func main() {
 	schemas := reflectSchemas()
 	applyEnums(schemas)
 	addBatchSchemas(schemas)
+	addOIDCSchemas(schemas)
 
 	doc := buildDoc(schemas)
 	writeOpenAPI(filepath.Join(root, "api", "openapi.yaml"), doc)
