@@ -126,18 +126,23 @@ func TestVerify_SoftFailureIsNotError(t *testing.T) {
 }
 
 type fakeCRLSource struct {
-	der    []byte
-	called bool
+	der      []byte
+	delta    []byte
+	reliable bool
+	reason   string
+	ok       bool // when set, overrides the der!=nil availability default
+	called   bool
 }
 
-func (f *fakeCRLSource) CRLFor(_ context.Context, _ []byte) ([]byte, bool) {
+func (f *fakeCRLSource) CRLFor(_ context.Context, _ []byte) (CRLResult, bool) {
 	f.called = true
-	return f.der, f.der != nil
+	avail := f.ok || f.der != nil
+	return CRLResult{Base: f.der, Delta: f.delta, Reliable: f.reliable, Reason: f.reason}, avail
 }
 
 func TestValidate_UsesCRLCacheWhenNoInlineCRL(t *testing.T) {
 	f := &fakeProvider{validateResult: provider.ValidateResult{RawCode: 0}}
-	fc := &fakeCRLSource{der: []byte("dummy-crl-bytes")}
+	fc := &fakeCRLSource{der: []byte("dummy-crl-bytes"), reliable: true}
 	s := newTestService(f, WithCRLSource(fc))
 
 	_, err := s.Validate(context.Background(), ValidateInput{

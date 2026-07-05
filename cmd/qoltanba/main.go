@@ -705,9 +705,16 @@ func buildService(cfg config.Config, log *slog.Logger, rec *metrics.Recorder) (*
 		opts = append(opts, core.WithIssuerFetcher(aia.New(time.Duration(cfg.Trust.AIATimeout)*time.Second)))
 	}
 	if cfg.Trust.CRLCache {
-		cache := crl.New(time.Duration(cfg.Trust.AIATimeout) * time.Second)
+		cache := crl.New(crl.Config{
+			Timeout:  time.Duration(cfg.Trust.AIATimeout) * time.Second,
+			SpoolDir: cfg.Trust.CRLSpoolDir,
+			MaxBytes: int64(cfg.Trust.CRLCacheMaxMB) << 20,
+		})
 		rec.BindCRL(cache.Stats)
 		opts = append(opts, core.WithCRLSource(cache))
+		if cfg.Trust.CRLFailPolicy == "hard" {
+			opts = append(opts, core.WithCRLFailPolicy(core.CRLFailHard))
+		}
 	}
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))

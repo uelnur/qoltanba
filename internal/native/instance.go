@@ -191,10 +191,23 @@ func (in *instance) certInfo(cert []byte) provider.CertProperties {
 	return props
 }
 
+// cInputData copies data into a C buffer for a sign/verify call. In file mode
+// (KC_IN_FILE) the buffer is a filesystem path the library fopen()s, so it must be
+// a NUL-terminated C string: C.CBytes leaves it unterminated, which makes Kalkan
+// read past the path into uninitialized heap and intermittently fail to open the
+// file (0x08F00008). Content mode keeps the exact-length copy (binary may contain
+// NUL bytes, so C.CString is not usable there).
+func cInputData(flags int, data []byte) unsafe.Pointer {
+	if flags&kcInFile != 0 {
+		return unsafe.Pointer(C.CString(string(data)))
+	}
+	return C.CBytes(data)
+}
+
 func (in *instance) signData(alias string, flags int, data, inSign []byte) ([]byte, error) {
 	cAlias := C.CString(alias)
 	defer C.free(unsafe.Pointer(cAlias))
-	cData := C.CBytes(data)
+	cData := cInputData(flags, data)
 	defer C.free(cData)
 	var cSign unsafe.Pointer
 	var signLen C.int
@@ -227,7 +240,7 @@ func (in *instance) verifyData(alias string, flags int, data, sign []byte, inCer
 	var cData unsafe.Pointer
 	var dataLen C.int
 	if len(data) > 0 {
-		cData = C.CBytes(data)
+		cData = cInputData(flags, data)
 		defer C.free(cData)
 		dataLen = C.int(len(data))
 	}

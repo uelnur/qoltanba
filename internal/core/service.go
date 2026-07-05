@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/uelnur/qoltanba/internal/provider"
@@ -18,6 +19,7 @@ type Service struct {
 	trust            TrustStore
 	fetcher          IssuerFetcher
 	crl              CRLSource
+	crlFailPolicy    CRLFailPolicy
 	verifyChain      bool
 	defaultTimestamp bool
 	now              func() time.Time
@@ -49,6 +51,23 @@ func WithIssuerFetcher(f IssuerFetcher) Option { return func(s *Service) { s.fet
 // supply a CRL inline. Nil (the default) means a Method=CRL request without inline
 // CRL bytes is left to fail at the library, as before.
 func WithCRLSource(c CRLSource) Option { return func(s *Service) { s.crl = c } }
+
+// CRLFailPolicy decides what a Method=CRL check does when the managed CRL layer
+// cannot supply a fresh, base↔delta-consistent CRL.
+type CRLFailPolicy int
+
+const (
+	// CRLFailSoft (default) treats an unreliable CRL as inconclusive: the check
+	// falls back to OCSP (authoritative for real-time status) with a warning.
+	CRLFailSoft CRLFailPolicy = iota
+	// CRLFailHard fails closed: an unreliable CRL makes the validation invalid.
+	CRLFailHard
+)
+
+// WithCRLFailPolicy sets the behavior when a managed CRL is unavailable, stale or
+// base↔delta inconsistent. The default is CRLFailSoft. Applies only to the managed
+// CRL layer (WithCRLSource); a caller-supplied inline CRL is used as-is.
+func WithCRLFailPolicy(p CRLFailPolicy) Option { return func(s *Service) { s.crlFailPolicy = p } }
 
 // WithDefaultTimestamp sets whether signing adds a TSA timestamp when the
 // request does not specify (SignInput.WithTimestamp == nil). Off by default.
@@ -337,19 +356,42 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 		checkTime = s.now()
 	}
 
+	var w warnings
+	certDER := toDER(in.Cert, in.Format)
+
+	// Resolve the effective method and any CRL material, applying the CRL fail
+	// policy. effMethod may switch CRL→OCSP on a soft failure.
+	effMethod := method
 	// Path: OCSP responder URL, or a temp file for a CRL (Kalkan reads a path).
-	// Always fetch the raw OCSP so we can parse its structured fields.
 	path := in.ResponderURL
 	wantOCSP := in.WantOCSP || method == MethodOCSP
-	// CRL bytes: prefer the caller's inline CRL; otherwise pull from the CRL cache
-	// (the cert's distribution points) when one is configured.
-	crlBytes := in.CRL
-	if method == MethodCRL && len(crlBytes) == 0 && s.crl != nil {
-		if der, ok := s.crl.CRLFor(ctx, toDER(in.Cert, in.Format)); ok {
-			crlBytes = der
+	var crlBytes, deltaBytes []byte
+
+	if method == MethodCRL {
+		switch {
+		case len(in.CRL) > 0:
+			crlBytes = in.CRL // caller-supplied CRL: trusted to the caller, used as-is
+		case s.crl != nil:
+			res, ok := s.crl.CRLFor(ctx, certDER)
+			switch {
+			case ok && res.Reliable:
+				crlBytes, deltaBytes = res.Base, res.Delta
+			case s.crlFailPolicy == CRLFailHard:
+				reason := crlReason(res, ok)
+				return ValidateOutput{}, &Error{Kind: KindInvalid, Op: op,
+					err: fmt.Errorf("CRL revocation status could not be established (%s); fail policy is hard", reason)}
+			default:
+				// Soft fail: OCSP is authoritative for real-time status — fall back.
+				effMethod = MethodOCSP
+				wantOCSP = true
+				w.add("crl", "fallback-to-ocsp:"+crlReason(res, ok))
+			}
 		}
+		// s.crl == nil and no inline CRL: leave crlBytes empty, as before (the
+		// library path handles the absent CRL).
 	}
-	if method == MethodCRL && len(crlBytes) > 0 {
+
+	if effMethod == MethodCRL && len(crlBytes) > 0 {
 		p, cleanup, werr := writeTempCRL(crlBytes)
 		if werr != nil {
 			return ValidateOutput{}, domainErr(op, werr)
@@ -361,7 +403,7 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 	res, err := s.prov.ValidateCert(ctx, provider.ValidateRequest{
 		Cert:         in.Cert,
 		Format:       certFormat(in.Format),
-		Method:       validationMethod(method),
+		Method:       validationMethod(effMethod),
 		Path:         path,
 		CheckTime:    checkTime,
 		WantOCSP:     wantOCSP,
@@ -370,15 +412,21 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 
 	checked := checkTime
 	status := RevocationStatus{
-		Method:    method,
+		Method:    effMethod,
 		Revoked:   res.Status == provider.StatusRevoked,
 		CheckedAt: &checked,
 	}
 	// Enrich with structured fields parsed from the response/CRL (best-effort).
-	if method == MethodOCSP {
+	if effMethod == MethodOCSP {
 		enrichFromOCSP(&status, res.OCSPResponse, res.Info)
 	} else if len(crlBytes) > 0 {
-		enrichFromCRL(&status, crlBytes, toDER(in.Cert, in.Format))
+		enrichFromCRL(&status, crlBytes, certDER)
+		// A consistent delta may carry a revocation not yet in the base CRL. The
+		// library verified the base; overlay the delta structurally (safe
+		// direction: it can only add a revocation, never clear one).
+		if !status.Revoked && len(deltaBytes) > 0 {
+			enrichFromCRL(&status, deltaBytes, certDER)
+		}
 	}
 
 	out := ValidateOutput{Status: status, Info: res.Info}
@@ -388,11 +436,25 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 	if err != nil {
 		if isSoftVerifyFailure(err) {
 			out.Status.LibError = libErrorFrom(err)
+			out.Warnings = w.list()
 			return out, nil
 		}
 		return out, domainErr(op, err)
 	}
+	out.Warnings = w.list()
 	return out, nil
+}
+
+// crlReason names why a managed CRL is unusable, for warnings and hard-fail
+// messages. ok is the CRLFor availability flag.
+func crlReason(res CRLResult, ok bool) string {
+	if !ok {
+		return "unavailable"
+	}
+	if res.Reason != "" {
+		return res.Reason
+	}
+	return "unreliable"
 }
 
 // buildSigners turns the driver's signer certificates into structured Signers,

@@ -161,7 +161,10 @@ type TrustConfig struct {
 	// (e.g. "24h"). Empty means "auto": 24h when UseRKRegistry is set, else off.
 	// "0"/"off" disables it explicitly. Resolve via TrustRefreshInterval.
 	RefreshInterval string `koanf:"refresh-interval"`
-	CRLCache        bool   `koanf:"crl-cache"` // cache CRLs by distribution point for Method=CRL validation
+	CRLCache        bool   `koanf:"crl-cache"`        // cache CRLs by distribution point for Method=CRL validation
+	CRLSpoolDir     string `koanf:"crl-spool-dir"`    // when set, spool CRL bodies to disk (persistent, warm-started); empty = in-memory
+	CRLCacheMaxMB   int    `koanf:"crl-cache-max-mb"` // cap on total cached CRL bytes (MiB); 0 = default (256)
+	CRLFailPolicy   string `koanf:"crl-fail-policy"`  // soft (fall back to OCSP) | hard (fail closed) when CRL is unreliable
 }
 
 // JobsConfig configures the async-job subsystem (REST /jobs endpoints). It is
@@ -406,6 +409,11 @@ func (l *Loaded) Validate() error {
 		if _, err := time.ParseDuration(raw); err != nil {
 			errs = append(errs, "trust.refresh-interval must be a Go duration (e.g. 24h), empty, 0 or off")
 		}
+	}
+	switch strings.TrimSpace(c.Trust.CRLFailPolicy) {
+	case "", "soft", "hard":
+	default:
+		errs = append(errs, "trust.crl-fail-policy must be soft or hard")
 	}
 	if c.Jobs.Enabled {
 		switch c.Jobs.Store {

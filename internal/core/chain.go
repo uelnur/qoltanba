@@ -23,12 +23,25 @@ type IssuerFetcher interface {
 	FetchIssuer(ctx context.Context, cert []byte) ([]byte, bool)
 }
 
-// CRLSource supplies a certificate's CRL (DER in cert, DER out CRL) for a
-// revocation check when the caller did not provide one inline. The domain
-// declares the port; infrastructure (internal/crl) implements it as a cache over
-// the cert's CRL distribution points. It returns false when no CRL is available.
+// CRLResult is what a CRLSource resolves for a certificate: the base CRL to hand
+// the library, an optional consistent delta CRL to overlay, and whether the CRL
+// material is fresh and base↔delta consistent. When Reliable is false, Reason
+// carries a short machine tag (e.g. "stale-base", "delta-inconsistent") and the
+// domain applies its CRL fail policy instead of trusting the CRL.
+type CRLResult struct {
+	Base     []byte // base CRL (DER) for the library's own verify; may be stale
+	Delta    []byte // consistent, fresh delta CRL (DER) to overlay; nil when none/inconsistent
+	Reliable bool   // base fresh and any delta consistent
+	Reason   string // when !Reliable: why (stale-base, stale-delta, delta-unavailable, delta-inconsistent)
+}
+
+// CRLSource supplies a certificate's CRL material for a revocation check when the
+// caller did not provide one inline. The domain declares the port; infrastructure
+// (internal/crl) implements it as a cache over the cert's CRL distribution points
+// with base↔delta consistency checking. It returns ok=false when no CRL is
+// available at all.
 type CRLSource interface {
-	CRLFor(ctx context.Context, certDER []byte) ([]byte, bool)
+	CRLFor(ctx context.Context, certDER []byte) (CRLResult, bool)
 }
 
 // buildChain assembles the certificate chain for a leaf by walking issuer links
