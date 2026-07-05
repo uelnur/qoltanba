@@ -23,6 +23,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"testing"
@@ -40,25 +41,55 @@ import (
 	grpctransport "github.com/uelnur/qoltanba/internal/transport/grpc"
 )
 
-// newService opens the real driver and builds the domain service. It skips the
-// test when the library path is not configured.
-func newService(t *testing.T) (*core.Service, func()) {
+// sharedPool is the one Kalkan pool shared by the whole suite. It mirrors the
+// production lifecycle — the service opens its pool once and keeps it for the
+// process — rather than opening and closing a pool per test. Repeated open/close
+// churns the process-global crypto/libxml2 state the shared (non-isolated)
+// library keeps mapped, which the driver deliberately does not tear down (see
+// internal/native/shim.c); sharing one pool avoids that churn.
+var sharedPool *native.Pool
+
+// TestMain opens the shared pool once and closes it after the suite. When the
+// library is not configured, the pool stays nil and every test skips.
+func TestMain(m *testing.M) {
+	if lib := os.Getenv("QOLTANBA_LIB"); lib != "" {
+		p, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: open shared pool: %v\n", err)
+			os.Exit(1)
+		}
+		sharedPool = p
+	}
+	code := m.Run()
+	if sharedPool != nil {
+		_ = sharedPool.Close()
+	}
+	os.Exit(code)
+}
+
+// requirePool returns the shared pool, skipping the test when the library is not
+// configured.
+func requirePool(t *testing.T) *native.Pool {
 	t.Helper()
-	lib := os.Getenv("QOLTANBA_LIB")
-	if lib == "" {
+	if sharedPool == nil {
 		t.Skip("QOLTANBA_LIB not set")
 	}
-	pool, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
-	if err != nil {
-		t.Fatalf("open driver: %v", err)
-	}
+	return sharedPool
+}
+
+// newService builds the domain service over the shared pool. The returned cleanup
+// is a no-op (the pool lives for the whole suite); it is kept so callers read the
+// same open/close shape.
+func newService(t *testing.T) (*core.Service, func()) {
+	t.Helper()
+	pool := requirePool(t)
 	// Signing under the default strict time check anchors the signer's chain, so
 	// the test CA(s) must be in the store — supplied via the trust store.
 	svc := core.New(pool,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 	)
-	return svc, func() { _ = pool.Close() }
+	return svc, func() {}
 }
 
 func testKey(t *testing.T) core.KeySpec { return keyFromEnv(t, "QOLTANBA_KEY") }

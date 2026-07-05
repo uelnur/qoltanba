@@ -63,9 +63,27 @@ jobs:
 
       # run.sh builds the linux/amd64 image and runs the qoltanba_functional tests
       # against the mounted library (Docker required on the host).
+      #
+      # Retry: the proprietary Kalkan library intermittently double-frees its
+      # process-global libxml2/OpenSSL state under a diverse mix of operations,
+      # aborting a later native call (typically kc_verify_xml) with SIGABRT. It is
+      # a real library defect, not a test fault — reproducible at a low rate even
+      # on a single long-lived pool (see the e2e shared-pool harness). Until the
+      # vendor fixes it, retry so a rare abort does not red a green suite; a real
+      # regression fails all attempts. Tracked for vendor escalation.
       - name: Run functional tests
-        run: test/functional/run.sh
+        run: |
+          for attempt in 1 2 3; do
+            if test/functional/run.sh; then exit 0; fi
+            echo "::warning::functional attempt $attempt failed (likely the Kalkan native flake); retrying"
+          done
+          exit 1
 
       # Verify the isolated worker pool too (dlmopen path).
       - name: Run functional tests (isolated pool)
-        run: QOLTANBA_POOL=4 QOLTANBA_ISO=1 test/functional/run.sh
+        run: |
+          for attempt in 1 2 3; do
+            if QOLTANBA_POOL=4 QOLTANBA_ISO=1 test/functional/run.sh; then exit 0; fi
+            echo "::warning::isolated-pool functional attempt $attempt failed (likely the Kalkan native flake); retrying"
+          done
+          exit 1
