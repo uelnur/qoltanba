@@ -255,7 +255,7 @@ func TestVerify_ChainSignaturesVerified(t *testing.T) {
 	s := New(f, WithTrustStore(trust), WithChainVerification(true),
 		WithClock(func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }))
 
-	out, err := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s")})
+	out, err := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s"), RevocationCheck: revocationOff()})
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestVerify_ChainSignaturesVerified(t *testing.T) {
 
 	// A chain error from the driver → flag false, not a Verify failure.
 	f.validateErr = provider.NewNativeError("ValidateCert", 0x08F0000E, "chain", provider.ErrChainInvalid)
-	out2, err := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s")})
+	out2, err := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s"), RevocationCheck: revocationOff()})
 	if err != nil {
 		t.Fatalf("Verify (chain-fail): %v", err)
 	}
@@ -285,7 +285,7 @@ func TestVerify_ChainVerificationDisabled(t *testing.T) {
 		validateResult: provider.ValidateResult{RawCode: 0},
 	}
 	s := newTestService(f) // chain verification not enabled
-	out, _ := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s")})
+	out, _ := s.Verify(context.Background(), VerifyInput{Format: FormatCMS, Signature: []byte("s"), RevocationCheck: revocationOff()})
 	if out.Signers[0].ChainSignaturesVerified {
 		t.Error("flag must stay false when chain verification is disabled")
 	}

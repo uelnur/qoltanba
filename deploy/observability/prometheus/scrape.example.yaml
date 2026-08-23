@@ -1,0 +1,18 @@
+# Example Prometheus scrape config for a qoltanba deployment (non-Kubernetes).
+# Point Prometheus at the metrics endpoint — the work port (default :8080) or the
+# separate observability port (metrics.addr) when configured. On Kubernetes use the
+# Service annotations (already set by the Helm chart) or the ServiceMonitor
+# (metrics.serviceMonitor=true) instead of this static config.
+scrape_configs:
+  - job_name: qoltanba
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "qoltanba:8080" # host:port of the work or metrics endpoint
+        labels:
+          service: qoltanba
+
+# Wire the alerting rules alongside:
+# rule_files:
+#   - /etc/prometheus/qoltanba/alerts.yaml

@@ -11,6 +11,7 @@ import (
 
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/uelnur/qoltanba/api/qoltanba/v1"
@@ -40,6 +41,20 @@ func New(svc *core.Service, opts ...Option) *Server {
 	return s
 }
 
+// LocaleInterceptor renders error messages in the language the caller requests
+// through the standard accept-language metadata key. Attach it with
+// grpc.ChainUnaryInterceptor; without it every call renders English.
+func LocaleInterceptor() grpclib.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, _ *grpclib.UnaryServerInfo, handler grpclib.UnaryHandler) (any, error) {
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if tags := md.Get("accept-language"); len(tags) > 0 && tags[0] != "" {
+				ctx = core.ContextWithLocale(ctx, tags[0])
+			}
+		}
+		return handler(ctx, req)
+	}
+}
+
 // Register attaches the service to a grpc.ServiceRegistrar (the *grpc.Server).
 func (s *Server) Register(reg grpclib.ServiceRegistrar) {
 	pb.RegisterSignatureServiceServer(reg, s)
@@ -48,7 +63,7 @@ func (s *Server) Register(reg grpclib.ServiceRegistrar) {
 func (s *Server) Sign(ctx context.Context, req *pb.SignRequest) (*pb.SignResponse, error) {
 	out, err := s.svc.Sign(ctx, signInputPB(req))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return signResponsePB(&out), nil
 }
@@ -56,15 +71,23 @@ func (s *Server) Sign(ctx context.Context, req *pb.SignRequest) (*pb.SignRespons
 func (s *Server) Verify(ctx context.Context, req *pb.VerifyRequest) (*pb.VerifyResponse, error) {
 	out, err := s.svc.Verify(ctx, verifyInputPB(req))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return verifyResponsePB(&out), nil
+}
+
+func (s *Server) Archive(ctx context.Context, req *pb.ArchiveRequest) (*pb.ArchiveResponse, error) {
+	out, err := s.svc.Archive(ctx, archiveInputPB(req))
+	if err != nil {
+		return nil, grpcError(ctx, err)
+	}
+	return archiveResponsePB(&out), nil
 }
 
 func (s *Server) Extract(ctx context.Context, req *pb.ExtractRequest) (*pb.ExtractResponse, error) {
 	out, err := s.svc.Extract(ctx, extractInputPB(req))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return extractResponsePB(&out), nil
 }
@@ -72,7 +95,7 @@ func (s *Server) Extract(ctx context.Context, req *pb.ExtractRequest) (*pb.Extra
 func (s *Server) CertInfo(ctx context.Context, req *pb.CertInfoRequest) (*pb.CertInfoResponse, error) {
 	out, err := s.svc.CertInfo(ctx, certInfoInputPB(req))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return certInfoResponsePB(&out), nil
 }
@@ -80,14 +103,15 @@ func (s *Server) CertInfo(ctx context.Context, req *pb.CertInfoRequest) (*pb.Cer
 func (s *Server) CertValidate(ctx context.Context, req *pb.CertValidateRequest) (*pb.CertValidateResponse, error) {
 	out, err := s.svc.Validate(ctx, validateInputPB(req))
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return certValidateResponsePB(&out), nil
 }
 
 // grpcError maps a domain error's kind to a gRPC status code, using the friendly
-// catalog message (with the suggested action appended) as the status message.
-func grpcError(err error) error {
+// catalog message (with the suggested action appended) as the status message,
+// rendered in the language the call asked for.
+func grpcError(ctx context.Context, err error) error {
 	code := codes.Internal
 	var de *core.Error
 	if errors.As(err, &de) {
@@ -103,7 +127,7 @@ func grpcError(err error) error {
 		}
 	}
 	msg := err.Error()
-	if exp := core.Explain(err); exp.Message != "" {
+	if exp := core.ExplainIn(ctx, err); exp.Message != "" {
 		msg = exp.Message
 		if exp.Action != "" {
 			msg += " " + exp.Action

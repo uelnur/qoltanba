@@ -11,8 +11,22 @@
       "test": false
     },
     {
+      "label": "nca_gost_2022",
+      "url": "https://pki.gov.kz/cert/nca_gost_2022.cer",
+      "kind": "nca_intermediate",
+      "algo": "gost",
+      "test": false
+    },
+    {
       "label": "nca_rsa",
       "url": "https://pki.gov.kz/cert/nca_rsa.crt",
+      "kind": "nca_intermediate",
+      "algo": "rsa",
+      "test": false
+    },
+    {
+      "label": "nca_rsa_2022",
+      "url": "https://pki.gov.kz/cert/nca_rsa_2022.cer",
       "kind": "nca_intermediate",
       "algo": "rsa",
       "test": false

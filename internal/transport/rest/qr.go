@@ -23,7 +23,7 @@ func (s *Server) handleQRCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := s.qr.Create(r.Context(), req, publicBaseURL(r, s.qrBase))
 	if err != nil {
-		writeQRError(w, err)
+		writeQRError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, out)
@@ -32,7 +32,7 @@ func (s *Server) handleQRCreate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQRGet(w http.ResponseWriter, r *http.Request) {
 	v, err := s.qr.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
-		writeQRError(w, err)
+		writeQRError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -41,7 +41,7 @@ func (s *Server) handleQRGet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQRAppData(w http.ResponseWriter, r *http.Request) {
 	data, err := s.qr.AppData(r.Context(), r.PathValue("id"))
 	if err != nil {
-		writeQRError(w, err)
+		writeQRError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, data)
@@ -50,18 +50,18 @@ func (s *Server) handleQRAppData(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQRAppSubmit(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
-		writeError(w, &core.Error{Kind: core.KindInvalid, Op: "qr"}, "read body: "+err.Error())
+		writeError(w, r, &core.Error{Kind: core.KindInvalid, Op: "qr"}, "read body: "+err.Error())
 		return
 	}
 	if err := s.qr.SubmitSignature(r.Context(), r.PathValue("id"), body); err != nil {
-		writeQRError(w, err)
+		writeQRError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "received"})
 }
 
 // writeQRError maps a QR flow error to an HTTP status and the standard envelope.
-func writeQRError(w http.ResponseWriter, err error) {
+func writeQRError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, qr.ErrSessionNotFound), errors.Is(err, qr.ErrAppOnly):
 		writeJSON(w, http.StatusNotFound, errorBody{Error: errorDetail{
@@ -76,10 +76,10 @@ func writeQRError(w http.ResponseWriter, err error) {
 	case errors.Is(err, qr.ErrSignatureRejected), errors.Is(err, qr.ErrCertRevoked),
 		errors.Is(err, qr.ErrNoData), errors.Is(err, qr.ErrUnsupportedMode),
 		errors.Is(err, qr.ErrUnsupportedProfile):
-		writeError(w, &core.Error{Kind: core.KindInvalid, Op: "qr"}, err.Error())
+		writeError(w, r, &core.Error{Kind: core.KindInvalid, Op: "qr"}, err.Error())
 	default:
 		// Domain/driver faults keep their catalog-mapped status and message.
-		writeError(w, err, "")
+		writeError(w, r, err, "")
 	}
 }
 

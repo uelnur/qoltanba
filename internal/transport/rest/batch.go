@@ -66,6 +66,17 @@ func (s *Server) handleValidateBatch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleVerifyRegistry verifies a set of documents and returns the register: the
+// counts plus one row per document. Unlike the streaming batch endpoints it
+// always answers with the aggregate — the register is the point.
+func (s *Server) handleVerifyRegistry(w http.ResponseWriter, r *http.Request) {
+	items, opts, ok := decodeBatch(w, r, dto.RegistryItemToCore, "VerifyRegistry")
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, s.svc.VerifyRegistry(r.Context(), items, opts))
+}
+
 // decodeBatch reads a BatchRequest[R] body, maps items with conv and returns the
 // core inputs plus options. On a bad body or a structurally invalid item it
 // writes a 400 and reports ok=false.
@@ -76,7 +87,7 @@ func decodeBatch[R, I any](w http.ResponseWriter, r *http.Request, conv func(R) 
 	}
 	items, err := dto.BatchItems(req.Items, conv)
 	if err != nil {
-		writeError(w, &core.Error{Kind: core.KindInvalid, Op: op}, err.Error())
+		writeError(w, r, &core.Error{Kind: core.KindInvalid, Op: op}, err.Error())
 		return nil, core.BatchOptions{}, false
 	}
 	return items, req.Options(), true

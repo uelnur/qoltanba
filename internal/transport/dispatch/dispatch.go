@@ -19,7 +19,7 @@ import (
 // operation has a "-batch" companion that takes {items, policy, concurrency} and
 // returns an aggregated core.BatchOutput (the stateless transports never stream).
 var Ops = []string{
-	"sign", "verify", "extract", "cert-info", "cert-validate",
+	"sign", "verify", "verify-at", "archive", "extract", "cert-info", "cert-validate",
 	"sign-batch", "verify-batch", "extract-batch", "cert-info-batch", "cert-validate-batch",
 }
 
@@ -59,6 +59,22 @@ func Handle(ctx context.Context, svc *core.Service, op string, payload []byte) (
 			return nil, invalid("Verify")
 		}
 		return svc.Verify(ctx, in)
+	case "verify-at":
+		var req dto.VerifyAtRequest
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, invalid("VerifyAt")
+		}
+		in, err := req.ToCore()
+		if err != nil {
+			return nil, invalid("VerifyAt")
+		}
+		return svc.VerifyAt(ctx, in)
+	case "archive":
+		var req dto.ArchiveRequest
+		if err := json.Unmarshal(payload, &req); err != nil {
+			return nil, invalid("Archive")
+		}
+		return svc.Archive(ctx, req.ToCore())
 	case "extract":
 		var req dto.ExtractRequest
 		if err := json.Unmarshal(payload, &req); err != nil {

@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,10 +17,14 @@ import (
 	"github.com/invopop/jsonschema"
 	sigsyaml "sigs.k8s.io/yaml"
 
+	"github.com/uelnur/qoltanba/internal/audit"
+	"github.com/uelnur/qoltanba/internal/challenge"
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/jobs"
+	"github.com/uelnur/qoltanba/internal/multisign"
 	"github.com/uelnur/qoltanba/internal/oidc"
 	"github.com/uelnur/qoltanba/internal/qr"
+	"github.com/uelnur/qoltanba/internal/signedqr"
 	"github.com/uelnur/qoltanba/internal/transport/dto"
 )
 
@@ -46,11 +51,13 @@ type schemaType struct {
 var topTypes = []schemaType{
 	{"SignRequest", &dto.SignRequest{}},
 	{"VerifyRequest", &dto.VerifyRequest{}},
+	{"VerifyAtRequest", &dto.VerifyAtRequest{}},
 	{"ExtractRequest", &dto.ExtractRequest{}},
 	{"CertInfoRequest", &dto.CertInfoRequest{}},
 	{"ValidateRequest", &dto.ValidateRequest{}},
 	{"SignResponse", &core.SignOutput{}},
 	{"VerifyResponse", &core.VerifyOutput{}},
+	{"VerifyAtResponse", &core.VerifyAtOutput{}},
 	{"ExtractResponse", &core.ExtractOutput{}},
 	{"CertInfoResponse", &core.CertInfoOutput{}},
 	{"ValidateResponse", &core.ValidateOutput{}},
@@ -71,30 +78,69 @@ var topTypes = []schemaType{
 	// in addQRSchemas; Document is pulled in by reflection from QRCreateRequest.
 	{"QRCreateRequest", &qr.CreateRequest{}},
 	{"QRCreateResponse", &qr.CreateResponse{}},
+	// Long-term validation and the register view over a batch.
+	{"ArchiveRequest", &dto.ArchiveRequest{}},
+	{"ArchiveResponse", &core.ArchiveOutput{}},
+	{"RegistryItemRequest", &dto.RegistryItemRequest{}},
+	{"RegistryResponse", &core.RegistryOutput{}},
+	// Standalone challenge–response (the same handshake OIDC uses internally).
+	{"ChallengeIssueRequest", &challenge.IssueRequest{}},
+	{"ChallengeIssueResponse", &challenge.IssueResponse{}},
+	{"ChallengeConfirmRequest", &challenge.ConfirmRequest{}},
+	{"ChallengeConfirmResponse", &challenge.ConfirmResponse{}},
+	// Multi-signature sessions.
+	{"MultisignCreateRequest", &multisign.CreateRequest{}},
+	{"MultisignSession", &multisign.Session{}},
+	// Audit journal.
+	{"AuditVerifyResult", &audit.VerifyResult{}},
+	// Service-signed documents carried in a QR.
+	{"SignedQRIssueRequest", &signedqr.IssueRequest{}},
+	{"SignedQRIssueResponse", &signedqr.IssueResponse{}},
+	{"SignedQRVerifyResult", &signedqr.VerifyResult{}},
+}
+
+// nestedRenames disambiguates nested types whose bare Go name would be too
+// generic once every package's types share one component namespace.
+var nestedRenames = map[string]string{
+	"Signature": "MultisignSignature",   // multisign.Signature — one collected signature
+	"Required":  "MultisignRequirement", // multisign.Required — one required signer
 }
 
 // enums enriches specific properties the reflector cannot infer (Go string types
 // carry no value set). Keyed by "Schema.property".
 var enums = map[string][]string{
-	"SignRequest.format":       {"cms", "xml", "wsse"},
-	"VerifyRequest.format":     {"cms", "xml", "wsse"},
-	"ExtractRequest.format":    {"cms", "xml", "wsse"},
-	"SignResponse.format":      {"cms", "xml", "wsse"},
-	"VerifyResponse.format":    {"cms", "xml", "wsse"},
-	"CertInfoRequest.encoding": {"pem", "der", "base64"},
-	"ValidateRequest.encoding": {"pem", "der", "base64"},
-	"CertInfoRequest.method":   {"ocsp", "crl"},
-	"ValidateRequest.method":   {"ocsp", "crl"},
-	"RevocationStatus.method":  {"ocsp", "crl"},
-	"Certificate.ownerType":    {"INDIVIDUAL", "LEGAL_PERSON", "INFOSYSTEM", "UNKNOWN"},
-	"Claims.owner_type":        {"INDIVIDUAL", "LEGAL_PERSON", "INFOSYSTEM", "UNKNOWN"},
-	"Subject.gender":           {"MALE", "FEMALE", "NONE"},
-	"Claims.gender":            {"male", "female"},
-	"Signer.cadesLevel":        {"BES", "T"},
-	"SignResponse.cadesLevel":  {"BES", "T"},
-	"QRCreateRequest.mode":     {"sign", "auth"},
-	"QRCreateRequest.profile":  {"agnostic", "egov", "relay"},
-	"QRCreateRequest.format":   {"cms", "xml", "wsse"},
+	"SignRequest.format":        {"cms", "xml", "wsse"},
+	"VerifyRequest.format":      {"cms", "xml", "wsse"},
+	"VerifyAtRequest.format":    {"cms", "xml", "wsse"},
+	"VerifyAtRequest.method":    {"ocsp", "crl"},
+	"ExtractRequest.format":     {"cms", "xml", "wsse"},
+	"SignResponse.format":       {"cms", "xml", "wsse"},
+	"VerifyResponse.format":     {"cms", "xml", "wsse"},
+	"VerifyAtResponse.format":   {"cms", "xml", "wsse"},
+	"PointInTimeVerdict.method": {"ocsp", "crl"},
+	"DiagnosisStep.status":      {"pass", "fail", "warn", "skipped", "unknown"},
+	"CertInfoRequest.encoding":  {"pem", "der", "base64"},
+	"ValidateRequest.encoding":  {"pem", "der", "base64"},
+	"CertInfoRequest.method":    {"ocsp", "crl"},
+	"ValidateRequest.method":    {"ocsp", "crl"},
+	"RevocationStatus.method":   {"ocsp", "crl"},
+	"Certificate.ownerType":     {"INDIVIDUAL", "LEGAL_PERSON", "INFOSYSTEM", "UNKNOWN"},
+	"Claims.owner_type":         {"INDIVIDUAL", "LEGAL_PERSON", "INFOSYSTEM", "UNKNOWN"},
+	"Subject.gender":            {"MALE", "FEMALE", "NONE"},
+	"Claims.gender":             {"male", "female"},
+	"Signer.cadesLevel":         {"BES", "T"},
+	"SignResponse.cadesLevel":   {"BES", "T"},
+	"QRCreateRequest.mode":      {"sign", "auth"},
+	"QRCreateRequest.profile":   {"agnostic", "egov", "relay"},
+	"QRCreateRequest.format":    {"cms", "xml", "wsse"},
+
+	"VerificationReport.verdict":    {"valid", "invalid", "indeterminate"},
+	"RegistryRow.verdict":           {"valid", "invalid", "indeterminate"},
+	"ArchiveResponse.level":         {"LT"},
+	"MultisignCreateRequest.format": {"cms", "xml"},
+	"MultisignSession.format":       {"cms", "xml"},
+	"MultisignSession.status":       {"pending", "complete", "expired"},
+	"RegistryItemRequest.format":    {"cms", "xml", "wsse"},
 }
 
 func main() {
@@ -105,6 +151,7 @@ func main() {
 	applyEnums(schemas)
 	addQRSchemas(schemas)
 	addBatchSchemas(schemas)
+	addAppSchemas(schemas)
 	addOIDCSchemas(schemas)
 
 	doc := buildDoc(schemas)
@@ -127,19 +174,62 @@ func reflectSchemas() map[string]any {
 		defs, _ := m["$defs"].(map[string]any)
 		// The Go type name invopop assigned to the reflected root.
 		goName := reflect.TypeOf(st.typ).Elem().Name()
+		// A root's own rename overrides the shared map: two packages can export the
+		// same type name (audit.VerifyResult, signedqr.VerifyResult), and only the
+		// pass that is reflecting one of them knows which is meant.
+		renames := map[string]string{}
+		for k, v := range rootRenames() {
+			renames[k] = v
+		}
+		for k, v := range nestedRenames {
+			renames[k] = v
+		}
+		renames[goName] = st.name // rename the root (e.g. SignOutput → SignResponse)
 		for name, def := range defs {
 			target := name
-			if name == goName {
-				target = st.name // rename the root (e.g. SignOutput → SignResponse)
+			if r, ok := renames[name]; ok {
+				target = r
 			}
-			out[target] = cleanSchema(def)
+			cleaned := cleanSchema(def, renames)
+			if prev, ok := out[target]; ok && !sameSchema(prev, cleaned) {
+				panic("component name collision: " + target + " (add a nestedRenames entry)")
+			}
+			out[target] = cleaned
 		}
 	}
 	return out
 }
 
+// rootRenames maps every unambiguously-named top type's Go name to its component
+// name, so a $ref reaching one from another root's schema still resolves. Go
+// names claimed by more than one top type are left out — the per-pass override
+// resolves those, since a shared map cannot say which package is meant.
+func rootRenames() map[string]string {
+	claimed := map[string]int{}
+	for _, st := range topTypes {
+		claimed[reflect.TypeOf(st.typ).Elem().Name()]++
+	}
+	out := map[string]string{}
+	for _, st := range topTypes {
+		if goName := reflect.TypeOf(st.typ).Elem().Name(); claimed[goName] == 1 {
+			out[goName] = st.name
+		}
+	}
+	return out
+}
+
+// sameSchema reports whether two reflected definitions are identical, so a type
+// reached from several roots is not mistaken for a name collision.
+func sameSchema(a, b any) bool {
+	x, err := json.Marshal(a)
+	must(err)
+	y, err := json.Marshal(b)
+	must(err)
+	return bytes.Equal(x, y)
+}
+
 // cleanSchema strips reflector bookkeeping keys and rewrites $ref recursively.
-func cleanSchema(v any) any {
+func cleanSchema(v any, renames map[string]string) any {
 	switch t := v.(type) {
 	case map[string]any:
 		delete(t, "$schema")
@@ -148,16 +238,16 @@ func cleanSchema(v any) any {
 		for k, val := range t {
 			if k == "$ref" {
 				if s, ok := val.(string); ok {
-					t[k] = rewriteRef(s)
+					t[k] = rewriteRef(s, renames)
 				}
 				continue
 			}
-			t[k] = cleanSchema(val)
+			t[k] = cleanSchema(val, renames)
 		}
 		return t
 	case []any:
 		for i := range t {
-			t[i] = cleanSchema(t[i])
+			t[i] = cleanSchema(t[i], renames)
 		}
 		return t
 	default:
@@ -165,15 +255,12 @@ func cleanSchema(v any) any {
 	}
 }
 
-func rewriteRef(ref string) string {
+func rewriteRef(ref string, renames map[string]string) string {
 	const p = "#/$defs/"
 	if len(ref) > len(p) && ref[:len(p)] == p {
 		name := ref[len(p):]
-		// Rename any renamed root types in refs too.
-		for _, st := range topTypes {
-			if goName := reflect.TypeOf(st.typ).Elem().Name(); name == goName {
-				name = st.name
-			}
+		if r, ok := renames[name]; ok {
+			name = r
 		}
 		return "#/components/schemas/" + name
 	}

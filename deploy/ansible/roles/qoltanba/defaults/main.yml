@@ -1,0 +1,29 @@
+---
+# Package source: set exactly one of these.
+qoltanba_deb_url: ""   # URL to a .deb (Debian/Ubuntu) or .rpm (RHEL family)
+qoltanba_deb_path: ""  # path on the control node to a local .deb/.rpm to copy & install
+
+# BYOL: the Kalkan native library. The role never ships it by default. Either
+# pre-stage it on the host at qoltanba_lib_dir, or set qoltanba_lib_src to a file on
+# the control node and the role will copy it into place.
+qoltanba_lib_dir: /opt/kalkan
+qoltanba_lib_file: libkalkancryptwr-64.so
+qoltanba_lib_src: ""   # optional: local path to the library to push to the host
+
+# EnvironmentFile (/etc/qoltanba/qoltanba.env) — non-secret settings only.
+# Secrets go via systemd LoadCredential + QOLTANBA_<KEY>_FILE (see the unit).
+qoltanba_env:
+  QOLTANBA_LIB_PATH: "{{ qoltanba_lib_dir }}/{{ qoltanba_lib_file }}"
+  LD_LIBRARY_PATH: "{{ qoltanba_lib_dir }}"
+  QOLTANBA_HTTP_ADDR: ":8080"
+  QOLTANBA_LOG_LEVEL: info
+  QOLTANBA_LOG_FORMAT: json
+  QOLTANBA_TRUST_USE_RK_REGISTRY: "true"
+
+# Optional structured config → /etc/qoltanba/config.yaml (QOLTANBA_CONFIG points here
+# from the unit). Leave empty to rely on env only. Shape mirrors config.example.yaml.
+qoltanba_config_yaml: {}
+
+# Service management.
+qoltanba_service_enabled: true
+qoltanba_service_state: started

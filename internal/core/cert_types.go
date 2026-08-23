@@ -83,6 +83,10 @@ type Signer struct {
 	// Claims is the OIDC claim set derived from this signer's certificate. Only
 	// populated when the request asks for it (VerifyInput.ExtractClaims).
 	Claims *Claims `json:"claims,omitempty"`
+	// Revocation is this signer certificate's revocation status. Nil when the
+	// check did not run; a non-nil status whose Determinate is false means it was
+	// attempted and could not be established.
+	Revocation *RevocationStatus `json:"revocation,omitempty"`
 }
 
 // Timestamp is a TSP token summary attached to a signature.
@@ -93,4 +97,24 @@ type Timestamp struct {
 	TSA           string     `json:"tsa,omitempty"`
 	HashAlgorithm string     `json:"hashAlgorithm,omitempty"`
 	Hash          []byte     `json:"hash,omitempty"`
+	// ImprintVerified reports whether the token's messageImprint was recomputed
+	// from this signature and matched — the difference between "a timestamp is
+	// attached" and "this timestamp is over this signature". Nil when it could
+	// not be established; ImprintNote then says why.
+	ImprintVerified *bool  `json:"imprintVerified,omitempty"`
+	ImprintNote     string `json:"imprintNote,omitempty"`
+	// SignatureVerified reports whether the TSA's own signature over the token
+	// verified against a trusted anchor — the difference between "a structure
+	// naming this signature exists" and "a time-stamping authority issued it".
+	// Nil when it could not be established; SignatureNote then says why.
+	SignatureVerified *bool  `json:"signatureVerified,omitempty"`
+	SignatureNote     string `json:"signatureNote,omitempty"`
+	// PolicyName is the registry name of the TSA policy the token was issued
+	// under, when the OID is one of the NUC policies.
+	PolicyName string `json:"policyName,omitempty"`
+	// PolicyAccepted reports the policy against the operator's allow-list. Nil
+	// when no list is configured — the service does not invent which policies an
+	// operator is willing to rely on. PolicyNote says what was decided and why.
+	PolicyAccepted *bool  `json:"policyAccepted,omitempty"`
+	PolicyNote     string `json:"policyNote,omitempty"`
 }

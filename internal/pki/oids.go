@@ -187,10 +187,14 @@ const (
 	DigestSHA1         = "1.3.14.3.2.26"
 	DigestSHA256       = "2.16.840.1.101.3.4.2.1"
 	DigestGOST34311_95 = "1.2.398.3.10.1.1.1.1" // старый ГОСТ Р 34.11-94 (kalkan)
-	// Дайджесты ГОСТ-2015 (кириллические имена kalkan DIGEST_GOST3411_2015_256/512);
-	// числовой OID отдаёт сама либа при выборе по флагам — при необходимости уточнить.
+	// Дайджесты ГОСТ-2015 (кириллические имена kalkan DIGEST_GOST3411_2015_256/512).
 	DigestGOST2015_256 = "GOST3411_2015_256"
 	DigestGOST2015_512 = "GOST3411_2015_512"
+	// Числовые OID той же пары — арка хеширования официального реестра. Замерены на
+	// боевом TSA: messageImprint ГОСТ-2015-подписи приходит под OIDGOST2015_512.
+	OIDDigestGOST34311_95 = "1.2.398.3.10.1.3.1"
+	OIDDigestGOST2015_256 = "1.2.398.3.10.1.3.2"
+	OIDDigestGOST2015_512 = "1.2.398.3.10.1.3.3"
 )
 
 // DigestOIDForSignOID — дайджест по алгоритму подписи (как в NCANode Util).
@@ -209,6 +213,32 @@ func DigestOIDForSignOID(signOID string) string {
 	}
 }
 
+// Политики TSA (метки времени): базовая арка и её дети из официального реестра.
+const (
+	TSAPolicyArc      = "1.2.398.3.3.2.6"
+	TSAPolicyGOST     = "1.2.398.3.3.2.6.1" // TSA_GOST_POLICY (ГОСТ 34.310-2004)
+	TSAPolicyRSA      = "1.2.398.3.3.2.6.2" // TSA_RSA_POLICY (RSA-SHA256)
+	TSAPolicyGOSTGT   = "1.2.398.3.3.2.6.3" // TSA_GOSTGT_POLICY
+	TSAPolicyGOST2015 = "1.2.398.3.3.2.6.4" // TSA_GOST2015_POLICY (по умолчанию у НУЦ)
+)
+
+// tsaPolicyByOID — короткие имена политик TSA. Реестр даёт длинные описания;
+// здесь имена, которыми политики называют в SDK и документации.
+var tsaPolicyByOID = map[string]string{
+	TSAPolicyGOST:     "TSA_GOST_POLICY",
+	TSAPolicyRSA:      "TSA_RSA_POLICY",
+	TSAPolicyGOSTGT:   "TSA_GOSTGT_POLICY",
+	TSAPolicyGOST2015: "TSA_GOST2015_POLICY",
+}
+
+// TSAPolicyName возвращает имя политики TSA по OID (пусто, если не из реестра).
+func TSAPolicyName(oid string) string { return tsaPolicyByOID[oid] }
+
+// IsTSAPolicy сообщает, принадлежит ли OID арке политик TSA НУЦ.
+func IsTSAPolicy(oid string) bool {
+	return oid == TSAPolicyArc || strings.HasPrefix(oid, TSAPolicyArc+".")
+}
+
 // hash OID → человекочитаемое имя (для TSP; таблица TSPAlgorithms + kalkan ГОСТ).
 var hashNameByOID = map[string]string{
 	"1.2.840.113549.2.5":     "MD5",
@@ -222,6 +252,9 @@ var hashNameByOID = map[string]string{
 	"1.3.36.3.2.3":           "RIPEMD256",
 	"1.2.398.3.10.1.1.1.1":   "GOST34311GT",
 	"1.2.398.3.10.1.1.1":     "GOST34311",
+	"1.2.398.3.10.1.3.1":     "GOST34311",
+	"1.2.398.3.10.1.3.2":     "GOST3411_2015_256",
+	"1.2.398.3.10.1.3.3":     "GOST3411_2015_512",
 }
 
 // HashNameForOID возвращает имя хеш-алгоритма по OID (пусто, если неизвестен).

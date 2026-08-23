@@ -10,7 +10,7 @@ GOLANGCI_VERSION := v2.12.2
 GOBIN           := $(shell go env GOPATH)/bin
 GOLANGCI        := $(GOBIN)/golangci-lint
 
-.PHONY: build test vet lint fmt tidy check tools openapi openapi-lint check-generated hooks
+.PHONY: build test vet lint fmt tidy check tools openapi openapi-lint check-generated sync-observability hooks sdk
 
 ## build: compile all packages
 build:
@@ -43,13 +43,22 @@ check: build vet lint test
 openapi:
 	go run ./tools/openapigen
 
+## sdk: generate typed API clients from the OpenAPI spec (needs Docker)
+sdk: openapi
+	tools/sdk/generate.sh
+
 ## openapi-lint: validate the generated OpenAPI spec (needs Node/npx)
 openapi-lint:
 	npx --yes @redocly/cli@latest lint api/openapi.yaml
 
 ## check-generated: fail if the committed OpenAPI/Postman artifacts are stale
-check-generated: openapi
-	git diff --exit-code api/openapi.yaml deploy/postman/qoltanba.postman_collection.json
+check-generated: openapi sync-observability
+	git diff --exit-code api/openapi.yaml deploy/postman/qoltanba.postman_collection.json deploy/helm/qoltanba/files
+
+## sync-observability: copy the canonical Grafana/Prometheus assets into the Helm chart's files/
+sync-observability:
+	cp deploy/observability/grafana/dashboards/qoltanba-overview.json deploy/helm/qoltanba/files/qoltanba-overview.json
+	cp deploy/observability/prometheus/alerts.yaml deploy/helm/qoltanba/files/alerts.yaml
 
 ## hooks: enable the repo's git hooks (.githooks) for this clone
 hooks:

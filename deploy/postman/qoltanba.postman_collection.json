@@ -77,7 +77,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\",\"checkCertTime\":true,\"extractContent\":true,\"claims\":true}"
+              "raw": "{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\",\"checkCertTime\":true,\"extractContent\":true,\"claims\":true,\"explain\":true}"
             },
             "url": {
               "raw": "{{baseUrl}}/verify",
@@ -86,6 +86,32 @@
               ],
               "path": [
                 "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Historical (point-in-time) verify: was the signature valid at a past instant, reconstructing certificate validity and revocation status as of that time",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\",\"at\":\"2022-06-01T00:00:00Z\",\"method\":\"ocsp\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/verify/at",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify",
+                "at"
               ]
             }
           }
@@ -111,6 +137,32 @@
               ],
               "path": [
                 "extract"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Embed long-term validation evidence (CAdES-LT) into an existing signature, so it stays verifiable after the certificate expires",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"signature\":\"{{signatureBase64}}\",\"outputPem\":false}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sign/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sign",
+                "archive"
               ]
             }
           }
@@ -308,6 +360,192 @@
               ]
             }
           }
+        },
+        {
+          "name": "Verify a set of documents and return the auditor's register: counts plus one row per document with its verdict, signers and first failing check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"items\":[{\"ref\":\"contract-2024-11.p7s\",\"format\":\"cms\",\"signature\":\"{{signatureBase64}}\"}],\"policy\":\"continue-on-error\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/verify/registry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify",
+                "registry"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Challenge",
+      "item": [
+        {
+          "name": "Issue a single-use nonce bound to a purpose (the anti-replay handshake as a standalone primitive)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"purpose\":\"payment.approve\",\"meta\":{\"orderId\":\"1042\"}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/challenge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "challenge"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm a challenge with the user's detached signature and report who signed it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"challengeId\":\"{{challengeId}}\",\"signature\":\"{{signatureBase64}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/challenge/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "challenge",
+                "confirm"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Signed-qr",
+      "item": [
+        {
+          "name": "Issue a QR carrying a short statement signed with the service key (verifiable offline, no ЭЦП needed to check it)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"subject\":\"{{iin}}\",\"data\":{\"permit\":\"A-142\"},\"ttlSeconds\":86400}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/qr/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check a scanned document QR against the service key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"payload\":\"{{qrPayload}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/qr/documents/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "qr",
+                "documents",
+                "verify"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sandbox",
+      "item": [
+        {
+          "name": "Sign with the operator's demo key, so the service can be evaluated without an ЭЦП of one's own (off unless a sandbox key is configured)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\":\"{{dataBase64}}\",\"format\":\"cms\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sandbox/sign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sandbox",
+                "sign"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Built-in test console: pick an operation, edit the body, see the raw response (off by default)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/console",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "console"
+              ]
+            }
+          }
         }
       ]
     },
@@ -413,6 +651,69 @@
               ]
             }
           }
+        },
+        {
+          "name": "Public keys the service signs with — verification receipts, signed-document QR and OIDC tokens (served even when OIDC is off)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/jwks.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "jwks.json"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Authorization endpoint: renders the hosted login page that collects a signature (authorization code + PKCE)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/oidc/authorize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "authorize"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit the collected signature and redirect back to the relying party with an authorization code",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/oidc/authorize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "authorize"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Token endpoint: exchange an authorization code for tokens (client credentials in the body or HTTP Basic)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/oidc/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oidc",
+                "token"
+              ]
+            }
+          }
         }
       ]
     },
@@ -502,6 +803,173 @@
                 "qr",
                 "a",
                 "{id}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Multisign",
+      "item": [
+        {
+          "name": "Open a session for a document that needs several signatures",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"format\":\"cms\",\"document\":\"{{dataBase64}}\",\"required\":[{\"iin\":\"{{iin}}\",\"label\":\"Директор\"},{\"role\":\"CEO\"}],\"subject\":\"Договор №42\",\"ttlSeconds\":604800}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/multisign/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "multisign",
+                "sessions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Session state: who has signed, who is still owed, and the container as it stands",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/multisign/sessions/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "multisign",
+                "sessions",
+                "{id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit the container after a participant co-signed it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"container\":\"{{signatureBase64}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/multisign/sessions/{id}/signatures",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "multisign",
+                "sessions",
+                "{id}",
+                "signatures"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel a session",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/multisign/sessions/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "multisign",
+                "sessions",
+                "{id}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Walk the journal's hash chain and report whether — and where — it was altered",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/audit/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit",
+                "verify"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Stream the journal as NDJSON for a SIEM (supports range requests and conditional fetches)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/audit/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit",
+                "export"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Portal",
+      "item": [
+        {
+          "name": "Upload form for checking a signature (off by default — it accepts uploads from anyone who can reach it)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/verify/portal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify",
+                "portal"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check an uploaded container and render the verification card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/verify/portal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verify",
+                "portal"
               ]
             }
           }

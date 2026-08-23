@@ -19,6 +19,17 @@ service SignatureService {
   rpc CertInfo(CertInfoRequest) returns (CertInfoResponse);
   rpc CertValidate(CertValidateRequest) returns (CertValidateResponse);
 
+  // VerifyAt answers "was this signature valid at instant X" — the question a
+  // dispute asks, which differs from "is it valid now": a certificate that has
+  // since expired or been revoked may still have been good then.
+  rpc VerifyAt(VerifyAtRequest) returns (VerifyAtResponse);
+
+  // Archive embeds long-term validation evidence into an existing signature, so
+  // it stays verifiable after its certificate expires and the CA's responders go
+  // away. It verifies first: a container that does not hold up, or one whose
+  // signer has been revoked, is refused rather than archived.
+  rpc Archive(ArchiveRequest) returns (ArchiveResponse);
+
   // Batch operations stream one event per item as it completes (a BatchItem),
   // then a final BatchSummary — so a large batch never buffers server-side. Items
   // carry their request index for reordering.
@@ -133,7 +144,59 @@ message VerifyRequest {
   bool claims = 9; // add OIDC claims per signer
   string data_path = 10; // by-reference detached source: local path (gated)
   string data_url = 11;  // by-reference detached source: URL (gated)
+  // Revocation is checked by default; the field is optional so an unset value
+  // means the default rather than "off".
+  optional bool revocation_check = 12;
+  ValidationMethod revocation_method = 13; // default OCSP
+  string responder_url = 14;               // override the OCSP responder
 }
+// VerifyAtRequest is an ordinary verification plus the instant to evaluate it at
+// and the revocation source used to place past status.
+message VerifyAtRequest {
+  VerifyRequest verify = 1;
+  string at = 2;              // RFC3339; required, must not be in the future
+  ValidationMethod method = 3; // default OCSP
+  bytes crl = 4;              // inline CRL (ideally archived at `at`) for METHOD_CRL
+  string responder_url = 5;   // override the OCSP responder
+}
+
+// PointInTimeVerdict is one signer's validity assessment at the requested
+// instant. Determinate says whether the data was sufficient to be sure — an
+// undeterminable answer is not the same as a negative one.
+message PointInTimeVerdict {
+  string at = 1;
+  bool valid_at = 2;
+  bool determinate = 3;
+  bool signature_valid = 4;
+  bool within_validity = 5;
+  string not_before = 6;
+  string not_after = 7;
+  bool not_revoked_at = 8;
+  bool revoked_as_of_at = 9;
+  string revocation_time = 10;
+  string revocation_reason = 11;
+  ValidationMethod method = 12;
+  // Reasons explain the verdict and record caveats (a reversible hold,
+  // inconclusive revocation data, a missing validity window).
+  repeated string reasons = 13;
+}
+
+message SignerAt {
+  Signer signer = 1;
+  PointInTimeVerdict verdict = 2;
+}
+
+message VerifyAtResponse {
+  string at = 1;
+  bool valid_at = 2;
+  bool determinate = 3;
+  SignatureFormat format = 4;
+  bool detached = 5;
+  repeated SignerAt signers = 6;
+  repeated Warning warnings = 7;
+  LibError lib_error = 8;
+}
+
 message VerifyResponse {
   bool valid = 1;
   SignatureFormat format = 2;
@@ -142,6 +205,33 @@ message VerifyResponse {
   bytes content = 5;
   repeated Warning warnings = 6;
   LibError lib_error = 7;
+}
+
+message ArchiveRequest {
+  bytes signature = 1;
+  bool input_pem = 2;
+  bytes data = 3;     // signed content for a detached signature
+  bool detached = 4;
+  string responder_url = 5;
+  bool output_pem = 6;
+  repeated TrustedCert trusted_certs = 7;
+  // allow_revoked archives a signature whose signer is revoked. Off by default:
+  // reporting "archived" for a repudiated signature files evidence of the wrong
+  // thing. Preserving proof about one is a real need, so it stays possible.
+  bool allow_revoked = 8;
+}
+message ArchiveResponse {
+  bytes signature = 1;
+  ArchiveEvidence embedded = 2;
+  string level = 3; // "LT" once evidence is embedded
+  repeated Warning warnings = 4;
+}
+// ArchiveEvidence counts what was embedded, so a caller can see the archive
+// actually gained something.
+message ArchiveEvidence {
+  int32 ocsp_responses = 1;
+  int32 crls = 2;
+  int32 certificates = 3;
 }
 
 message ExtractRequest {
@@ -240,6 +330,25 @@ message Timestamp {
   string tsa = 4;
   string hash_algorithm = 5;
   bytes hash = 6;
+  // imprint_verified says the token's message imprint was recomputed from this
+  // signature and matched — the difference between "a timestamp is attached" and
+  // "this timestamp is over this signature". Unset when it could not be checked;
+  // imprint_note then says why. cades_level is only "T" once it verified.
+  optional bool imprint_verified = 7;
+  string imprint_note = 8;
+  // signature_verified says the TSA's own signature over the token verified
+  // against a trusted anchor — the difference between "a structure naming this
+  // signature exists" and "a time-stamping authority issued it". Unset when it
+  // could not be checked. cades_level is "T" only when both facts hold.
+  optional bool signature_verified = 9;
+  string signature_note = 10;
+  // policy_name is the registry name of the TSA policy (when the OID is one of
+  // the NUC policies). policy_accepted judges it against the operator's
+  // allow-list and is unset when none is configured — the service does not
+  // invent which policies an operator relies on.
+  string policy_name = 11;
+  optional bool policy_accepted = 12;
+  string policy_note = 13;
 }
 
 message Signer {
@@ -255,6 +364,9 @@ message Signer {
   string verify_info = 10;
   bool chain_signatures_verified = 11;
   Claims claims = 12;
+  // Revocation status of this signer's certificate; unset when the check did not
+  // run. A status whose determinate is false was attempted and not established.
+  RevocationStatus revocation = 13;
 }
 
 message Claims {
@@ -273,6 +385,9 @@ message Claims {
 
 message RevocationStatus {
   bool revoked = 1;
+  // determinate says the status was actually established. A check that could not
+  // complete also leaves revoked false.
+  bool determinate = 10;
   ValidationMethod method = 2;
   string revocation_time = 3;
   string reason = 4;

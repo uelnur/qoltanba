@@ -10,7 +10,10 @@
 // and times are time.Time; encoding (base64/PEM, RFC3339) is a transport concern.
 package core
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // SignatureFormat selects the container kind for a sign or verify operation.
 type SignatureFormat string
@@ -56,6 +59,11 @@ type Warning struct {
 // SignInput is a signing request. One call signs one item; batching is a higher
 // layer over this.
 type SignInput struct {
+	// Policy names a signing profile (an ETSI level) instead of assembling the
+	// flags that produce it: it resolves Format and the time-stamp default. An
+	// explicit Format that contradicts the policy is rejected rather than silently
+	// overridden.
+	Policy SignaturePolicy
 	Format SignatureFormat
 	Data   []byte
 	// DataRef signs a payload by reference (a local path or a URL) instead of
@@ -116,9 +124,47 @@ type VerifyInput struct {
 	CheckCertTime  bool
 	ExtractContent bool // recover the original content (attached)
 	ExtractClaims  bool // populate each signer's OIDC Claims from its certificate
+	// Explain adds a step-by-step "why (in)valid" diagnosis to the output
+	// (VerifyOutput.Explanation) — a plain-language breakdown for callers without
+	// a crypto background. Pure synthesis over the result; no extra work.
+	Explain bool
+	// Report adds the human-facing verification card (VerifyOutput.Report): who
+	// signed, when, with what, and what could be established. Pure synthesis over
+	// the result, like Explain; it is also what a verification receipt attests to.
+	Report bool
+	// Receipt asks the service to sign its verification outcome with its own key
+	// (VerifyOutput.Receipt): a machine-checkable attestation the caller can file
+	// as audit evidence and verify later against the service's JWKS. It implies
+	// building the report, which the receipt attests to.
+	Receipt bool
 	// TrustedCerts are extra CAs merged with the configured trust-store to build
 	// the chain. XML verification requires anchors; CMS works without them.
 	TrustedCerts []TrustedCert
+
+	// RevocationCheck controls whether each signer's certificate is checked for
+	// revocation as part of verification. Nil means on, which is the default
+	// because a verdict that silently omits revocation is the one way this
+	// service can report a repudiated signature as good. Set it to false to skip
+	// the check (offline verification, or a caller that checks it separately) —
+	// the verdict is then indeterminate rather than valid, since the question was
+	// left open.
+	RevocationCheck *bool
+	// RevocationMethod selects OCSP (default) or CRL for that check.
+	RevocationMethod ValidationMethod
+	// ResponderURL overrides the OCSP responder used by the revocation check.
+	ResponderURL string
+	// Archive embeds the long-term validation evidence gathered during this
+	// verification into the container and returns it (VerifyOutput.Archive), so
+	// the archive holds exactly the evidence the verdict was reached on instead
+	// of evidence collected by a second, later pass. CMS only; needs the
+	// revocation check, which is where the OCSP responses come from.
+	Archive bool
+}
+
+// RevocationRequested reports whether the revocation check should run. It is on
+// unless the caller explicitly turned it off.
+func (in VerifyInput) RevocationRequested() bool {
+	return in.RevocationCheck == nil || *in.RevocationCheck
 }
 
 // VerifyOutput is the exhaustive verification outcome.
@@ -130,6 +176,19 @@ type VerifyOutput struct {
 	Content  []byte          `json:"content,omitempty"` // recovered original, if attached and requested
 	Warnings []Warning       `json:"warnings,omitempty"`
 	LibError *LibError       `json:"libError,omitempty"`
+	// Explanation is the step-by-step "why (in)valid" diagnosis. Set only when the
+	// request asks for it (VerifyInput.Explain).
+	Explanation *Diagnosis `json:"explanation,omitempty"`
+	// Report is the human-facing verification card. Set only when the request asks
+	// for it (VerifyInput.Report).
+	Report *VerificationReport `json:"report,omitempty"`
+	// Receipt is the service's signed attestation of this verification (compact
+	// JWS). Set only when the request asks for it (VerifyInput.Receipt) and a
+	// receipt signer is configured.
+	Receipt string `json:"receipt,omitempty"`
+	// Archive is the container with this verification's evidence embedded
+	// (CAdES-LT). Set only when the request asks for it (VerifyInput.Archive).
+	Archive *ArchiveOutput `json:"archive,omitempty"`
 }
 
 // ExtractInput recovers the original content from an attached signature.
@@ -164,9 +223,12 @@ type CertInfoInput struct {
 type CertInfoOutput struct {
 	Certificate Certificate   `json:"certificate"`
 	Chain       []Certificate `json:"chain,omitempty"`
-	Claims      *Claims       `json:"claims,omitempty"` // set when ExtractClaims requested
-	Warnings    []Warning     `json:"warnings,omitempty"`
-	LibError    *LibError     `json:"libError,omitempty"`
+	// Algorithm classifies the certificate's cryptographic generation and, when it
+	// is not the current one, says what to reissue it as.
+	Algorithm AlgorithmInfo `json:"algorithm"`
+	Claims    *Claims       `json:"claims,omitempty"` // set when ExtractClaims requested
+	Warnings  []Warning     `json:"warnings,omitempty"`
+	LibError  *LibError     `json:"libError,omitempty"`
 }
 
 // ValidateInput checks a certificate's revocation status and chain trust.
@@ -213,7 +275,11 @@ const (
 // RevocationStatus is the revocation outcome for a certificate. Time fields
 // beyond CheckedAt come from parsing the OCSP response / CRL (best-effort).
 type RevocationStatus struct {
-	Revoked        bool             `json:"revoked"`
+	Revoked bool `json:"revoked"`
+	// Determinate reports whether the status was actually established. A check
+	// that could not be completed also leaves Revoked false, and reading that as
+	// "not revoked" is how an unreachable responder turns into a good verdict.
+	Determinate    bool             `json:"determinate"`
 	Method         ValidationMethod `json:"method,omitempty"`
 	RevocationTime *time.Time       `json:"revocationTime,omitempty"`
 	Reason         string           `json:"reason,omitempty"`
@@ -222,6 +288,43 @@ type RevocationStatus struct {
 	NextUpdate     *time.Time       `json:"nextUpdate,omitempty"`
 	ProducedAt     *time.Time       `json:"producedAt,omitempty"` // OCSP producedAt
 	LibError       *LibError        `json:"libError,omitempty"`
+}
+
+// AuditSink records what the service did, for a tamper-evident operational
+// journal. The domain declares the port and reports facts; where and how they are
+// stored is the sink's business. A sink that fails must not fail the operation —
+// an unrecorded check is a gap in the journal, not a reason to refuse work.
+type AuditSink interface {
+	Record(ctx context.Context, ev AuditEvent)
+}
+
+// AuditEvent is one recorded operation.
+type AuditEvent struct {
+	Op      string // sign | verify | validate
+	Subject string // what was operated on: a digest, not the content itself
+	Signer  string // whose signature was involved (IIN/BIN)
+	Outcome string // valid | invalid | ok | error
+	Detail  string
+}
+
+// OCSPCache caches revocation answers so repeated checks of one certificate do
+// not each reach the responder. The domain declares the port; internal/ocspcache
+// implements it. Lookup returning false simply means "ask the library".
+type OCSPCache interface {
+	Lookup(certDER []byte, responder string) (OCSPAnswer, bool)
+	Store(certDER []byte, responder string, answer OCSPAnswer)
+}
+
+// OCSPAnswer is one cached revocation answer: the verdict plus the raw response,
+// kept so a caller asking for the response gets the responder's own bytes.
+type OCSPAnswer struct {
+	Revoked        bool
+	Reason         string
+	RevocationTime *time.Time
+	ThisUpdate     *time.Time
+	NextUpdate     *time.Time
+	ProducedAt     *time.Time
+	Response       []byte
 }
 
 // TrustedCert is a CA certificate to load into the trust store for chain building.

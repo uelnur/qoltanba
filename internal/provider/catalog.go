@@ -126,6 +126,25 @@ func Explain(err error) Explanation {
 			return exp
 		}
 	}
-	exp.Key, exp.Message, exp.Action = genericEntry.key, genericEntry.message, genericEntry.action
+	// The generic entry is for an unrecognized library failure, so it only applies
+	// when the error actually came from the library. Attaching it to anything else
+	// — a request the domain rejected, say — replaces a specific, true message with
+	// a vague, wrong one; the caller is better served by the error's own text.
+	if ne != nil {
+		exp.Key, exp.Message, exp.Action = genericEntry.key, genericEntry.message, genericEntry.action
+	}
 	return exp
+}
+
+// SentinelForKey returns the typed sentinel behind a catalog Key, or nil when the
+// key is unknown. It inverts Explain: an adapter that carries an error across a
+// process or network boundary can rebuild the typed error from the wire, so
+// errors.Is keeps working on the far side.
+func SentinelForKey(key string) error {
+	for _, e := range catalog {
+		if e.key == key {
+			return e.sentinel
+		}
+	}
+	return nil
 }

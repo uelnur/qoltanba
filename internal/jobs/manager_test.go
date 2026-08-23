@@ -195,3 +195,31 @@ func TestManager_UnknownOpAndTooLarge(t *testing.T) {
 		t.Errorf("oversized err = %v, want ErrTooLarge", err)
 	}
 }
+
+func TestManager_SubmitIdempotentDedups(t *testing.T) {
+	exec := func(context.Context, string, json.RawMessage) (any, error) { return "ok", nil }
+	m := startManager(t, NewMemStore(), exec, Config{Workers: 1})
+
+	v1, err := m.SubmitIdempotent(context.Background(), "sign", json.RawMessage(`{}`), "", "key-1")
+	if err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+	v2, err := m.SubmitIdempotent(context.Background(), "sign", json.RawMessage(`{}`), "", "key-1")
+	if err != nil {
+		t.Fatalf("second submit: %v", err)
+	}
+	if v1.ID != v2.ID {
+		t.Fatalf("same key should return the same job: %s != %s", v1.ID, v2.ID)
+	}
+	// A different key creates a distinct job.
+	v3, _ := m.SubmitIdempotent(context.Background(), "sign", json.RawMessage(`{}`), "", "key-2")
+	if v3.ID == v1.ID {
+		t.Error("a different key must create a new job")
+	}
+	// An empty key never dedups.
+	e1, _ := m.SubmitIdempotent(context.Background(), "sign", json.RawMessage(`{}`), "", "")
+	e2, _ := m.SubmitIdempotent(context.Background(), "sign", json.RawMessage(`{}`), "", "")
+	if e1.ID == e2.ID {
+		t.Error("an empty key must not dedup")
+	}
+}

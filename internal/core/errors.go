@@ -123,9 +123,31 @@ func isSoftVerifyFailure(err error) bool {
 	}
 }
 
+// localeKey carries the caller's language through the context. The domain does
+// not know about HTTP headers or flags — a transport resolves the language and
+// puts it here, so a per-request locale reaches the error rendering without
+// threading a parameter through every operation.
+type localeKey struct{}
+
+// ContextWithLocale returns ctx carrying the language errors should be rendered
+// in. An unsupported or empty tag falls back to English.
+func ContextWithLocale(ctx context.Context, tag string) context.Context {
+	return context.WithValue(ctx, localeKey{}, provider.ParseLocale(tag))
+}
+
+// LocaleFrom returns the language carried by ctx, defaulting to English.
+func LocaleFrom(ctx context.Context) provider.Locale {
+	if loc, ok := ctx.Value(localeKey{}).(provider.Locale); ok {
+		return loc
+	}
+	return provider.LocaleEN
+}
+
 // libErrorFrom builds a response LibError from a provider error, exposing the raw
-// KCR_* code and text plus the friendly Key/Message/Action from the error catalog.
-func libErrorFrom(err error) *LibError {
+// KCR_* code and text plus the friendly Key/Message/Action from the error catalog,
+// rendered in the caller's language. Key and Code stay stable across languages —
+// they are the contract; only the prose changes.
+func libErrorFrom(ctx context.Context, err error) *LibError {
 	if err == nil {
 		return nil
 	}
@@ -135,9 +157,15 @@ func libErrorFrom(err error) *LibError {
 		le.Code = fmt.Sprintf("0x%08X", ne.Code)
 		le.Text = ne.Detail
 	}
-	exp := provider.Explain(err)
+	exp := provider.Localize(provider.Explain(err), LocaleFrom(ctx))
 	le.Key, le.Message, le.Action = exp.Key, exp.Message, exp.Action
 	return le
+}
+
+// ExplainIn renders a domain/provider error for a transport's hard-error envelope
+// in the caller's language.
+func ExplainIn(ctx context.Context, err error) provider.Explanation {
+	return provider.Localize(Explain(err), LocaleFrom(ctx))
 }
 
 // Explain renders a domain/provider error into a friendly Explanation for a

@@ -33,6 +33,8 @@ const (
 	SignatureService_Extract_FullMethodName           = "/qoltanba.v1.SignatureService/Extract"
 	SignatureService_CertInfo_FullMethodName          = "/qoltanba.v1.SignatureService/CertInfo"
 	SignatureService_CertValidate_FullMethodName      = "/qoltanba.v1.SignatureService/CertValidate"
+	SignatureService_VerifyAt_FullMethodName          = "/qoltanba.v1.SignatureService/VerifyAt"
+	SignatureService_Archive_FullMethodName           = "/qoltanba.v1.SignatureService/Archive"
 	SignatureService_SignBatch_FullMethodName         = "/qoltanba.v1.SignatureService/SignBatch"
 	SignatureService_VerifyBatch_FullMethodName       = "/qoltanba.v1.SignatureService/VerifyBatch"
 	SignatureService_ExtractBatch_FullMethodName      = "/qoltanba.v1.SignatureService/ExtractBatch"
@@ -53,6 +55,15 @@ type SignatureServiceClient interface {
 	Extract(ctx context.Context, in *ExtractRequest, opts ...grpc.CallOption) (*ExtractResponse, error)
 	CertInfo(ctx context.Context, in *CertInfoRequest, opts ...grpc.CallOption) (*CertInfoResponse, error)
 	CertValidate(ctx context.Context, in *CertValidateRequest, opts ...grpc.CallOption) (*CertValidateResponse, error)
+	// VerifyAt answers "was this signature valid at instant X" — the question a
+	// dispute asks, which differs from "is it valid now": a certificate that has
+	// since expired or been revoked may still have been good then.
+	VerifyAt(ctx context.Context, in *VerifyAtRequest, opts ...grpc.CallOption) (*VerifyAtResponse, error)
+	// Archive embeds long-term validation evidence into an existing signature, so
+	// it stays verifiable after its certificate expires and the CA's responders go
+	// away. It verifies first: a container that does not hold up, or one whose
+	// signer has been revoked, is refused rather than archived.
+	Archive(ctx context.Context, in *ArchiveRequest, opts ...grpc.CallOption) (*ArchiveResponse, error)
 	// Batch operations stream one event per item as it completes (a BatchItem),
 	// then a final BatchSummary — so a large batch never buffers server-side. Items
 	// carry their request index for reordering.
@@ -121,6 +132,26 @@ func (c *signatureServiceClient) CertValidate(ctx context.Context, in *CertValid
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CertValidateResponse)
 	err := c.cc.Invoke(ctx, SignatureService_CertValidate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *signatureServiceClient) VerifyAt(ctx context.Context, in *VerifyAtRequest, opts ...grpc.CallOption) (*VerifyAtResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAtResponse)
+	err := c.cc.Invoke(ctx, SignatureService_VerifyAt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *signatureServiceClient) Archive(ctx context.Context, in *ArchiveRequest, opts ...grpc.CallOption) (*ArchiveResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArchiveResponse)
+	err := c.cc.Invoke(ctx, SignatureService_Archive_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +302,15 @@ type SignatureServiceServer interface {
 	Extract(context.Context, *ExtractRequest) (*ExtractResponse, error)
 	CertInfo(context.Context, *CertInfoRequest) (*CertInfoResponse, error)
 	CertValidate(context.Context, *CertValidateRequest) (*CertValidateResponse, error)
+	// VerifyAt answers "was this signature valid at instant X" — the question a
+	// dispute asks, which differs from "is it valid now": a certificate that has
+	// since expired or been revoked may still have been good then.
+	VerifyAt(context.Context, *VerifyAtRequest) (*VerifyAtResponse, error)
+	// Archive embeds long-term validation evidence into an existing signature, so
+	// it stays verifiable after its certificate expires and the CA's responders go
+	// away. It verifies first: a container that does not hold up, or one whose
+	// signer has been revoked, is refused rather than archived.
+	Archive(context.Context, *ArchiveRequest) (*ArchiveResponse, error)
 	// Batch operations stream one event per item as it completes (a BatchItem),
 	// then a final BatchSummary — so a large batch never buffers server-side. Items
 	// carry their request index for reordering.
@@ -309,6 +349,12 @@ func (UnimplementedSignatureServiceServer) CertInfo(context.Context, *CertInfoRe
 }
 func (UnimplementedSignatureServiceServer) CertValidate(context.Context, *CertValidateRequest) (*CertValidateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CertValidate not implemented")
+}
+func (UnimplementedSignatureServiceServer) VerifyAt(context.Context, *VerifyAtRequest) (*VerifyAtResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAt not implemented")
+}
+func (UnimplementedSignatureServiceServer) Archive(context.Context, *ArchiveRequest) (*ArchiveResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Archive not implemented")
 }
 func (UnimplementedSignatureServiceServer) SignBatch(*SignBatchRequest, grpc.ServerStreamingServer[SignBatchEvent]) error {
 	return status.Error(codes.Unimplemented, "method SignBatch not implemented")
@@ -444,6 +490,42 @@ func _SignatureService_CertValidate_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SignatureServiceServer).CertValidate(ctx, req.(*CertValidateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SignatureService_VerifyAt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAtRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).VerifyAt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_VerifyAt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).VerifyAt(ctx, req.(*VerifyAtRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SignatureService_Archive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignatureServiceServer).Archive(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignatureService_Archive_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignatureServiceServer).Archive(ctx, req.(*ArchiveRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -601,6 +683,14 @@ var SignatureService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CertValidate",
 			Handler:    _SignatureService_CertValidate_Handler,
+		},
+		{
+			MethodName: "VerifyAt",
+			Handler:    _SignatureService_VerifyAt_Handler,
+		},
+		{
+			MethodName: "Archive",
+			Handler:    _SignatureService_Archive_Handler,
 		},
 		{
 			MethodName: "SubmitJob",

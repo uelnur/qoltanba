@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/idempotency"
 	"github.com/uelnur/qoltanba/internal/provider"
 	"github.com/uelnur/qoltanba/internal/provider/fake"
 )
@@ -143,5 +145,31 @@ func TestProcess_BatchStreamsPerItemPlusSummary(t *testing.T) {
 	}
 	if items != 2 || summaries != 1 {
 		t.Fatalf("got %d items, %d summaries, want 2/1", items, summaries)
+	}
+}
+
+func TestProcess_IdempotentSingleOpReplaysReply(t *testing.T) {
+	f := &fake.Provider{VerifyResult: provider.VerifyResult{Valid: true}}
+	cache := idempotency.New(time.Hour, 16, nil)
+	p := NewProcessor(core.New(f), nil, WithIdempotency(cache))
+
+	body := `{"op":"verify","correlationId":"c1","idempotencyKey":"idem-1","request":{"format":"cms","signature":"eA=="}}`
+	c1 := run(t, p, body, "")
+	r1, _ := c1.only(t)
+	// Redelivery with the same key: identical reply, and only one cache entry.
+	c2 := run(t, p, body, "")
+	r2, _ := c2.only(t)
+
+	if string(r1.Result) != string(r2.Result) {
+		t.Errorf("redelivered reply differs: %s vs %s", r1.Result, r2.Result)
+	}
+	if cache.Len() != 1 {
+		t.Errorf("cache entries = %d, want 1 (deduped)", cache.Len())
+	}
+	// A different key is a separate entry.
+	other := `{"op":"verify","correlationId":"c2","idempotencyKey":"idem-2","request":{"format":"cms","signature":"eA=="}}`
+	run(t, p, other, "")
+	if cache.Len() != 2 {
+		t.Errorf("cache entries = %d, want 2", cache.Len())
 	}
 }

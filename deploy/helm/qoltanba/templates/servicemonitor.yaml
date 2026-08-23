@@ -1,0 +1,21 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor }}
+# Prometheus Operator ServiceMonitor. Scrapes /metrics on the http port. Enable
+# with metrics.serviceMonitor=true (requires the Prometheus Operator CRDs).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "qoltanba.fullname" . }}
+  labels:
+    {{- include "qoltanba.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitorLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "qoltanba.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.scrapeInterval | default "15s" }}
+{{- end }}

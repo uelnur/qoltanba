@@ -42,6 +42,40 @@ func registry() []entry {
 		{key: "lib.compat", flag: "lib-compat", env: "LIB_COMPAT", kind: kindString, def: "strict", usage: "startup compatibility policy: strict|warn|off (self-test failure always blocks)"},
 		{key: "workers", flag: "workers", env: "WORKERS", kind: kindInt, def: 1, usage: "number of pool instances (>1 requires lib-isolated)"},
 		{key: "verify-only", flag: "verify-only", env: "VERIFY_ONLY", kind: kindBool, def: false, usage: "disable the key path and sign operations"},
+		{key: "locale", flag: "locale", env: "LOCALE", kind: kindString, def: "en", usage: "default language for error messages: en|ru|kk (a request may override it)"},
+		{key: "console.enabled", flag: "console", env: "CONSOLE_ENABLED", kind: kindBool, def: false, usage: "serve the try-it console at /console"},
+		{key: "console.sandbox-key", flag: "console-sandbox-key", env: "CONSOLE_SANDBOX_KEY", kind: kindString, def: "", usage: "demo .p12 for POST /sandbox/sign (test container only — anyone reaching it can sign)"},
+		{key: "console.sandbox-key-password", flag: "console-sandbox-key-password", env: "CONSOLE_SANDBOX_KEY_PASSWORD", kind: kindString, def: "", secret: true, usage: "password of the sandbox demo container"},
+		{key: "audit.enabled", flag: "audit", env: "AUDIT_ENABLED", kind: kindBool, def: false, usage: "record signing and verification into a hash-chained, signed journal"},
+		{key: "audit.path", flag: "audit-path", env: "AUDIT_PATH", kind: kindString, def: "", usage: "journal file (JSON Lines, append-only); required when audit.enabled"},
+		{key: "audit.sync", flag: "audit-sync", env: "AUDIT_SYNC", kind: kindBool, def: false, usage: "flush each journal entry to disk before the operation returns"},
+		{key: "audit.expose", flag: "audit-expose", env: "AUDIT_EXPOSE", kind: kindBool, def: false, usage: "serve /audit/verify and /audit/export (the journal names digests and signers)"},
+		{key: "multisign.enabled", flag: "multisign", env: "MULTISIGN_ENABLED", kind: kindBool, def: false, usage: "enable multi-signature session endpoints (/multisign/sessions)"},
+		{key: "multisign.ttl", flag: "multisign-ttl", env: "MULTISIGN_TTL", kind: kindString, def: "168h", usage: "how long a signing round waits before expiring, as a Go duration (168h = 7d)"},
+		{key: "multisign.store", flag: "multisign-store", env: "MULTISIGN_STORE", kind: kindString, def: "memory", usage: "session store: memory (ephemeral) | bolt (survives restart)"},
+		{key: "multisign.bolt-path", flag: "multisign-bolt-path", env: "MULTISIGN_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when multisign.store=bolt)"},
+		{key: "portal.enabled", flag: "portal", env: "PORTAL_ENABLED", kind: kindBool, def: false, usage: "serve the human verification page at /verify/portal (accepts uploads from any reachable client)"},
+		{key: "certwatch.enabled", flag: "certwatch", env: "CERTWATCH_ENABLED", kind: kindBool, def: false, usage: "watch certificates for revocation and upcoming expiry (metrics + optional webhook)"},
+		{key: "certwatch.dir", flag: "certwatch-dir", env: "CERTWATCH_DIR", kind: kindString, def: "", usage: "directory of watched certificates (.pem/.cer/.crt/.der)"},
+		{key: "certwatch.interval", flag: "certwatch-interval", env: "CERTWATCH_INTERVAL", kind: kindString, def: "6h", usage: "how often watched certificates are re-checked, as a Go duration"},
+		{key: "certwatch.warn-from", flag: "certwatch-warn-from", env: "CERTWATCH_WARN_FROM", kind: kindString, def: "720h", usage: "how far ahead an upcoming expiry is reported, as a Go duration (720h = 30d)"},
+		{key: "certwatch.webhook-url", flag: "certwatch-webhook-url", env: "CERTWATCH_WEBHOOK_URL", kind: kindString, def: "", secret: true, usage: "URL notified when a watched certificate is revoked or expiring"},
+		{key: "certwatch.check-revocation", flag: "certwatch-check-revocation", env: "CERTWATCH_CHECK_REVOCATION", kind: kindBool, def: true, usage: "check revocation via OCSP on every sweep (off watches expiry only)"},
+		{key: "challenge.enabled", flag: "challenge", env: "CHALLENGE_ENABLED", kind: kindBool, def: false, usage: "enable the standalone challenge-response endpoints (POST /challenge, /challenge/confirm)"},
+		{key: "challenge.ttl", flag: "challenge-ttl", env: "CHALLENGE_TTL", kind: kindString, def: "5m", usage: "how long an issued challenge stays usable, as a Go duration"},
+		{key: "challenge.store", flag: "challenge-store", env: "CHALLENGE_STORE", kind: kindString, def: "memory", usage: "challenge store: memory (ephemeral) | bolt (survives restart)"},
+		{key: "challenge.bolt-path", flag: "challenge-bolt-path", env: "CHALLENGE_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when challenge.store=bolt)"},
+		{key: "challenge.require-ocsp", flag: "challenge-require-ocsp", env: "CHALLENGE_REQUIRE_OCSP", kind: kindBool, def: false, usage: "check signer revocation on every confirmation (fails closed when inconclusive)"},
+		{key: "receipts.enabled", flag: "receipts", env: "RECEIPTS_ENABLED", kind: kindBool, def: false, usage: "sign verification outcomes with the service key (verify flag \"receipt\"); JWKS at /jwks.json"},
+		{key: "receipts.signed-qr", flag: "signed-qr", env: "SIGNED_QR_ENABLED", kind: kindBool, def: false, usage: "issue and verify QR-carried signed documents (/qr/documents)"},
+		{key: "receipts.issuer", flag: "receipts-issuer", env: "RECEIPTS_ISSUER", kind: kindString, def: "", usage: "iss claim of signed receipts (empty falls back to oidc.issuer)"},
+		{key: "crypto-worker.enabled", flag: "crypto-worker", env: "CRYPTO_WORKER_ENABLED", kind: kindBool, def: true, usage: "run crypto operations in child processes (contains the library's memory leak and revoked-OCSP crash)"},
+		{key: "crypto-worker.processes", flag: "crypto-worker-processes", env: "CRYPTO_WORKER_PROCESSES", kind: kindInt, def: 0, usage: "concurrent crypto child processes (0 uses the worker count)"},
+		{key: "crypto-worker.timeout", flag: "crypto-worker-timeout", env: "CRYPTO_WORKER_TIMEOUT", kind: kindString, def: "60s", usage: "per-operation timeout, as a Go duration (bounds a hung native call)"},
+		{key: "crypto-worker.max-ops", flag: "crypto-worker-max-ops", env: "CRYPTO_WORKER_MAX_OPS", kind: kindInt, def: 1000, usage: "retire a child after this many operations (negative disables)"},
+		{key: "crypto-worker.max-rss-mb", flag: "crypto-worker-max-rss-mb", env: "CRYPTO_WORKER_MAX_RSS_MB", kind: kindInt, def: 512, usage: "retire a child once it reaches this resident size in MiB (negative disables)"},
+		{key: "crypto-worker.standby", flag: "crypto-worker-standby", env: "CRYPTO_WORKER_STANDBY", kind: kindInt, def: 1, usage: "pre-warmed spare children ready to replace a recycled one (0 starts them on demand)"},
+		{key: "crypto-worker.keep-after-revoked", flag: "crypto-worker-keep-after-revoked", env: "CRYPTO_WORKER_KEEP_AFTER_REVOKED", kind: kindBool, def: false, usage: "keep a child that saw a revoked verdict (diagnostics only)"},
 		{key: "http.enabled", flag: "http", env: "HTTP_ENABLED", kind: kindBool, def: false, usage: "enable the REST transport"},
 		{key: "http.addr", flag: "http-addr", env: "HTTP_ADDR", kind: kindString, def: ":8080", usage: "REST listen address (:port or unix:/path)"},
 		{key: "grpc.enabled", flag: "grpc", env: "GRPC_ENABLED", kind: kindBool, def: false, usage: "enable the gRPC transport"},
@@ -70,7 +104,11 @@ func registry() []entry {
 		{key: "trust.refresh-interval", flag: "trust-refresh-interval", env: "TRUST_REFRESH_INTERVAL", kind: kindString, def: "", usage: "background anchor-refresh cadence (e.g. 24h); empty=auto (24h with RK registry), 0/off=disabled"},
 		{key: "trust.crl-cache", flag: "trust-crl-cache", env: "TRUST_CRL_CACHE", kind: kindBool, def: false, usage: "cache CRLs by distribution point for Method=CRL validation without inline CRL"},
 		{key: "trust.crl-spool-dir", flag: "trust-crl-spool-dir", env: "TRUST_CRL_SPOOL_DIR", kind: kindString, def: "", usage: "spool CRL bodies to this directory (persistent, warm-started); empty keeps them in memory"},
+		{key: "trust.ocsp-cache", flag: "trust-ocsp-cache", env: "TRUST_OCSP_CACHE", kind: kindBool, def: false, usage: "reuse recent OCSP answers instead of re-asking the responder (also staples the raw response)"},
+		{key: "trust.ocsp-cache-ttl", flag: "trust-ocsp-cache-ttl", env: "TRUST_OCSP_CACHE_TTL", kind: kindString, def: "10m", usage: "freshness bound for an OCSP answer without nextUpdate, as a Go duration"},
+		{key: "trust.ocsp-cache-max-entries", flag: "trust-ocsp-cache-max-entries", env: "TRUST_OCSP_CACHE_MAX_ENTRIES", kind: kindInt, def: 0, usage: "cap on cached OCSP answers (0 = default 4096)"},
 		{key: "trust.crl-cache-max-mb", flag: "trust-crl-cache-max-mb", env: "TRUST_CRL_CACHE_MAX_MB", kind: kindInt, def: 0, usage: "cap on total cached CRL bytes in MiB (0 = default 256)"},
+		{key: "trust.tsa-policies", flag: "trust-tsa-policies", env: "TRUST_TSA_POLICIES", kind: kindStringSlice, def: []string{}, usage: "TSA policy OIDs accepted for CAdES-T (e.g. 1.2.398.3.3.2.6.4); empty enforces none"},
 		{key: "trust.crl-fail-policy", flag: "trust-crl-fail-policy", env: "TRUST_CRL_FAIL_POLICY", kind: kindString, def: "soft", usage: "CRL fail policy when a managed CRL is unreliable: soft (fall back to OCSP) | hard (fail closed)"},
 		{key: "log.level", flag: "log-level", env: "LOG_LEVEL", kind: kindString, def: "info", usage: "log level: debug|info|warn|error"},
 		{key: "log.format", flag: "log-format", env: "LOG_FORMAT", kind: kindString, def: "text", usage: "log format: text|json"},
@@ -83,6 +121,9 @@ func registry() []entry {
 		{key: "jobs.queue-size", flag: "jobs-queue-size", env: "JOBS_QUEUE_SIZE", kind: kindInt, def: 128, usage: "pending-job queue depth before backpressure (503)"},
 		{key: "jobs.max-input-mb", flag: "jobs-max-input-mb", env: "JOBS_MAX_INPUT_MB", kind: kindInt, def: 0, usage: "reject job requests larger than this many MiB (0 = unlimited)"},
 		{key: "jobs.ttl", flag: "jobs-ttl", env: "JOBS_TTL", kind: kindString, def: "1h", usage: "retention for finished jobs, as a Go duration (e.g. 1h)"},
+		{key: "idempotency.enabled", flag: "idempotency", env: "IDEMPOTENCY_ENABLED", kind: kindBool, def: false, usage: "enable dedup by idempotency key (REST Idempotency-Key header, MQ envelope idempotencyKey)"},
+		{key: "idempotency.ttl", flag: "idempotency-ttl", env: "IDEMPOTENCY_TTL", kind: kindString, def: "24h", usage: "replay window for a cached idempotent result, as a Go duration"},
+		{key: "idempotency.max-entries", flag: "idempotency-max-entries", env: "IDEMPOTENCY_MAX_ENTRIES", kind: kindInt, def: 8192, usage: "in-memory idempotency cache bound (LRU eviction beyond this)"},
 		{key: "input.allow-local-path", flag: "input-allow-local-path", env: "INPUT_ALLOW_LOCAL_PATH", kind: kindBool, def: false, usage: "accept by-reference data from a local file path (file-read risk; off by default)"},
 		{key: "input.allow-url", flag: "input-allow-url", env: "INPUT_ALLOW_URL", kind: kindBool, def: false, usage: "accept by-reference data from a URL (SSRF risk; off by default)"},
 		{key: "input.allowed-schemes", flag: "input-allowed-schemes", env: "INPUT_ALLOWED_SCHEMES", kind: kindStringSlice, def: []string{"https"}, usage: "URL schemes accepted for by-reference data"},
@@ -97,6 +138,7 @@ func registry() []entry {
 		{key: "oidc.bolt-path", flag: "oidc-bolt-path", env: "OIDC_BOLT_PATH", kind: kindString, def: "", usage: "bbolt database path (required when oidc.store=bolt)"},
 		{key: "oidc.require-ocsp", flag: "oidc-require-ocsp", env: "OIDC_REQUIRE_OCSP", kind: kindBool, def: true, usage: "require a good OCSP status for the signer certificate before issuing tokens"},
 		{key: "oidc.audience", flag: "oidc-audience", env: "OIDC_AUDIENCE", kind: kindString, def: "", usage: "default id_token audience when a verify request omits clientId"},
+		{key: "oidc.clients", flag: "oidc-clients", env: "OIDC_CLIENTS", kind: kindStringSlice, def: []string{}, secret: true, usage: "relying parties for the browser flow: client_id|secret|redirect_uri[|redirect_uri...]"},
 		{key: "qr.enabled", flag: "qr", env: "QR_ENABLED", kind: kindBool, def: false, usage: "enable the eGov Mobile QR signing/auth endpoints (REST /qr/*)"},
 		{key: "qr.public-base-url", flag: "qr-public-base-url", env: "QR_PUBLIC_BASE_URL", kind: kindString, def: "", usage: "external base URL for the QR app-facing links (behind a reverse proxy; empty uses X-Forwarded-*/Host)"},
 		{key: "qr.default-profile", flag: "qr-default-profile", env: "QR_DEFAULT_PROFILE", kind: kindString, def: "agnostic", usage: "QR profile: agnostic | egov | relay (overridable per request)"},
@@ -206,6 +248,74 @@ func (l *Loaded) value(e entry) string {
 		return strconv.Itoa(c.Workers)
 	case "verify-only":
 		return strconv.FormatBool(c.VerifyOnly)
+	case "locale":
+		return c.Locale
+	case "console.enabled":
+		return strconv.FormatBool(c.Console.Enabled)
+	case "console.sandbox-key":
+		return c.Console.SandboxKey
+	case "console.sandbox-key-password":
+		return c.Console.SandboxKeyPassword
+	case "audit.enabled":
+		return strconv.FormatBool(c.Audit.Enabled)
+	case "audit.path":
+		return c.Audit.Path
+	case "audit.sync":
+		return strconv.FormatBool(c.Audit.Sync)
+	case "audit.expose":
+		return strconv.FormatBool(c.Audit.Expose)
+	case "multisign.enabled":
+		return strconv.FormatBool(c.Multisign.Enabled)
+	case "multisign.ttl":
+		return c.Multisign.TTL
+	case "multisign.store":
+		return c.Multisign.Store
+	case "multisign.bolt-path":
+		return c.Multisign.BoltPath
+	case "portal.enabled":
+		return strconv.FormatBool(c.Portal.Enabled)
+	case "certwatch.enabled":
+		return strconv.FormatBool(c.CertWatch.Enabled)
+	case "certwatch.dir":
+		return c.CertWatch.Dir
+	case "certwatch.interval":
+		return c.CertWatch.Interval
+	case "certwatch.warn-from":
+		return c.CertWatch.WarnFrom
+	case "certwatch.webhook-url":
+		return c.CertWatch.WebhookURL
+	case "certwatch.check-revocation":
+		return strconv.FormatBool(c.CertWatch.CheckRevocation)
+	case "challenge.enabled":
+		return strconv.FormatBool(c.Challenge.Enabled)
+	case "challenge.ttl":
+		return c.Challenge.TTL
+	case "challenge.store":
+		return c.Challenge.Store
+	case "challenge.bolt-path":
+		return c.Challenge.BoltPath
+	case "challenge.require-ocsp":
+		return strconv.FormatBool(c.Challenge.RequireOCSP)
+	case "receipts.enabled":
+		return strconv.FormatBool(c.Receipts.Enabled)
+	case "receipts.signed-qr":
+		return strconv.FormatBool(c.Receipts.SignedQR)
+	case "receipts.issuer":
+		return c.Receipts.Issuer
+	case "crypto-worker.enabled":
+		return strconv.FormatBool(c.CryptoWorker.Enabled)
+	case "crypto-worker.processes":
+		return strconv.Itoa(c.CryptoWorker.Processes)
+	case "crypto-worker.timeout":
+		return c.CryptoWorker.Timeout
+	case "crypto-worker.max-ops":
+		return strconv.Itoa(c.CryptoWorker.MaxOps)
+	case "crypto-worker.max-rss-mb":
+		return strconv.Itoa(c.CryptoWorker.MaxRSSMB)
+	case "crypto-worker.standby":
+		return strconv.Itoa(c.CryptoWorker.Standby)
+	case "crypto-worker.keep-after-revoked":
+		return strconv.FormatBool(c.CryptoWorker.KeepAfterRevoked)
 	case "http.enabled":
 		return strconv.FormatBool(c.HTTP.Enabled)
 	case "http.addr":
@@ -258,6 +368,12 @@ func (l *Loaded) value(e entry) string {
 		return strconv.FormatBool(c.Trust.VerifyChain)
 	case "trust.refresh-interval":
 		return c.Trust.RefreshInterval
+	case "trust.ocsp-cache":
+		return strconv.FormatBool(c.Trust.OCSPCache)
+	case "trust.ocsp-cache-ttl":
+		return c.Trust.OCSPCacheTTL
+	case "trust.ocsp-cache-max-entries":
+		return strconv.Itoa(c.Trust.OCSPCacheMaxEntries)
 	case "trust.crl-cache":
 		return strconv.FormatBool(c.Trust.CRLCache)
 	case "trust.crl-spool-dir":
@@ -286,6 +402,12 @@ func (l *Loaded) value(e entry) string {
 		return strconv.Itoa(c.Jobs.QueueSize)
 	case "jobs.max-input-mb":
 		return strconv.Itoa(c.Jobs.MaxInputMB)
+	case "idempotency.enabled":
+		return strconv.FormatBool(c.Idempotency.Enabled)
+	case "idempotency.ttl":
+		return c.Idempotency.TTL
+	case "idempotency.max-entries":
+		return strconv.Itoa(c.Idempotency.MaxEntries)
 	case "jobs.ttl":
 		return c.Jobs.TTL
 	case "input.allow-local-path":
@@ -316,6 +438,8 @@ func (l *Loaded) value(e entry) string {
 		return strconv.FormatBool(c.OIDC.RequireOCSP)
 	case "oidc.audience":
 		return c.OIDC.Audience
+	case "oidc.clients":
+		return strconv.Itoa(len(c.OIDC.Clients)) + " client(s)"
 	case "qr.enabled":
 		return strconv.FormatBool(c.QR.Enabled)
 	case "qr.public-base-url":

@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: qoltanba
+  namespace: qoltanba
+  author: qoltanba maintainers
+  description: Install and configure qoltanba (Kalkan digital-signature service) from a .deb/.rpm with a systemd unit.
+  license: See project license; the Kalkan library is BYOL and separate.
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+    - name: Debian
+      versions: [bookworm]
+    - name: EL
+      versions: ["9"]
+  galaxy_tags: [signing, pki, kalkan, systemd]
+dependencies: []

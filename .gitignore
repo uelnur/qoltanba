@@ -26,11 +26,29 @@
 /SDK*.7z
 /Документация SDK НУЦ РК/
 
+# Вспомогательная дебаг-песочница (BFF + фронт + локальный compose) — код не
+# в репозитории; её durable-план — в .claude/docs/features/dev-playground/.
+/playground/
+
 # === Go ===
 /qoltanba/**/*.test
 *.out
+# Binaries `go build ./tools/...` drops in the repo root.
+/openapigen
+/oidgen
+/probe
+
+# Runtime lock of the agent's scheduled tasks — machine state, not source.
+/.claude/scheduled_tasks.lock
 
 # === ОС / IDE ===
 .DS_Store
 .idea/
 *.swp
+
+# Generated API clients (tools/sdk/generate.sh) — built on demand, never committed.
+/dist/
+
+# Composer artifacts of the shipped Laravel package.
+sdk/laravel/vendor/
+sdk/laravel/composer.lock

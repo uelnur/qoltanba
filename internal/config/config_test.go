@@ -101,3 +101,63 @@ func TestDumpRedactsAndShowsOrigin(t *testing.T) {
 		t.Errorf("dump missing origin: %s", out)
 	}
 }
+
+// TestCryptoWorkerDefaultsOn pins the safe default: the containment for the
+// library's memory leak and revoked-OCSP crash is active unless an operator turns
+// it off.
+func TestCryptoWorkerDefaultsOn(t *testing.T) {
+	c := load(t).Config
+	if !c.CryptoWorker.Enabled {
+		t.Error("crypto-worker should be enabled by default")
+	}
+	if got := c.CryptoWorker.ResolveTimeout(); got.String() != "1m0s" {
+		t.Errorf("default timeout = %v, want 1m0s", got)
+	}
+	if got := c.CryptoWorker.ResolveProcesses(c.Workers); got != c.Workers {
+		t.Errorf("processes = %d, want the worker count %d", got, c.Workers)
+	}
+	if got := c.CryptoWorker.ResolveMaxRSSBytes(); got != 512<<20 {
+		t.Errorf("default memory budget = %d, want 512 MiB", got)
+	}
+	if c.CryptoWorker.Standby != 1 {
+		t.Errorf("default standby = %d, want 1 warm spare", c.CryptoWorker.Standby)
+	}
+	if l := load(t, "-crypto-worker=false"); l.Config.CryptoWorker.Enabled {
+		t.Error("flag should disable the crypto worker")
+	}
+}
+
+func TestCryptoWorkerResolvers(t *testing.T) {
+	c := CryptoWorkerConfig{Timeout: "nonsense", Processes: 3, MaxRSSMB: 64}
+	if got := c.ResolveTimeout(); got.String() != "1m0s" {
+		t.Errorf("malformed timeout = %v, want the 1m0s default", got)
+	}
+	if got := c.ResolveProcesses(1); got != 3 {
+		t.Errorf("processes = %d, want the explicit 3", got)
+	}
+	if got := c.ResolveMaxRSSBytes(); got != 64<<20 {
+		t.Errorf("memory budget = %d, want 64 MiB", got)
+	}
+	if got := (CryptoWorkerConfig{MaxRSSMB: -1}).ResolveMaxRSSBytes(); got != -1 {
+		t.Errorf("memory budget = %d, want -1 (disabled)", got)
+	}
+	if got := (CryptoWorkerConfig{}).ResolveProcesses(0); got != 1 {
+		t.Errorf("processes = %d, want 1 when no worker count is known", got)
+	}
+}
+
+func TestCryptoWorkerRejectsNegativeStandby(t *testing.T) {
+	l := load(t, "-lib-path", "/tmp/lib.so", "-crypto-worker-standby", "-1")
+	err := l.Validate()
+	if err == nil || !strings.Contains(err.Error(), "crypto-worker.standby") {
+		t.Fatalf("err = %v, want a crypto-worker.standby complaint", err)
+	}
+}
+
+func TestCryptoWorkerRejectsBadTimeout(t *testing.T) {
+	l := load(t, "-lib-path", "/tmp/lib.so", "-crypto-worker-timeout", "soon")
+	err := l.Validate()
+	if err == nil || !strings.Contains(err.Error(), "crypto-worker.timeout") {
+		t.Fatalf("err = %v, want a crypto-worker.timeout complaint", err)
+	}
+}

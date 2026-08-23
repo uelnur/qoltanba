@@ -4,6 +4,7 @@
 #
 #   test/functional/run.sh                      # пул размера 1 (общий dlopen)
 #   QOLTANBA_POOL=4 QOLTANBA_ISO=1 test/functional/run.sh   # изолированный пул
+#   QOLTANBA_CRYPTO_WORKER=0 test/functional/run.sh         # либа в процессе (без изоляции)
 #   test/functional/run.sh -run TestFunctional_SignVerifyCMS   # конкретный тест
 #
 # Требуется Docker с поддержкой linux/amd64 (на Apple Silicon — эмуляция).
@@ -27,6 +28,9 @@ TSA_URL="${QOLTANBA_TSA_URL:-http://test.pki.gov.kz/tsp/}"
 PASS="${QOLTANBA_PASS:-Qwerty12}"
 POOL="${QOLTANBA_POOL:-1}"
 ISO="${QOLTANBA_ISO:-0}"
+# Крипто-операции в дочерних процессах — то, как работает сам сервис по умолчанию
+# (сдерживает утечку памяти либы и её краш на вердикте revoked). 0 — в процессе.
+CRYPTO_WORKER="${QOLTANBA_CRYPTO_WORKER:-1}"
 
 if [[ ! -f "$REPO/native/linux-x64/libkalkancryptwr-64.so.2.0.13" ]]; then
 	echo "нет нативной библиотеки в native/linux-x64 — положите её (BYOL)" >&2
@@ -57,6 +61,7 @@ docker run --rm --platform=linux/amd64 \
 	${QOLTANBA_HASH_ALG:+-e QOLTANBA_HASH_ALG="$QOLTANBA_HASH_ALG"} \
 	${QOLTANBA_DUMP_CERT:+-e QOLTANBA_DUMP_CERT="$QOLTANBA_DUMP_CERT"} \
 	-e QOLTANBA_POOL="$POOL" \
+	-e QOLTANBA_CRYPTO_WORKER="$CRYPTO_WORKER" \
 	-e QOLTANBA_ISO="$ISO" \
 	-e QOLTANBA_CA_ROOT=/src/native/keys-and-certs/CA_Test/ROOT/root_test_gost_2022.cer \
 	-e QOLTANBA_CA_NCA=/src/native/keys-and-certs/CA_Test/NCA/nca_gost2022_test.cer \

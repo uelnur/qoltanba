@@ -17,8 +17,8 @@ package oidc
 import (
 	"context"
 	"encoding/json"
-	"time"
 
+	"github.com/uelnur/qoltanba/internal/challenge"
 	"github.com/uelnur/qoltanba/internal/core"
 )
 
@@ -70,16 +70,22 @@ type TokenResponse struct {
 // provider advertises. There is no authorization_endpoint: the flow is a custom
 // grant (challenge/verify) driven by the consuming app, not a browser redirect.
 type DiscoveryDoc struct {
-	Issuer                           string   `json:"issuer"`
-	JWKSURI                          string   `json:"jwks_uri"`
-	TokenEndpoint                    string   `json:"token_endpoint"`
-	UserinfoEndpoint                 string   `json:"userinfo_endpoint"`
+	Issuer                string `json:"issuer"`
+	JWKSURI               string `json:"jwks_uri"`
+	TokenEndpoint         string `json:"token_endpoint"`
+	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty"`
+	UserinfoEndpoint      string `json:"userinfo_endpoint"`
+	// ChallengeEndpoint and VerifyEndpoint are this service's own API grant, kept
+	// alongside the standard endpoints for callers that drive the handshake
+	// themselves instead of redirecting a browser.
 	ChallengeEndpoint                string   `json:"challenge_endpoint"`
+	VerifyEndpoint                   string   `json:"verify_endpoint,omitempty"`
 	GrantTypesSupported              []string `json:"grant_types_supported"`
 	ResponseTypesSupported           []string `json:"response_types_supported"`
 	SubjectTypesSupported            []string `json:"subject_types_supported"`
 	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
 	ScopesSupported                  []string `json:"scopes_supported"`
+	CodeChallengeMethodsSupported    []string `json:"code_challenge_methods_supported,omitempty"`
 	ClaimsSupported                  []string `json:"claims_supported"`
 }
 
@@ -98,17 +104,19 @@ type JWKSet struct {
 	Keys []JWK `json:"keys"`
 }
 
-// Challenge is one issued nonce awaiting a signature. It is single-use
-// (anti-replay) and expires after the configured TTL.
-type Challenge struct {
-	ID          string    `json:"id"`
-	Nonce       []byte    `json:"nonce"`
-	ClientNonce string    `json:"clientNonce,omitempty"`
-	State       string    `json:"state,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-	Used        bool      `json:"used"`
-}
+// Challenge and ChallengeStore are the shared challenge-response primitive: the
+// same single-use nonce this flow needs is also what confirming a payment or an
+// approval needs, so it lives in its own package and OIDC builds on it.
+type Challenge = challenge.Challenge
+
+// ChallengeStore persists issued challenges between challenge and verify.
+type ChallengeStore = challenge.Store
+
+// NewMemStore builds the ephemeral in-memory challenge store.
+func NewMemStore() *challenge.MemStore { return challenge.NewMemStore() }
+
+// OpenBoltStore opens the durable on-disk challenge store.
+func OpenBoltStore(path string) (*challenge.BoltStore, error) { return challenge.OpenBoltStore(path) }
 
 // claimsToMap flattens the certificate-derived OIDC claims into a mutable map so
 // standard claims (iss/aud/iat/exp/…) can be layered on top before signing.

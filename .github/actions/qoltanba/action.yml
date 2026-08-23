@@ -1,0 +1,111 @@
+name: qoltanba sign/verify
+description: Sign a release artifact with a RK ЭЦП key, or gate a pipeline on verifying one.
+
+# The CLI transport is a pipeline step: JSON in, JSON out, exit code as the gate.
+# The Kalkan library is bring-your-own — it is proprietary and cannot be shipped
+# here — so the caller points lib-path at a copy the runner already has (a
+# self-hosted runner, a private artifact, an internal registry image).
+
+inputs:
+  op:
+    description: "sign | verify"
+    required: true
+  file:
+    description: Artifact to sign or to verify against (the source data for a detached signature).
+    required: true
+  signature:
+    description: Signature file to verify (op=verify). Written by op=sign.
+    required: false
+    default: signature.p7s
+  key:
+    description: Base64 PKCS#12 container (pass a secret; never a literal).
+    required: false
+  key-password:
+    description: Container password (pass a secret).
+    required: false
+  lib-path:
+    description: Path to libkalkancryptwr-64.so on the runner (BYOL).
+    required: true
+  binary:
+    description: Path to the qoltanba binary. Empty downloads the release named by version.
+    required: false
+    default: ""
+  version:
+    description: Release tag to download when binary is empty.
+    required: false
+    default: latest
+  detached:
+    description: Detached signature (the artifact stays separate from the signature).
+    required: false
+    default: "true"
+  extra-args:
+    description: Extra flags passed to the CLI (e.g. -trust-ca-dir /etc/qoltanba/ca).
+    required: false
+    default: ""
+
+outputs:
+  signature:
+    description: Path of the produced signature (op=sign).
+    value: ${{ steps.run.outputs.signature }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the binary
+      id: bin
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.binary }}" ]; then
+          echo "path=${{ inputs.binary }}" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        tag="${{ inputs.version }}"
+        url="https://github.com/uelnur/qoltanba/releases/${tag}/download/qoltanba_linux_amd64.tar.gz"
+        [ "$tag" = "latest" ] && url="https://github.com/uelnur/qoltanba/releases/latest/download/qoltanba_linux_amd64.tar.gz"
+        tmp="$(mktemp -d)"
+        curl -fsSL "$url" | tar -xz -C "$tmp"
+        echo "path=$tmp/qoltanba" >> "$GITHUB_OUTPUT"
+
+    - name: Run
+      id: run
+      shell: bash
+      env:
+        QOLTANBA_KEY_B64: ${{ inputs.key }}
+        QOLTANBA_KEY_PASSWORD: ${{ inputs.key-password }}
+      run: |
+        set -euo pipefail
+        bin="${{ steps.bin.outputs.path }}"
+        detached="${{ inputs.detached }}"
+
+        case "${{ inputs.op }}" in
+        sign)
+          # The container never touches the filesystem or the process arguments:
+          # it goes inline in the request body on stdin, which no other process
+          # on the runner can read.
+          jq -nc \
+            --arg data "$(base64 -w0 < '${{ inputs.file }}')" \
+            --arg p12 "$QOLTANBA_KEY_B64" \
+            --arg pass "$QOLTANBA_KEY_PASSWORD" \
+            --argjson detached "$detached" \
+            '{format:"cms", data:$data, detached:$detached, outputPem:true,
+              key:{p12:$p12, password:$pass}}' \
+          | "$bin" sign -lib-path '${{ inputs.lib-path }}' -keys-allow-inline ${{ inputs.extra-args }} \
+          | jq -r '.signature' | base64 -d > '${{ inputs.signature }}'
+          echo "signature=${{ inputs.signature }}" >> "$GITHUB_OUTPUT"
+          ;;
+        verify)
+          # -fail-invalid turns "does not verify" into a non-zero exit, which is
+          # what makes this a gate rather than a report.
+          jq -nc \
+            --arg sig "$(base64 -w0 < '${{ inputs.signature }}')" \
+            --arg data "$(base64 -w0 < '${{ inputs.file }}')" \
+            --argjson detached "$detached" \
+            '{format:"cms", signature:$sig, data:$data, detached:$detached, inputPem:true, report:true}' \
+          | "$bin" verify -fail-invalid -lib-path '${{ inputs.lib-path }}' ${{ inputs.extra-args }}
+          ;;
+        *)
+          echo "op must be sign or verify" >&2
+          exit 2
+          ;;
+        esac
