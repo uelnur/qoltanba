@@ -1,0 +1,117 @@
+name: SDK clients
+
+# Thin typed clients are generated from api/openapi.yaml — which is itself
+# generated from the Go types — so they cannot drift from the server: the spec is
+# regenerated and checked before anything is published.
+#
+# Publishing needs registry credentials. Each publish step runs only when its
+# secret is configured, so a fork (or a repo that has not set them up) still gets
+# the generated clients as release assets.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (defaults to the latest tag)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    name: generate ${{ matrix.lang }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [php, python, typescript, csharp, java, go, ruby, kotlin, dart, rust]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags: the SDK version comes from git describe
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The spec must match the code that is being released. Regenerating and
+      # diffing is the same gate CI runs, applied here so a stale spec cannot
+      # become a published client.
+      - name: Verify the spec is current
+        run: |
+          make openapi
+          git diff --exit-code api/openapi.yaml
+
+      - name: Generate client
+        env:
+          SDK_VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
+        run: tools/sdk/generate.sh ${{ matrix.lang }}
+
+      - name: Package
+        run: tar -czf qoltanba-sdk-${{ matrix.lang }}.tar.gz -C dist/sdk ${{ matrix.lang }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-${{ matrix.lang }}
+          path: qoltanba-sdk-${{ matrix.lang }}.tar.gz
+
+      # Attach to the release so consumers can vendor a client without running
+      # the generator themselves.
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" qoltanba-sdk-${{ matrix.lang }}.tar.gz --clobber
+
+  publish-npm:
+    name: publish npm
+    needs: generate
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-typescript
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice::NPM_TOKEN not configured — skipping npm publish"
+            exit 0
+          fi
+          tar -xzf qoltanba-sdk-typescript.tar.gz
+          cd typescript
+          npm install --ignore-scripts
+          npm run build --if-present
+          npm publish --access public
+
+  publish-pypi:
+    name: publish PyPI
+    needs: generate
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "::notice::PYPI_TOKEN not configured — skipping PyPI publish"
+            exit 0
+          fi
+          tar -xzf qoltanba-sdk-python.tar.gz
+          cd python
+          python -m pip install --quiet build twine
+          python -m build
+          python -m twine upload dist/*

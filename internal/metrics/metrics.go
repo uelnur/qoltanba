@@ -99,6 +99,17 @@ func (r *Recorder) BindCRL(stats func() (hits, misses uint64)) {
 		"qoltanba_crl_cache_total", "CRL cache lookups by result.", []string{"result"}, nil)})
 }
 
+// BindOCSPCache registers cumulative OCSP answer-cache hit/miss counters. Every
+// hit is a request the responder did not receive. No-op on a nil Recorder or nil
+// stats.
+func (r *Recorder) BindOCSPCache(stats func() (hits, misses uint64)) {
+	if r == nil || stats == nil {
+		return
+	}
+	r.reg.MustRegister(crlCollector{stats: stats, desc: prometheus.NewDesc(
+		"qoltanba_ocsp_cache_total", "OCSP answer cache lookups by result.", []string{"result"}, nil)})
+}
+
 // BindOIDC registers a gauge for the current stored-challenge count. count is
 // read at scrape time. No-op on a nil Recorder or nil count.
 func (r *Recorder) BindOIDC(count func() int) {
@@ -108,6 +119,94 @@ func (r *Recorder) BindOIDC(count func() int) {
 	r.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "qoltanba_oidc_challenges",
 		Help: "OIDC login challenges currently outstanding.",
+	}, func() float64 { return float64(count()) }))
+}
+
+// BindCertWatch registers per-certificate expiry and revocation gauges. states
+// is read at scrape time. The label set is the watch list, which an operator
+// curates — it is bounded by design, unlike labeling every certificate the
+// service ever sees. No-op on a nil Recorder or nil states.
+func (r *Recorder) BindCertWatch(states func() []CertWatchState) {
+	if r == nil || states == nil {
+		return
+	}
+	r.reg.MustRegister(certWatchCollector{
+		states: states,
+		expiry: prometheus.NewDesc("qoltanba_watched_cert_expiry_seconds",
+			"Seconds until a watched certificate expires (negative once expired).",
+			[]string{"file", "subject"}, nil),
+		revoked: prometheus.NewDesc("qoltanba_watched_cert_revoked",
+			"1 when a watched certificate is revoked, 0 otherwise.",
+			[]string{"file", "subject"}, nil),
+		healthy: prometheus.NewDesc("qoltanba_watched_cert_check_ok",
+			"1 when the last check of a watched certificate completed, 0 when it could not.",
+			[]string{"file", "subject"}, nil),
+	})
+}
+
+// CertWatchState is the metrics-facing view of one watched certificate, declared
+// here so the collector does not pull the watcher package into this one.
+type CertWatchState struct {
+	File      string
+	Subject   string
+	ExpiresIn time.Duration
+	HasExpiry bool
+	Revoked   bool
+	Failed    bool
+}
+
+type certWatchCollector struct {
+	states                   func() []CertWatchState
+	expiry, revoked, healthy *prometheus.Desc
+}
+
+func (c certWatchCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.expiry
+	ch <- c.revoked
+	ch <- c.healthy
+}
+
+func (c certWatchCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, s := range c.states() {
+		if s.HasExpiry {
+			ch <- prometheus.MustNewConstMetric(c.expiry, prometheus.GaugeValue,
+				s.ExpiresIn.Seconds(), s.File, s.Subject)
+		}
+		ch <- prometheus.MustNewConstMetric(c.revoked, prometheus.GaugeValue,
+			boolGauge(s.Revoked), s.File, s.Subject)
+		ch <- prometheus.MustNewConstMetric(c.healthy, prometheus.GaugeValue,
+			boolGauge(!s.Failed), s.File, s.Subject)
+	}
+}
+
+func boolGauge(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// BindChallenges registers a gauge for outstanding standalone challenges. count
+// is read at scrape time. No-op on a nil Recorder or nil count.
+func (r *Recorder) BindChallenges(count func() int) {
+	if r == nil || count == nil {
+		return
+	}
+	r.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "qoltanba_challenges",
+		Help: "Standalone challenge-response challenges currently outstanding.",
+	}, func() float64 { return float64(count()) }))
+}
+
+// BindMultisign registers a gauge for signing rounds currently open. count is
+// read at scrape time. No-op on a nil Recorder or nil count.
+func (r *Recorder) BindMultisign(count func() int) {
+	if r == nil || count == nil {
+		return
+	}
+	r.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "qoltanba_multisign_sessions",
+		Help: "Multi-signature rounds currently open.",
 	}, func() float64 { return float64(count()) }))
 }
 
@@ -121,6 +220,38 @@ func (r *Recorder) BindQR(count func() int) {
 		Name: "qoltanba_qr_sessions",
 		Help: "eGov Mobile QR sessions currently outstanding.",
 	}, func() float64 { return float64(count()) }))
+}
+
+// BindCryptoWorker registers cumulative counters for the out-of-process driver
+// children. stats returns (spawns, crashes, recycles, timeouts). Recycles are
+// routine (they contain the library's memory leak); a rising crash count is the
+// library defect surfacing in production and is worth alerting on. No-op on a nil
+// Recorder or nil stats.
+func (r *Recorder) BindCryptoWorker(stats func() (spawns, crashes, recycles, timeouts, hotSwaps uint64)) {
+	if r == nil || stats == nil {
+		return
+	}
+	r.reg.MustRegister(cryptoWorkerCollector{stats: stats, desc: prometheus.NewDesc(
+		"qoltanba_crypto_worker_total", "Crypto child-process lifecycle events by kind.", []string{"event"}, nil)})
+}
+
+// cryptoWorkerCollector emits child-process lifecycle counters from a live stats
+// function.
+type cryptoWorkerCollector struct {
+	stats func() (spawns, crashes, recycles, timeouts, hotSwaps uint64)
+	desc  *prometheus.Desc
+}
+
+func (c cryptoWorkerCollector) Describe(ch chan<- *prometheus.Desc) { ch <- c.desc }
+
+func (c cryptoWorkerCollector) Collect(ch chan<- prometheus.Metric) {
+	spawns, crashes, recycles, timeouts, hotSwaps := c.stats()
+	for _, m := range []struct {
+		event string
+		value uint64
+	}{{"spawn", spawns}, {"crash", crashes}, {"recycle", recycles}, {"timeout", timeouts}, {"hotswap", hotSwaps}} {
+		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.CounterValue, float64(m.value), m.event)
+	}
 }
 
 // poolCollector emits busy/idle worker gauges from a live stats function.

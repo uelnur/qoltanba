@@ -1,0 +1,19 @@
+---
+# Sample playbook installing qoltanba on a VM from a .deb, with BYOL and metrics.
+# Run: ansible-playbook -i inventory.ini deploy/ansible/playbook.yml
+- name: Deploy qoltanba
+  hosts: qoltanba
+  become: true
+  roles:
+    - role: qoltanba
+      vars:
+        qoltanba_deb_url: "https://github.com/uelnur/qoltanba/releases/download/v1.4.0/qoltanba_1.4.0_amd64.deb"
+        # BYOL: push the Kalkan library from the control node (or pre-stage it).
+        qoltanba_lib_src: "./secret/libkalkancryptwr-64.so"
+        qoltanba_env:
+          QOLTANBA_LIB_PATH: "/opt/kalkan/libkalkancryptwr-64.so"
+          LD_LIBRARY_PATH: "/opt/kalkan"
+          QOLTANBA_HTTP_ADDR: ":8080"
+          QOLTANBA_LOG_LEVEL: info
+          QOLTANBA_LOG_FORMAT: json
+          QOLTANBA_TRUST_USE_RK_REGISTRY: "true"

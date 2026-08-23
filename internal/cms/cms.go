@@ -33,6 +33,10 @@ type SignerInfo struct {
 	DigestAlgorithmOID    string
 	SigningTime           *time.Time
 	Timestamp             *Timestamp // nil when the signer carries no TSP token
+	// Signature is this signer's signature value (the encryptedDigest). RFC 3161
+	// takes the message imprint of a signature-timestamp over exactly these
+	// bytes, so verifying the token against the signature needs them.
+	Signature []byte
 }
 
 // Timestamp is the parsed TSTInfo of an RFC 3161 timestamp token.
@@ -44,6 +48,10 @@ type Timestamp struct {
 	HashAlgorithmOID string
 	Hash             []byte
 	TSA              string // best-effort text from the tsa GeneralName
+	// Raw is the token as it appeared in the attribute. A TimeStampToken is itself
+	// a CMS SignedData, so keeping the bytes lets the TSA's own signature over it
+	// be verified with the ordinary CMS path instead of a second implementation.
+	Raw []byte
 }
 
 // ── ASN.1 shapes ──
@@ -123,6 +131,7 @@ func ParseSigners(der []byte) ([]SignerInfo, error) {
 		info := SignerInfo{
 			SignatureAlgorithmOID: si.SignatureAlgorithm.Algorithm.String(),
 			DigestAlgorithmOID:    si.DigestAlgorithm.Algorithm.String(),
+			Signature:             si.Signature,
 		}
 		fillSID(&info, si.SID)
 		for _, a := range parseAttributes(si.SignedAttrs) {
@@ -169,6 +178,7 @@ func ParseTimestampToken(der []byte) (*Timestamp, error) {
 	}
 	gt := tst.GenTime.UTC()
 	ts := &Timestamp{
+		Raw:              der,
 		Version:          tst.Version,
 		Policy:           tst.Policy.String(),
 		SerialNumberHex:  hexInt(tst.SerialNumber),

@@ -88,6 +88,31 @@ func verifyInputPB(req *pb.VerifyRequest) core.VerifyInput {
 		Detached: req.GetDetached(), InputPEM: req.GetInputPem(), CheckCertTime: req.GetCheckCertTime(),
 		ExtractContent: req.GetExtractContent(), ExtractClaims: req.GetClaims(),
 		TrustedCerts: pbTrusted(req.GetTrustedCerts()),
+		// Optional in the wire format so an unset field keeps the default (on)
+		// rather than silently disabling the check.
+		RevocationCheck:  req.RevocationCheck,
+		RevocationMethod: pbMethod(req.GetRevocationMethod()),
+		ResponderURL:     req.GetResponderUrl(),
+	}
+}
+
+func archiveInputPB(req *pb.ArchiveRequest) core.ArchiveInput {
+	return core.ArchiveInput{
+		Signature: req.GetSignature(), InputPEM: req.GetInputPem(),
+		Data: req.GetData(), Detached: req.GetDetached(),
+		ResponderURL: req.GetResponderUrl(), OutputPEM: req.GetOutputPem(),
+		TrustedCerts: pbTrusted(req.GetTrustedCerts()), AllowRevoked: req.GetAllowRevoked(),
+	}
+}
+
+func archiveResponsePB(o *core.ArchiveOutput) *pb.ArchiveResponse {
+	return &pb.ArchiveResponse{
+		Signature: o.Signature, Level: o.Level, Warnings: warningsPB(o.Warnings),
+		Embedded: &pb.ArchiveEvidence{
+			OcspResponses: int32(o.Embedded.OCSPResponses),
+			Crls:          int32(o.Embedded.CRLs),
+			Certificates:  int32(o.Embedded.Certificates),
+		},
 	}
 }
 
@@ -277,6 +302,8 @@ func timestampPB(t *core.Timestamp) *pb.Timestamp {
 	return &pb.Timestamp{
 		SerialNumber: t.SerialNumber, GenTime: rfc3339(t.GenTime), Policy: t.Policy,
 		Tsa: t.TSA, HashAlgorithm: t.HashAlgorithm, Hash: t.Hash,
+		ImprintVerified: t.ImprintVerified, ImprintNote: t.ImprintNote,
+		SignatureVerified: t.SignatureVerified, SignatureNote: t.SignatureNote,
 	}
 }
 
@@ -287,7 +314,17 @@ func signerPB(s core.Signer) *pb.Signer {
 		Timestamp: timestampPB(s.Timestamp), ChainComplete: s.ChainComplete,
 		TrustAnchorFound: s.TrustAnchorFound, ChainSignaturesVerified: s.ChainSignaturesVerified,
 		CadesLevel: s.CAdESLevel, VerifyInfo: s.VerifyInfo, Claims: claimsPB(s.Claims),
+		Revocation: signerRevocationPB(s.Revocation),
 	}
+}
+
+// signerRevocationPB maps the per-signer status; nil stays nil so "not checked"
+// does not arrive as a zero-valued "not revoked".
+func signerRevocationPB(r *core.RevocationStatus) *pb.RevocationStatus {
+	if r == nil {
+		return nil
+	}
+	return revocationPB(*r)
 }
 
 // claimsPB maps the OIDC claim set (nil when not requested).
@@ -315,7 +352,8 @@ func signersPB(ss []core.Signer) []*pb.Signer {
 
 func revocationPB(r core.RevocationStatus) *pb.RevocationStatus {
 	return &pb.RevocationStatus{
-		Revoked: r.Revoked, Method: coreMethodPB(r.Method), RevocationTime: rfc3339(r.RevocationTime),
+		Revoked: r.Revoked, Determinate: r.Determinate,
+		Method: coreMethodPB(r.Method), RevocationTime: rfc3339(r.RevocationTime),
 		Reason: r.Reason, CheckedAt: rfc3339(r.CheckedAt), LibError: libErrorPB(r.LibError),
 		ThisUpdate: rfc3339(r.ThisUpdate), NextUpdate: rfc3339(r.NextUpdate), ProducedAt: rfc3339(r.ProducedAt),
 	}

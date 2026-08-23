@@ -29,23 +29,36 @@ const envPrefix = "QOLTANBA_"
 
 // Config is the fully resolved service configuration.
 type Config struct {
-	Lib        LibConfig     `koanf:"lib"`
-	Workers    int           `koanf:"workers"`
-	VerifyOnly bool          `koanf:"verify-only"`
-	HTTP       HTTPConfig    `koanf:"http"`
-	GRPC       GRPCConfig    `koanf:"grpc"`
-	AMQP       AMQPConfig    `koanf:"amqp"`
-	Kafka      KafkaConfig   `koanf:"kafka"`
-	NATS       NATSConfig    `koanf:"nats"`
-	Keys       KeysConfig    `koanf:"keys"`
-	Sign       SignConfig    `koanf:"sign"`
-	Trust      TrustConfig   `koanf:"trust"`
-	Log        LogConfig     `koanf:"log"`
-	Metrics    MetricsConfig `koanf:"metrics"`
-	Jobs       JobsConfig    `koanf:"jobs"`
-	Input      InputConfig   `koanf:"input"`
-	OIDC       OIDCConfig    `koanf:"oidc"`
-	QR         QRConfig      `koanf:"qr"`
+	Lib        LibConfig `koanf:"lib"`
+	Workers    int       `koanf:"workers"`
+	VerifyOnly bool      `koanf:"verify-only"`
+	// Locale is the default language for error messages (en|ru|kk). A request may
+	// override it per call (REST Accept-Language, gRPC accept-language metadata,
+	// MQ envelope locale); the stable error key never changes with the language.
+	Locale       string             `koanf:"locale"`
+	HTTP         HTTPConfig         `koanf:"http"`
+	GRPC         GRPCConfig         `koanf:"grpc"`
+	AMQP         AMQPConfig         `koanf:"amqp"`
+	Kafka        KafkaConfig        `koanf:"kafka"`
+	NATS         NATSConfig         `koanf:"nats"`
+	Keys         KeysConfig         `koanf:"keys"`
+	CryptoWorker CryptoWorkerConfig `koanf:"crypto-worker"`
+	Sign         SignConfig         `koanf:"sign"`
+	Trust        TrustConfig        `koanf:"trust"`
+	Log          LogConfig          `koanf:"log"`
+	Metrics      MetricsConfig      `koanf:"metrics"`
+	Jobs         JobsConfig         `koanf:"jobs"`
+	Idempotency  IdempotencyConfig  `koanf:"idempotency"`
+	Input        InputConfig        `koanf:"input"`
+	OIDC         OIDCConfig         `koanf:"oidc"`
+	QR           QRConfig           `koanf:"qr"`
+	Receipts     ReceiptsConfig     `koanf:"receipts"`
+	CertWatch    CertWatchConfig    `koanf:"certwatch"`
+	Portal       PortalConfig       `koanf:"portal"`
+	Multisign    MultisignConfig    `koanf:"multisign"`
+	Audit        AuditConfig        `koanf:"audit"`
+	Console      ConsoleConfig      `koanf:"console"`
+	Challenge    ChallengeConfig    `koanf:"challenge"`
 }
 
 // LibConfig configures the native Kalkan library (BYOL).
@@ -60,6 +73,225 @@ type LibConfig struct {
 	// Compat is the startup compatibility policy: strict|warn|off. A self-test
 	// failure always blocks regardless of this setting.
 	Compat string `koanf:"compat"`
+}
+
+// CryptoWorkerConfig runs the crypto operations in child processes instead of the
+// service process. The Kalkan library leaks native memory on every operation and
+// corrupts its process-global state when it parses a revoked OCSP verdict; a
+// later call then aborts the process. Neither can be undone from inside, so the
+// service keeps no library of its own and recycles the children on an operation,
+// memory or revoked-verdict budget. On by default: without it a long-lived
+// service grows until it is killed.
+type CryptoWorkerConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// Processes is how many children serve operations concurrently. Zero uses the
+	// worker count.
+	Processes int `koanf:"processes"`
+	// Timeout bounds one operation, as a Go duration. It is the only way to end a
+	// hung call: the native operations have no timeout of their own.
+	Timeout string `koanf:"timeout"`
+	// MaxOps retires a child after this many operations; a negative value leaves
+	// the memory budget as the only bound.
+	MaxOps int `koanf:"max-ops"`
+	// MaxRSSMB retires a child once its resident memory reaches this size — the
+	// bound that answers the library's per-operation leak. Negative disables it.
+	MaxRSSMB int `koanf:"max-rss-mb"`
+	// Standby is how many pre-warmed children stand ready to take over from a
+	// recycled one, so a request never pays for the library load. Each spare costs
+	// its own loaded library (tens of MB); zero starts replacements on demand.
+	Standby int `koanf:"standby"`
+	// KeepAfterRevoked keeps a child that returned a revoked verdict, which is the
+	// known corruption trigger. Only for diagnosing the library defect.
+	KeepAfterRevoked bool `koanf:"keep-after-revoked"`
+}
+
+// ResolveMaxRSSBytes returns the per-child memory ceiling in bytes, defaulting to
+// 512 MB; a negative value disables the bound.
+func (c CryptoWorkerConfig) ResolveMaxRSSBytes() int64 {
+	if c.MaxRSSMB < 0 {
+		return -1
+	}
+	if c.MaxRSSMB == 0 {
+		return 512 << 20
+	}
+	return int64(c.MaxRSSMB) << 20
+}
+
+// ResolveTimeout returns the per-operation ceiling, defaulting to 60s for an
+// empty, malformed or non-positive value; config.Validate rejects a malformed
+// value up front.
+func (c CryptoWorkerConfig) ResolveTimeout() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.Timeout))
+	if err != nil || d <= 0 {
+		return 60 * time.Second
+	}
+	return d
+}
+
+// ResolveProcesses returns the number of children, defaulting to the pool worker
+// count.
+func (c CryptoWorkerConfig) ResolveProcesses(workers int) int {
+	if c.Processes > 0 {
+		return c.Processes
+	}
+	if workers > 0 {
+		return workers
+	}
+	return 1
+}
+
+// ReceiptsConfig enables signed verification receipts: the service attests to its
+// own verification outcome with the same RS256 service key that signs OIDC
+// tokens, so a consumer can file the attestation as audit evidence and verify it
+// later against the published JWKS. The key comes from oidc.key-path — one
+// service identity, one JWKS — and works with OIDC itself disabled.
+type ReceiptsConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// SignedQR enables QR-carried signed documents (/qr/documents): the service
+	// signs a short statement — a permit, a certificate — that a checkpoint can
+	// verify by scanning, with the public key and nothing else.
+	SignedQR bool `koanf:"signed-qr"`
+	// Issuer is the iss claim of a receipt. Empty falls back to oidc.issuer.
+	Issuer string `koanf:"issuer"`
+}
+
+// ReceiptIssuer resolves the receipt issuer, falling back to the OIDC issuer so a
+// deployment that already has an identity does not need to repeat it.
+func (c Config) ReceiptIssuer() string {
+	if s := strings.TrimSpace(c.Receipts.Issuer); s != "" {
+		return s
+	}
+	return strings.TrimSpace(c.OIDC.Issuer)
+}
+
+// ChallengeConfig enables the standalone challenge-response endpoints: a
+// single-use nonce the user signs with their ЭЦП to authorize an action. It is
+// the same handshake the OIDC login uses, exposed for any business operation
+// ("confirm this payment"), so it needs no OIDC issuer or tokens.
+type ChallengeConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// TTL is how long an issued challenge stays usable, as a Go duration.
+	TTL string `koanf:"ttl"`
+	// Store selects persistence: memory (ephemeral) or bolt (survives restart).
+	Store    string `koanf:"store"`
+	BoltPath string `koanf:"bolt-path"`
+	// RequireOCSP makes every confirmation check the signer certificate for
+	// revocation, failing closed when the status cannot be established.
+	RequireOCSP bool `koanf:"require-ocsp"`
+}
+
+// ChallengeTTL resolves the challenge window, defaulting to 0 so the service
+// applies its own default; Validate rejects a malformed value up front.
+func (c ChallengeConfig) ChallengeTTL() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.TTL))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+// OCSPCacheTTL resolves the freshness bound for answers without nextUpdate,
+// yielding 0 so the cache applies its own default.
+func (c TrustConfig) ResolveOCSPCacheTTL() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.OCSPCacheTTL))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+// CertWatchConfig watches certificates an operator cares about (service keys,
+// long-lived signer certificates) and reports revocation and upcoming expiry as
+// metrics and, optionally, a webhook. Without it those failures are only
+// discovered when a signature fails.
+type CertWatchConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// Dir holds the watched certificates, one per file (.pem/.cer/.crt/.der).
+	Dir string `koanf:"dir"`
+	// Interval between sweeps, as a Go duration.
+	Interval string `koanf:"interval"`
+	// WarnFrom is how far ahead an upcoming expiry is reported, as a Go duration.
+	WarnFrom string `koanf:"warn-from"`
+	// WebhookURL receives an event when a certificate's situation changes.
+	WebhookURL string `koanf:"webhook-url"`
+	// CheckRevocation reaches the OCSP responder on every sweep. Off leaves expiry
+	// watching only, for environments without outbound access.
+	CheckRevocation bool `koanf:"check-revocation"`
+}
+
+// ResolveInterval returns the sweep period, 0 to let the watcher default.
+func (c CertWatchConfig) ResolveInterval() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.Interval))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+// ResolveWarnFrom returns the expiry warning window, 0 to let the watcher default.
+func (c CertWatchConfig) ResolveWarnFrom() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.WarnFrom))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+// PortalConfig exposes the human verification page: upload a signature, see who
+// signed. Off by default — the page takes uploads from anyone who can reach it,
+// so publishing it is a deliberate decision.
+type PortalConfig struct {
+	Enabled bool `koanf:"enabled"`
+}
+
+// MultisignConfig tracks documents awaiting several signatures ("waiting for the
+// accountant"). Rounds run for days, so the durable store is the realistic choice
+// outside a demo.
+type MultisignConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// TTL is how long a round waits before expiring, as a Go duration.
+	TTL      string `koanf:"ttl"`
+	Store    string `koanf:"store"`     // memory | bolt
+	BoltPath string `koanf:"bolt-path"` // required when store=bolt
+}
+
+// ResolveTTL returns the session lifetime, 0 to let the service default.
+func (c MultisignConfig) ResolveTTL() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.TTL))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+// AuditConfig records signing and verification into a tamper-evident journal:
+// hash-chained entries, each signed with the service key, so history cannot be
+// rewritten without the key — and an exported copy still contradicts an attempt.
+// Off by default: it is a per-operation write, and not every deployment needs an
+// operational record.
+type AuditConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// Path is the journal file (JSON Lines, append-only, 0600).
+	Path string `koanf:"path"`
+	// Sync flushes every entry to disk before the operation returns. Safer against
+	// a crash, slower per operation.
+	Sync bool `koanf:"sync"`
+	// Expose serves /audit/verify and /audit/export over REST. The journal names
+	// digests and signer identities, so publishing it is a deliberate decision.
+	Expose bool `koanf:"expose"`
+}
+
+// ConsoleConfig serves the try-it console and, optionally, a sandbox key for
+// producing a demo signature. Both are evaluation aids: the console is a UI on an
+// otherwise headless service, and the sandbox signs with a key nobody had to
+// supply per request — so both are off by default and the key must be a test
+// container.
+type ConsoleConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// SandboxKey is a demo .p12 used by POST /sandbox/sign. Empty disables it.
+	SandboxKey string `koanf:"sandbox-key"`
+	// SandboxKeyPassword is its container password.
+	SandboxKeyPassword string `koanf:"sandbox-key-password"`
 }
 
 // HTTPConfig configures the REST transport. Addr may be a TCP address (":8080")
@@ -164,7 +396,14 @@ type TrustConfig struct {
 	CRLCache        bool   `koanf:"crl-cache"`        // cache CRLs by distribution point for Method=CRL validation
 	CRLSpoolDir     string `koanf:"crl-spool-dir"`    // when set, spool CRL bodies to disk (persistent, warm-started); empty = in-memory
 	CRLCacheMaxMB   int    `koanf:"crl-cache-max-mb"` // cap on total cached CRL bytes (MiB); 0 = default (256)
-	CRLFailPolicy   string `koanf:"crl-fail-policy"`  // soft (fall back to OCSP) | hard (fail closed) when CRL is unreliable
+	// OCSPCache reuses a recent OCSP answer for the same certificate instead of
+	// asking the responder again, and supplies the raw response for stapling.
+	OCSPCache bool `koanf:"ocsp-cache"`
+	// OCSPCacheTTL bounds an answer that carries no nextUpdate, as a Go duration.
+	OCSPCacheTTL string `koanf:"ocsp-cache-ttl"`
+	// OCSPCacheMaxEntries bounds the cache; 0 = default (4096).
+	OCSPCacheMaxEntries int    `koanf:"ocsp-cache-max-entries"`
+	CRLFailPolicy       string `koanf:"crl-fail-policy"` // soft (fall back to OCSP) | hard (fail closed) when CRL is unreliable
 }
 
 // JobsConfig configures the async-job subsystem (REST /jobs endpoints). It is
@@ -190,6 +429,34 @@ func (c JobsConfig) JobsTTL() time.Duration {
 		return 0
 	}
 	return d
+}
+
+// IdempotencyConfig configures request/message dedup by idempotency key, shared
+// by the REST (Idempotency-Key header) and MQ (envelope idempotencyKey) transports
+// so a retry or an at-least-once redelivery replays the first result instead of
+// re-executing. Off by default; node-local (in-memory).
+type IdempotencyConfig struct {
+	Enabled    bool   `koanf:"enabled"`
+	TTL        string `koanf:"ttl"`         // replay window, Go duration (default 24h)
+	MaxEntries int    `koanf:"max-entries"` // in-memory cache bound (default 8192)
+}
+
+// ResolveTTL returns the replay window, defaulting to 24h for an empty/malformed
+// or non-positive value.
+func (c IdempotencyConfig) ResolveTTL() time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(c.TTL))
+	if err != nil || d <= 0 {
+		return 24 * time.Hour
+	}
+	return d
+}
+
+// ResolveMaxEntries returns the cache bound, defaulting to 8192.
+func (c IdempotencyConfig) ResolveMaxEntries() int {
+	if c.MaxEntries < 1 {
+		return 8192
+	}
+	return c.MaxEntries
 }
 
 // InputConfig configures by-reference payloads (DataRef path/URL) for large
@@ -227,6 +494,11 @@ type OIDCConfig struct {
 	BoltPath     string `koanf:"bolt-path"` // required when store=bolt
 	RequireOCSP  bool   `koanf:"require-ocsp"`
 	Audience     string `koanf:"audience"` // default id_token aud when a verify request omits clientId
+	// Clients registers relying parties for the browser-redirect flow, one entry
+	// per client as "client_id|secret|redirect_uri[|redirect_uri...]". An empty
+	// secret makes the client public, which then must use PKCE. Without any entry
+	// only the API grant (challenge/verify) is available.
+	Clients []string `koanf:"clients"`
 }
 
 // OIDCChallengeTTL resolves the challenge validity window. A malformed or empty
@@ -395,6 +667,76 @@ func (l *Loaded) Validate() error {
 		}
 		if c.NATS.Durable == "" {
 			errs = append(errs, "nats.durable is required when nats.url is set")
+		}
+	}
+	if c.CryptoWorker.Enabled {
+		if raw := strings.TrimSpace(c.CryptoWorker.Timeout); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "crypto-worker.timeout must be a Go duration (e.g. 60s)")
+			}
+		}
+		if c.CryptoWorker.Processes < 0 {
+			errs = append(errs, "crypto-worker.processes must be >= 0")
+		}
+		if c.CryptoWorker.Standby < 0 {
+			errs = append(errs, "crypto-worker.standby must be >= 0")
+		}
+	}
+	if c.Trust.OCSPCache {
+		if raw := strings.TrimSpace(c.Trust.OCSPCacheTTL); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "trust.ocsp-cache-ttl must be a Go duration (e.g. 10m)")
+			}
+		}
+	}
+	if c.Audit.Enabled && strings.TrimSpace(c.Audit.Path) == "" {
+		errs = append(errs, "audit.path is required when audit.enabled")
+	}
+	if c.Multisign.Enabled {
+		if raw := strings.TrimSpace(c.Multisign.TTL); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "multisign.ttl must be a Go duration (e.g. 168h)")
+			}
+		}
+		switch c.Multisign.Store {
+		case "", "memory":
+		case "bolt":
+			if strings.TrimSpace(c.Multisign.BoltPath) == "" {
+				errs = append(errs, "multisign.bolt-path is required when multisign.store=bolt")
+			}
+		default:
+			errs = append(errs, "multisign.store must be memory or bolt")
+		}
+	}
+	if c.CertWatch.Enabled {
+		if strings.TrimSpace(c.CertWatch.Dir) == "" {
+			errs = append(errs, "certwatch.dir is required when certwatch.enabled")
+		}
+		for key, raw := range map[string]string{
+			"certwatch.interval":  c.CertWatch.Interval,
+			"certwatch.warn-from": c.CertWatch.WarnFrom,
+		} {
+			if raw = strings.TrimSpace(raw); raw != "" {
+				if _, err := time.ParseDuration(raw); err != nil {
+					errs = append(errs, key+" must be a Go duration (e.g. 6h, 720h)")
+				}
+			}
+		}
+	}
+	if c.Challenge.Enabled {
+		if raw := strings.TrimSpace(c.Challenge.TTL); raw != "" {
+			if _, err := time.ParseDuration(raw); err != nil {
+				errs = append(errs, "challenge.ttl must be a Go duration (e.g. 5m)")
+			}
+		}
+		switch c.Challenge.Store {
+		case "", "memory":
+		case "bolt":
+			if strings.TrimSpace(c.Challenge.BoltPath) == "" {
+				errs = append(errs, "challenge.bolt-path is required when challenge.store=bolt")
+			}
+		default:
+			errs = append(errs, "challenge.store must be memory or bolt")
 		}
 	}
 	if c.Log.Format != "text" && c.Log.Format != "json" {

@@ -1,0 +1,188 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "",
+  "title": "Qoltanba — Overview",
+  "uid": "qoltanba-overview",
+  "tags": ["qoltanba", "ecp", "kalkan"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "transport",
+        "label": "Transport",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(qoltanba_requests_total, transport)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2
+      },
+      {
+        "name": "op",
+        "label": "Operation",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(qoltanba_requests_total{transport=~\"$transport\"}, op)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    { "type": "row", "title": "Golden signals", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false },
+    {
+      "type": "stat",
+      "title": "Request rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null } ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [ { "refId": "A", "expr": "sum(rate(qoltanba_requests_total{transport=~\"$transport\", op=~\"$op\"}[5m]))" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Server-error ratio",
+      "description": "Share of requests whose outcome is a server-side fault (HTTP/MQ server_error, or gRPC internal/unavailable/unknown/dataloss/deadlineexceeded/resourceexhausted). Client errors are excluded.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 } ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [ { "refId": "A", "expr": "sum(rate(qoltanba_requests_total{transport=~\"$transport\", op=~\"$op\", outcome=~\"server_error|internal|unknown|unavailable|dataloss|deadlineexceeded|resourceexhausted\"}[5m])) / clamp_min(sum(rate(qoltanba_requests_total{transport=~\"$transport\", op=~\"$op\"}[5m])), 0.0001)" } ]
+    },
+    {
+      "type": "stat",
+      "title": "p99 latency",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 } ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(qoltanba_request_duration_seconds_bucket{transport=~\"$transport\", op=~\"$op\"}[5m])))" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Targets up",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [ { "refId": "A", "expr": "sum(up{job=~\"qoltanba.*\"})" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request rate by transport",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 15, "stacking": { "mode": "normal" } } } },
+      "targets": [ { "refId": "A", "legendFormat": "{{transport}}", "expr": "sum by (transport) (rate(qoltanba_requests_total{transport=~\"$transport\", op=~\"$op\"}[5m]))" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Outcome rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 15, "stacking": { "mode": "normal" } } } },
+      "targets": [ { "refId": "A", "legendFormat": "{{outcome}}", "expr": "sum by (outcome) (rate(qoltanba_requests_total{transport=~\"$transport\", op=~\"$op\"}[5m]))" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency quantiles (p50/p90/p99)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [
+        { "refId": "A", "legendFormat": "p50", "expr": "histogram_quantile(0.50, sum by (le) (rate(qoltanba_request_duration_seconds_bucket{transport=~\"$transport\", op=~\"$op\"}[5m])))" },
+        { "refId": "B", "legendFormat": "p90", "expr": "histogram_quantile(0.90, sum by (le) (rate(qoltanba_request_duration_seconds_bucket{transport=~\"$transport\", op=~\"$op\"}[5m])))" },
+        { "refId": "C", "legendFormat": "p99", "expr": "histogram_quantile(0.99, sum by (le) (rate(qoltanba_request_duration_seconds_bucket{transport=~\"$transport\", op=~\"$op\"}[5m])))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "p99 latency by op",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [ { "refId": "A", "legendFormat": "{{op}}", "expr": "histogram_quantile(0.99, sum by (le, op) (rate(qoltanba_request_duration_seconds_bucket{transport=~\"$transport\", op=~\"$op\"}[5m])))" } ]
+    },
+    { "type": "row", "title": "Kalkan pool & PKI", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 }, "collapsed": false },
+    {
+      "type": "timeseries",
+      "title": "Kalkan worker pool (busy/idle)",
+      "description": "Only present when a worker pool is bound (non-isolated). All-busy for sustained periods means saturation.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [ { "refId": "A", "legendFormat": "{{state}}", "expr": "qoltanba_pool_workers" } ]
+    },
+    {
+      "type": "gauge",
+      "title": "Pool saturation",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.8 }, { "color": "red", "value": 0.95 } ] } } },
+      "targets": [ { "refId": "A", "expr": "sum(qoltanba_pool_workers{state=\"busy\"}) / clamp_min(sum(qoltanba_pool_workers), 1)" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Trust anchors loaded",
+      "description": "RK CA anchors currently in the trust store. Zero means strict chain verification (CheckCertTime/verify-chain) will fail.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [ { "refId": "A", "expr": "qoltanba_trust_anchors" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CRL cache hit ratio",
+      "description": "hit / (hit + miss). A sustained drop points at CRL refresh/reachability problems (revocation may fall back to OCSP).",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [ { "refId": "A", "legendFormat": "hit ratio", "expr": "sum(rate(qoltanba_crl_cache_total{result=\"hit\"}[10m])) / clamp_min(sum(rate(qoltanba_crl_cache_total[10m])), 0.0001)" } ]
+    },
+    { "type": "row", "title": "Sessions & runtime", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 }, "collapsed": false },
+    {
+      "type": "timeseries",
+      "title": "Outstanding sessions (OIDC / QR)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [
+        { "refId": "A", "legendFormat": "oidc challenges", "expr": "qoltanba_oidc_challenges" },
+        { "refId": "B", "legendFormat": "qr sessions", "expr": "qoltanba_qr_sessions" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process memory (RSS)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [ { "refId": "A", "legendFormat": "rss", "expr": "process_resident_memory_bytes{job=~\"qoltanba.*\"}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Goroutines",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [ { "refId": "A", "legendFormat": "goroutines", "expr": "go_goroutines{job=~\"qoltanba.*\"}" } ]
+    }
+  ]
+}

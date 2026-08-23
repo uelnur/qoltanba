@@ -13,8 +13,7 @@ import (
 // TestFunctionalE2E_ChainVerified builds the signer chain to the test root and
 // has Kalkan cryptographically validate the GOST chain (the check Go cannot do).
 func TestFunctionalE2E_ChainVerified(t *testing.T) {
-	pool := requirePool(t)
-	svc := core.New(pool,
+	svc := core.New(requireProvider(t),
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 		core.WithChainVerification(true),

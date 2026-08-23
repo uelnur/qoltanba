@@ -27,8 +27,16 @@ service:
 # same work port (metrics.addr defaults to the work port here).
 metrics:
   enabled: true
-  # Set true if you run the Prometheus Operator and want a ServiceMonitor.
+  # Prometheus Operator ServiceMonitor scraping /metrics (needs the operator CRDs).
   serviceMonitor: false
+  serviceMonitorLabels: {} # extra labels so your Prometheus selects it
+  scrapeInterval: 15s
+  # Prometheus Operator PrometheusRule from deploy/observability/prometheus/alerts.yaml.
+  prometheusRule: false
+  prometheusRuleLabels: {} # extra labels so your Prometheus selects the rules
+  # Publish the Grafana dashboard as a ConfigMap for the Grafana sidecar to auto-load.
+  dashboardConfigMap: false
+  dashboardSidecarLabel: grafana_dashboard
 
 # BYOL: the Kalkan native library. You MUST provide it — the chart mounts a
 # volume at mountPath and points QOLTANBA_LIB_PATH + LD_LIBRARY_PATH at it.

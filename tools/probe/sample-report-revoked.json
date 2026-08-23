@@ -1,0 +1,1429 @@
+{
+  "libPath": "/native/lib/libkalkancryptwr-64.so",
+  "keyPath": "/native/keys/fiz_revoked.p12",
+  "initRC": "0x00000000",
+  "loadKeyRC": "0x00000000",
+  "alias": "",
+  "exportCertRC": "0x00000000",
+  "ownerCertPEM": "-----BEGIN CERTIFICATE-----\nMIIENjCCA56gAwIBAgIUOs6lXLzfOMhh+z80GFTFPsntbs0wDgYKKoMOAwoBAQID\nAgUAMF0xTjBMBgNVBAMMRdKw0JvQotCi0KvSmiDQmtCj05jQm9CQ0J3QlNCr0KDQ\no9Co0Ksg0J7QoNCi0JDQm9Cr0pogKEdPU1QpIFRFU1QgMjAyMjELMAkGA1UEBhMC\nS1owHhcNMjYwNTA4MDY0NzI0WhcNMjcwNTA4MDY0NzI0WjB5MR4wHAYDVQQDDBXQ\notCV0KHQotCe0JIg0KLQldCh0KIxFTATBgNVBAQMDNCi0JXQodCi0J7QkjEYMBYG\nA1UEBRMPSUlOMTIzNDU2Nzg5MDExMQswCQYDVQQGEwJLWjEZMBcGA1UEKgwQ0KLQ\nldCh0KLQntCS0JjQpzCBrDAjBgkqgw4DCgEBAgIwFgYKKoMOAwoBAQICAQYIKoMO\nAwoBAwMDgYQABIGAnUqkd8b/OvJe4z/j5ZJKZ4lXa18XOFPPBhdjbeLa5XyBUxqF\nAosAH6ix76/iA3jFe5vcMME3eM/wP/HVfwFeiXH0La2IIGce5s+NfC0SgCVuxYXJ\nLr6M7JHacFDOLu61kQ7FzZpA4Y0ltD8HDebizWSl6Qwt1fFh8Mr393lw/w+jggHG\nMIIBwjA4BgNVHSAEMTAvMC0GBiqDDgMDAjAjMCEGCCsGAQUFBwIBFhVodHRwOi8v\ncGtpLmdvdi5rei9jcHMwdwYIKwYBBQUHAQEEazBpMCgGCCsGAQUFBzABhhxodHRw\nOi8vdGVzdC5wa2kuZ292Lmt6L29jc3AvMD0GCCsGAQUFBzAChjFodHRwOi8vdGVz\ndC5wa2kuZ292Lmt6L2NlcnQvbmNhX2dvc3QyMDIyX3Rlc3QuY2VyMEEGA1UdHwQ6\nMDgwNqA0oDKGMGh0dHA6Ly90ZXN0LnBraS5nb3Yua3ovY3JsL25jYV9nb3N0MjAy\nMl90ZXN0LmNybDBDBgNVHS4EPDA6MDigNqA0hjJodHRwOi8vdGVzdC5wa2kuZ292\nLmt6L2NybC9uY2FfZ29zdDIwMjJfZF90ZXN0LmNybDAdBgNVHSUEFjAUBggrBgEF\nBQcDBAYIKoMOAwMEAQEwDgYDVR0PAQH/BAQDAgPIMB0GA1UdDgQWBBS6zqVcvN84\nyGH7PzQYVMU+ye1uzTAfBgNVHSMEGDAWgBT60ksbo6DJYf4cqFA+aqK7RQ24ozAW\nBgYqgw4DAwUEDDAKBggqgw4DAwUBATAOBgoqgw4DCgEBAgMCBQADgYEANbBiwp1k\nBVaXEkOj2y06TrHdukmtO5Q+WFuHbn84oF54Wl59iuK7P2dm4HVhHSK3U9Kt8kNl\nusz/fxfOmrhhUiADvP6CeVT7w/yTeWsaiqXB74rhaRipQIdOewV5yJmb0fnPJUem\nokx+pY0AZ+PLxiQ0L4OTsWSP0Cw+Kv9X1RE=\n-----END CERTIFICATE-----\n",
+  "ownerCertFields": [
+    {
+      "id": "0x00000801",
+      "name": "ISSUER_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000802",
+      "name": "ISSUER_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000803",
+      "name": "ISSUER_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000804",
+      "name": "ISSUER_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000805",
+      "name": "ISSUER_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000806",
+      "name": "ISSUER_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 72,
+      "text": "CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+      "printable": true
+    },
+    {
+      "id": "0x00000807",
+      "name": "SUBJECT_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000808",
+      "name": "SUBJECT_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000809",
+      "name": "SUBJECT_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080A",
+      "name": "SUBJECT_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 24,
+      "text": "CN=ТЕСТОВ ТЕСТ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080B",
+      "name": "SUBJECT_GIVENNAME",
+      "rc": "0x00000000",
+      "len": 19,
+      "text": "GN=ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080C",
+      "name": "SUBJECT_SURNAME",
+      "rc": "0x00000000",
+      "len": 15,
+      "text": "SN=ТЕСТОВ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080D",
+      "name": "SUBJECT_SERIALNUMBER",
+      "rc": "0x00000000",
+      "len": 28,
+      "text": "serialNumber=IIN123456789011",
+      "printable": true
+    },
+    {
+      "id": "0x0000080E",
+      "name": "SUBJECT_EMAIL",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080F",
+      "name": "SUBJECT_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000810",
+      "name": "SUBJECT_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000811",
+      "name": "SUBJECT_BC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000812",
+      "name": "SUBJECT_DC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000813",
+      "name": "NOTBEFORE",
+      "rc": "0x00000000",
+      "len": 36,
+      "text": "notBefore=08.05.2026 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000814",
+      "name": "NOTAFTER",
+      "rc": "0x00000000",
+      "len": 35,
+      "text": "notAfter=08.05.2027 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000815",
+      "name": "KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 54,
+      "text": "keyUsage=digitalSignature nonRepudiation keyAgreement ",
+      "printable": true
+    },
+    {
+      "id": "0x00000816",
+      "name": "EXT_KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 95,
+      "text": "extendedKeyUsage=E-mail Protection (1.3.6.1.5.5.7.3.4); 1.2.398.3.3.4.1.1 (1.2.398.3.3.4.1.1); ",
+      "printable": true
+    },
+    {
+      "id": "0x00000817",
+      "name": "AUTH_KEY_ID",
+      "rc": "0x00000000",
+      "len": 63,
+      "text": "authorityKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+      "printable": true
+    },
+    {
+      "id": "0x00000818",
+      "name": "SUBJ_KEY_ID",
+      "rc": "0x00000000",
+      "len": 61,
+      "text": "subjectKeyIdentifier=BACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x00000819",
+      "name": "CERT_SN",
+      "rc": "0x00000000",
+      "len": 64,
+      "text": "certificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x0000081A",
+      "name": "ISSUER_DN",
+      "rc": "0x00000000",
+      "len": 82,
+      "text": "CN = ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081B",
+      "name": "SUBJECT_DN",
+      "rc": "0x00000000",
+      "len": 108,
+      "text": "CN = ТЕСТОВ ТЕСТ, SN = ТЕСТОВ, serialNumber = IIN123456789011, C = KZ, GN = ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081C",
+      "name": "SIGNATURE_ALG",
+      "rc": "0x00000000",
+      "len": 93,
+      "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+      "printable": true
+    },
+    {
+      "id": "0x0000081D",
+      "name": "PUBKEY",
+      "rc": "0x00000000",
+      "len": 239,
+      "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYCd\nSqR3xv868l7jP+PlkkpniVdrXxc4U88GF2Nt4trlfIFTGoUCiwAfqLHvr+IDeMV7\nm9wwwTd4z/A/8dV/AV6JcfQtrYggZx7mz418LRKAJW7FhckuvozskdpwUM4u7rWR\nDsXNmkDhjSW0PwcN5uLNZKXpDC3V8WHwyvf3eXD/Dw==",
+      "printable": true
+    },
+    {
+      "id": "0x0000081E",
+      "name": "POLICIES_ID",
+      "rc": "0x00000000",
+      "len": 33,
+      "text": "certificatePolicies=1.2.398.3.3.2",
+      "printable": true
+    }
+  ],
+  "signRC": "0x00000000",
+  "signedCmsPem": "-----BEGIN CMS-----\nMIIGpgYJKoZIhvcNAQcCoIIGlzCCBpMCAQExDjAMBggqgw4DCgEDAwUAMFgGCSqG\nSIb3DQEHAaBLBElIZWxsbywg0prQsNC30LDSm9GB0YLQsNC9IDIwMjYg4oCUINGC\n0LXRgdGCINCt0KbQnyAvIGthbGthbi1zZXJ2aWNlIHByb2JloIIEOjCCBDYwggOe\noAMCAQICFDrOpVy83zjIYfs/NBhUxT7J7W7NMA4GCiqDDgMKAQECAwIFADBdMU4w\nTAYDVQQDDEXSsNCb0KLQotCr0pog0JrQo9OY0JvQkNCd0JTQq9Cg0KPQqNCrINCe\n0KDQotCQ0JvQq9KaIChHT1NUKSBURVNUIDIwMjIxCzAJBgNVBAYTAktaMB4XDTI2\nMDUwODA2NDcyNFoXDTI3MDUwODA2NDcyNFoweTEeMBwGA1UEAwwV0KLQldCh0KLQ\nntCSINCi0JXQodCiMRUwEwYDVQQEDAzQotCV0KHQotCe0JIxGDAWBgNVBAUTD0lJ\nTjEyMzQ1Njc4OTAxMTELMAkGA1UEBhMCS1oxGTAXBgNVBCoMENCi0JXQodCi0J7Q\nktCY0KcwgawwIwYJKoMOAwoBAQICMBYGCiqDDgMKAQECAgEGCCqDDgMKAQMDA4GE\nAASBgJ1KpHfG/zryXuM/4+WSSmeJV2tfFzhTzwYXY23i2uV8gVMahQKLAB+ose+v\n4gN4xXub3DDBN3jP8D/x1X8BXolx9C2tiCBnHubPjXwtEoAlbsWFyS6+jOyR2nBQ\nzi7utZEOxc2aQOGNJbQ/Bw3m4s1kpekMLdXxYfDK9/d5cP8Po4IBxjCCAcIwOAYD\nVR0gBDEwLzAtBgYqgw4DAwIwIzAhBggrBgEFBQcCARYVaHR0cDovL3BraS5nb3Yu\na3ovY3BzMHcGCCsGAQUFBwEBBGswaTAoBggrBgEFBQcwAYYcaHR0cDovL3Rlc3Qu\ncGtpLmdvdi5rei9vY3NwLzA9BggrBgEFBQcwAoYxaHR0cDovL3Rlc3QucGtpLmdv\ndi5rei9jZXJ0L25jYV9nb3N0MjAyMl90ZXN0LmNlcjBBBgNVHR8EOjA4MDagNKAy\nhjBodHRwOi8vdGVzdC5wa2kuZ292Lmt6L2NybC9uY2FfZ29zdDIwMjJfdGVzdC5j\ncmwwQwYDVR0uBDwwOjA4oDagNIYyaHR0cDovL3Rlc3QucGtpLmdvdi5rei9jcmwv\nbmNhX2dvc3QyMDIyX2RfdGVzdC5jcmwwHQYDVR0lBBYwFAYIKwYBBQUHAwQGCCqD\nDgMDBAEBMA4GA1UdDwEB/wQEAwIDyDAdBgNVHQ4EFgQUus6lXLzfOMhh+z80GFTF\nPsntbs0wHwYDVR0jBBgwFoAU+tJLG6OgyWH+HKhQPmqiu0UNuKMwFgYGKoMOAwMF\nBAwwCgYIKoMOAwMFAQEwDgYKKoMOAwoBAQIDAgUAA4GBADWwYsKdZAVWlxJDo9st\nOk6x3bpJrTuUPlhbh25/OKBeeFpefYriuz9nZuB1YR0it1PSrfJDZbrM/38Xzpq4\nYVIgA7z+gnlU+8P8k3lrGoqlwe+K4WkYqUCHTnsFeciZm9H5zyVHpqJMfqWNAGfj\ny8YkNC+Dk7Fkj9AsPir/V9URMYIB5DCCAeACAQEwdTBdMU4wTAYDVQQDDEXSsNCb\n0KLQotCr0pog0JrQo9OY0JvQkNCd0JTQq9Cg0KPQqNCrINCe0KDQotCQ0JvQq9Ka\nIChHT1NUKSBURVNUIDIwMjIxCzAJBgNVBAYTAktaAhQ6zqVcvN84yGH7PzQYVMU+\nye1uzTAMBggqgw4DCgEDAwUAoIHCMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEw\nHAYJKoZIhvcNAQkFMQ8XDTI2MDcwMzIwMzcwN1owNwYLKoZIhvcNAQkQAi8xKDAm\nMCQwIgQgblqhO8Y4aAvVuHPjDZv2KsTGUUDx+d5sam2uC+QX07MwTwYJKoZIhvcN\nAQkEMUIEQEr6xfRoFQLbh1wB82zOWFuHWkwnTxg17CPF0nVVvnVtfo0b2RRoEZKj\nfYV5DtEK0/rxbI2thuTLM9obKfnKJzowDgYKKoMOAwoBAQIDAgUABIGAwZCpSktr\nddOKYRhkB7Jej3COcqdW4Pgsp0LC1LYJWxvKB3xXS6b+w5fSsVMKZ/cL3iS6UNsz\nQdbqCQAPW0SW7OAfBOmDpXWAxfouTUSBTUwfld0DXLSioaxCJmas7GHCSAaE9CY/\nR/fiORqwXOeH9L9Vm/MVwyZDNnSIusiTRF4=\n-----END CMS-----\n",
+  "verifyRC": "0x00000000",
+  "verifyInfo": "error:00000000:lib(0):func(0):reason(0)",
+  "signerCertFields": null,
+  "timeFromSigRC": "0x08F0004A",
+  "chain": [
+    {
+      "label": "leaf (владелец)",
+      "fields": [
+        {
+          "id": "0x00000801",
+          "name": "ISSUER_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000802",
+          "name": "ISSUER_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000803",
+          "name": "ISSUER_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000804",
+          "name": "ISSUER_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000805",
+          "name": "ISSUER_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000806",
+          "name": "ISSUER_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 72,
+          "text": "CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+          "printable": true
+        },
+        {
+          "id": "0x00000807",
+          "name": "SUBJECT_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000808",
+          "name": "SUBJECT_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000809",
+          "name": "SUBJECT_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080A",
+          "name": "SUBJECT_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 24,
+          "text": "CN=ТЕСТОВ ТЕСТ",
+          "printable": true
+        },
+        {
+          "id": "0x0000080B",
+          "name": "SUBJECT_GIVENNAME",
+          "rc": "0x00000000",
+          "len": 19,
+          "text": "GN=ТЕСТОВИЧ",
+          "printable": true
+        },
+        {
+          "id": "0x0000080C",
+          "name": "SUBJECT_SURNAME",
+          "rc": "0x00000000",
+          "len": 15,
+          "text": "SN=ТЕСТОВ",
+          "printable": true
+        },
+        {
+          "id": "0x0000080D",
+          "name": "SUBJECT_SERIALNUMBER",
+          "rc": "0x00000000",
+          "len": 28,
+          "text": "serialNumber=IIN123456789011",
+          "printable": true
+        },
+        {
+          "id": "0x0000080E",
+          "name": "SUBJECT_EMAIL",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080F",
+          "name": "SUBJECT_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000810",
+          "name": "SUBJECT_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000811",
+          "name": "SUBJECT_BC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000812",
+          "name": "SUBJECT_DC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000813",
+          "name": "NOTBEFORE",
+          "rc": "0x00000000",
+          "len": 36,
+          "text": "notBefore=08.05.2026 06:47:24 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000814",
+          "name": "NOTAFTER",
+          "rc": "0x00000000",
+          "len": 35,
+          "text": "notAfter=08.05.2027 06:47:24 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000815",
+          "name": "KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 54,
+          "text": "keyUsage=digitalSignature nonRepudiation keyAgreement ",
+          "printable": true
+        },
+        {
+          "id": "0x00000816",
+          "name": "EXT_KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 95,
+          "text": "extendedKeyUsage=E-mail Protection (1.3.6.1.5.5.7.3.4); 1.2.398.3.3.4.1.1 (1.2.398.3.3.4.1.1); ",
+          "printable": true
+        },
+        {
+          "id": "0x00000817",
+          "name": "AUTH_KEY_ID",
+          "rc": "0x00000000",
+          "len": 63,
+          "text": "authorityKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+          "printable": true
+        },
+        {
+          "id": "0x00000818",
+          "name": "SUBJ_KEY_ID",
+          "rc": "0x00000000",
+          "len": 61,
+          "text": "subjectKeyIdentifier=BACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+          "printable": true
+        },
+        {
+          "id": "0x00000819",
+          "name": "CERT_SN",
+          "rc": "0x00000000",
+          "len": 64,
+          "text": "certificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+          "printable": true
+        },
+        {
+          "id": "0x0000081A",
+          "name": "ISSUER_DN",
+          "rc": "0x00000000",
+          "len": 82,
+          "text": "CN = ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081B",
+          "name": "SUBJECT_DN",
+          "rc": "0x00000000",
+          "len": 108,
+          "text": "CN = ТЕСТОВ ТЕСТ, SN = ТЕСТОВ, serialNumber = IIN123456789011, C = KZ, GN = ТЕСТОВИЧ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081C",
+          "name": "SIGNATURE_ALG",
+          "rc": "0x00000000",
+          "len": 93,
+          "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+          "printable": true
+        },
+        {
+          "id": "0x0000081D",
+          "name": "PUBKEY",
+          "rc": "0x00000000",
+          "len": 239,
+          "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYCd\nSqR3xv868l7jP+PlkkpniVdrXxc4U88GF2Nt4trlfIFTGoUCiwAfqLHvr+IDeMV7\nm9wwwTd4z/A/8dV/AV6JcfQtrYggZx7mz418LRKAJW7FhckuvozskdpwUM4u7rWR\nDsXNmkDhjSW0PwcN5uLNZKXpDC3V8WHwyvf3eXD/Dw==",
+          "printable": true
+        },
+        {
+          "id": "0x0000081E",
+          "name": "POLICIES_ID",
+          "rc": "0x00000000",
+          "len": 33,
+          "text": "certificatePolicies=1.2.398.3.3.2",
+          "printable": true
+        }
+      ]
+    },
+    {
+      "label": "intermediate (НУЦ)",
+      "fields": [
+        {
+          "id": "0x00000801",
+          "name": "ISSUER_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000802",
+          "name": "ISSUER_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000803",
+          "name": "ISSUER_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000804",
+          "name": "ISSUER_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000805",
+          "name": "ISSUER_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000806",
+          "name": "ISSUER_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 74,
+          "text": "CN=НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+          "printable": true
+        },
+        {
+          "id": "0x00000807",
+          "name": "SUBJECT_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000808",
+          "name": "SUBJECT_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000809",
+          "name": "SUBJECT_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080A",
+          "name": "SUBJECT_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 72,
+          "text": "CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+          "printable": true
+        },
+        {
+          "id": "0x0000080B",
+          "name": "SUBJECT_GIVENNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080C",
+          "name": "SUBJECT_SURNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080D",
+          "name": "SUBJECT_SERIALNUMBER",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080E",
+          "name": "SUBJECT_EMAIL",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080F",
+          "name": "SUBJECT_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000810",
+          "name": "SUBJECT_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000811",
+          "name": "SUBJECT_BC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000812",
+          "name": "SUBJECT_DC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000813",
+          "name": "NOTBEFORE",
+          "rc": "0x00000000",
+          "len": 36,
+          "text": "notBefore=07.07.2022 09:55:23 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000814",
+          "name": "NOTAFTER",
+          "rc": "0x00000000",
+          "len": 35,
+          "text": "notAfter=04.07.2032 09:55:23 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000815",
+          "name": "KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 29,
+          "text": "keyUsage=keyCertSign cRLSign ",
+          "printable": true
+        },
+        {
+          "id": "0x00000816",
+          "name": "EXT_KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 0,
+          "printable": true
+        },
+        {
+          "id": "0x00000817",
+          "name": "AUTH_KEY_ID",
+          "rc": "0x00000000",
+          "len": 63,
+          "text": "authorityKeyIdentifier=A7D3AB7790372E5B698170DDE60CCCA38BC3A4B2",
+          "printable": true
+        },
+        {
+          "id": "0x00000818",
+          "name": "SUBJ_KEY_ID",
+          "rc": "0x00000000",
+          "len": 61,
+          "text": "subjectKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+          "printable": true
+        },
+        {
+          "id": "0x00000819",
+          "name": "CERT_SN",
+          "rc": "0x00000000",
+          "len": 64,
+          "text": "certificateSerialNumber=7AD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+          "printable": true
+        },
+        {
+          "id": "0x0000081A",
+          "name": "ISSUER_DN",
+          "rc": "0x00000000",
+          "len": 84,
+          "text": "CN = НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081B",
+          "name": "SUBJECT_DN",
+          "rc": "0x00000000",
+          "len": 82,
+          "text": "CN = ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081C",
+          "name": "SIGNATURE_ALG",
+          "rc": "0x00000000",
+          "len": 93,
+          "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+          "printable": true
+        },
+        {
+          "id": "0x0000081D",
+          "name": "PUBKEY",
+          "rc": "0x00000000",
+          "len": 239,
+          "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYC4\nOn38SP7MTy2g4d4S7CvH/T+zzBY3OeldtRfkgxSjZFEYElxvd2J5j1Lir+jaj/H5\nRxkxVfoKRojOKd1z0W3RN7INIUPEmqB10doeoaHzNzsnIABSRyARw7KzOTHKn4JL\nlVYJz/xZ1JM5hBt/7AtGfXO1Mdu1LJ7nX3lb1RAYaw==",
+          "printable": true
+        },
+        {
+          "id": "0x0000081E",
+          "name": "POLICIES_ID",
+          "rc": "0x00000000",
+          "len": 33,
+          "text": "certificatePolicies=1.2.398.3.3.2",
+          "printable": true
+        }
+      ]
+    },
+    {
+      "label": "root (КУЦ)",
+      "fields": [
+        {
+          "id": "0x00000801",
+          "name": "ISSUER_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000802",
+          "name": "ISSUER_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000803",
+          "name": "ISSUER_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000804",
+          "name": "ISSUER_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000805",
+          "name": "ISSUER_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000806",
+          "name": "ISSUER_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 74,
+          "text": "CN=НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+          "printable": true
+        },
+        {
+          "id": "0x00000807",
+          "name": "SUBJECT_COUNTRYNAME",
+          "rc": "0x00000000",
+          "len": 4,
+          "text": "C=KZ",
+          "printable": true
+        },
+        {
+          "id": "0x00000808",
+          "name": "SUBJECT_SOPN",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000809",
+          "name": "SUBJECT_LOCALITYNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080A",
+          "name": "SUBJECT_COMMONNAME",
+          "rc": "0x00000000",
+          "len": 74,
+          "text": "CN=НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+          "printable": true
+        },
+        {
+          "id": "0x0000080B",
+          "name": "SUBJECT_GIVENNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080C",
+          "name": "SUBJECT_SURNAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080D",
+          "name": "SUBJECT_SERIALNUMBER",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080E",
+          "name": "SUBJECT_EMAIL",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x0000080F",
+          "name": "SUBJECT_ORG_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000810",
+          "name": "SUBJECT_ORGUNIT_NAME",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000811",
+          "name": "SUBJECT_BC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000812",
+          "name": "SUBJECT_DC",
+          "rc": "0x08F00038",
+          "len": 0,
+          "printable": false
+        },
+        {
+          "id": "0x00000813",
+          "name": "NOTBEFORE",
+          "rc": "0x00000000",
+          "len": 36,
+          "text": "notBefore=07.07.2022 09:05:52 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000814",
+          "name": "NOTAFTER",
+          "rc": "0x00000000",
+          "len": 35,
+          "text": "notAfter=07.07.2032 09:05:52 +00:00",
+          "printable": true
+        },
+        {
+          "id": "0x00000815",
+          "name": "KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 29,
+          "text": "keyUsage=keyCertSign cRLSign ",
+          "printable": true
+        },
+        {
+          "id": "0x00000816",
+          "name": "EXT_KEY_USAGE",
+          "rc": "0x00000000",
+          "len": 0,
+          "printable": true
+        },
+        {
+          "id": "0x00000817",
+          "name": "AUTH_KEY_ID",
+          "rc": "0x00000000",
+          "len": 63,
+          "text": "authorityKeyIdentifier=A7D3AB7790372E5B698170DDE60CCCA38BC3A4B2",
+          "printable": true
+        },
+        {
+          "id": "0x00000818",
+          "name": "SUBJ_KEY_ID",
+          "rc": "0x00000000",
+          "len": 61,
+          "text": "subjectKeyIdentifier=A7D3AB7790372E5B698170DDE60CCCA38BC3A4B2",
+          "printable": true
+        },
+        {
+          "id": "0x00000819",
+          "name": "CERT_SN",
+          "rc": "0x00000000",
+          "len": 64,
+          "text": "certificateSerialNumber=27D3AB7790372E5B698170DDE60CCCA38BC3A4B2",
+          "printable": true
+        },
+        {
+          "id": "0x0000081A",
+          "name": "ISSUER_DN",
+          "rc": "0x00000000",
+          "len": 84,
+          "text": "CN = НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081B",
+          "name": "SUBJECT_DN",
+          "rc": "0x00000000",
+          "len": 84,
+          "text": "CN = НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+          "printable": true
+        },
+        {
+          "id": "0x0000081C",
+          "name": "SIGNATURE_ALG",
+          "rc": "0x00000000",
+          "len": 93,
+          "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+          "printable": true
+        },
+        {
+          "id": "0x0000081D",
+          "name": "PUBKEY",
+          "rc": "0x00000000",
+          "len": 239,
+          "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYBO\n/oeynu5+KcPrVn7WZyJoK8zMfjYmafDdbMFSwCRBvtVZISzwxWZ863Gd2G2qEuKe\nLqNARJoH/0uOTGcbb6jk/KYp4qHgxqDEGlkz1uknkIQd1+Xhl6CNnw0cvlxzIiyk\nc2ANgY/No7dXEC5Xn9zGyQ6Pn5P5azRwTupv7g6JVw==",
+          "printable": true
+        },
+        {
+          "id": "0x0000081E",
+          "name": "POLICIES_ID",
+          "rc": "0x00000000",
+          "len": 33,
+          "text": "certificatePolicies=1.2.398.3.1.2",
+          "printable": true
+        }
+      ]
+    }
+  ],
+  "chainOrder": [
+    "leaf (владелец): ТЕСТОВ ТЕСТ",
+    "intermediate (НУЦ): ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+    "root (КУЦ): НЕГІЗГІ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022"
+  ],
+  "validations": [
+    {
+      "type": "CRL",
+      "rc": "0x08F0005D",
+      "info": "Verify chain and certificates:  CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022\nCN=ТЕСТОВ ТЕСТ\nGN=ТЕСТОВИЧ\nSN=ТЕСТОВ\nserialNumber=IIN123456789011\nauthorityKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3\nsubjectKeyIdentifier=BACEA55CBCDF38C861FB3F341854C53EC9ED6ECD\ncertificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD\r\nERROR 0x8f0005d: Verify chain and certificates:  CRL has expired\r\n"
+    },
+    {
+      "type": "OCSP",
+      "rc": "0x00000001",
+      "info": "OCSP: check certificate status: revoked\r\tcertificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD\r\tThis Update: 03.07.2026 20:37:07 +00:00\r\tReason: certificateHold\r\tRevocation Time: 08.05.2026 09:57:29 +00:00\r\n",
+      "ocspResponseB64": "T0NTUCBSZXNwb25zZSBEYXRhOgogICAgT0NTUCBSZXNwb25zZSBTdGF0dXM6IHN1Y2Nlc3NmdWwgKDB4MCkKICAgIFJlc3BvbnNlIFR5cGU6IEJhc2ljIE9DU1AgUmVzcG9uc2UKICAgIFZlcnNpb246IDEgKDB4MCkKICAgIFJlc3BvbmRlciBJZDogQ04gPSBPQ1NQLCBDID0gS1osIE8gPSBcRDJcQjBcRDBcOUJcRDBcQTJcRDBcQTJcRDBcQUJcRDJcOUEgXEQwXDlBXEQwXEEzXEQzXDk4XEQwXDlCXEQwXDkwXEQwXDlEXEQwXDk0XEQwXEFCXEQwXEEwXEQwXEEzXEQwXEE4XEQwXEFCIFxEMFw5RVxEMFxBMFxEMFxBMlxEMFw5MFxEMFw5QlxEMFxBQlxEMlw5QQogICAgUHJvZHVjZWQgQXQ6IEp1bCAgMyAyMDozNzowNyAyMDI2IEdNVAogICAgUmVzcG9uc2VzOgogICAgQ2VydGlmaWNhdGUgSUQ6CiAgICAgIEhhc2ggQWxnb3JpdGhtOiBzaGEyNTYKICAgICAgSXNzdWVyIE5hbWUgSGFzaDogNEQ0OUM3RDQ5OERENjFCQTlENkU1MDlFRjVEQ0NCMEE3NkM1NzI0RjBCMjI0OUUzMEJBMEJBREQ0NTIxQzlFQQogICAgICBJc3N1ZXIgS2V5IEhhc2g6IEFGQzMxRTA2MjVCN0E0RDNGMEQ0RjZDQzZCOUJCQUI2NjdDM0IxQTlCMTBGOEY5QjQ2ODNCQTI3NjhCMkY1MTgKICAgICAgU2VyaWFsIE51bWJlcjogM0FDRUE1NUNCQ0RGMzhDODYxRkIzRjM0MTg1NEM1M0VDOUVENkVDRAogICAgQ2VydCBTdGF0dXM6IHJldm9rZWQKICAgIFJldm9jYXRpb24gVGltZTogTWF5ICA4IDA5OjU3OjI5IDIwMjYgR01UCiAgICBSZXZvY2F0aW9uIFJlYXNvbjogY2VydGlmaWNhdGVIb2xkICgweDYpCiAgICBUaGlzIFVwZGF0ZTogSnVsICAzIDIwOjM3OjA3IDIwMjYgR01UCgogICAgUmVzcG9uc2UgRXh0ZW5zaW9uczoKICAgICAgICBPQ1NQIE5vbmNlOiAKICAgICAgICAgICAgMDQxMERGQ0FDQkZDRjQ2RjVBMjZCNEM1RjRCNjI5QkZCNDRDCiAgICAgICAgdmFsaWQ6IAogICAgICAgICAgICAuLgogICAgU2lnbmF0dXJlIEFsZ29yaXRobTogR09TVCBSIDM0LjEwLTIwMTUgd2l0aCBHT1NUIFIgMzQuMTEtMjAxNSAoNTEyIGJpdCkKICAgICAgICAgYjc6MjU6OWE6OTk6Mzg6NTQ6MjI6NTE6ZTc6ODk6YTM6MTM6M2Q6YTI6MzA6NDE6NTA6YzE6CiAgICAgICAgIGNlOjg5Ojc1OjVmOjNhOmZhOmRhOjcwOjEyOmNiOmM0OmQ3OmQ4OjE0OjBhOmJiOjQ0OjI1OgogICAgICAgICBjZjpmYzo1NTo0MDo1Mjo2OTo4NDo2Zjo0OTo1YTo1NjpmMzphNTo1MTplMDowMTo1MTo3NjoKICAgICAgICAgMzI6ODY6NDU6ODY6Nzg6ODI6ZDU6NmI6MGU6Yjg6OGE6YTk6YmY6MGM6NTI6Yjg6MTg6MGU6CiAgICAgICAgIDY5OmNmOjQ0Ojg5OjEyOjZkOjdjOmQ3OmMxOjUyOmY2OjBlOmM2OmFkOjE4OmUwOjQ2OmZhOgogICAgICAgICBjODo3Njo0NDpmYTo4MDphOTplMDpjNjoxZTplMDpjYjphNTpkMDoyNjo1YTo1Yjo1MTpiZDoKICAgICAgICAgZmM6MGM6MzI6ZDg6YjU6MGQ6YWE6MjM6YmU6OWU6NjQ6ODI6MWI6MmM6NWM6NGE6NjU6MDE6CiAgICAgICAgIDdiOjkyCkNlcnRpZmljYXRlOgogICAgRGF0YToKICAgICAgICBWZXJzaW9uOiAzICgweDIpCiAgICAgICAgU2VyaWFsIE51bWJlcjoKICAgICAgICAgICAgMWQ6Mjc6NjQ6NzU6NDk6NGY6MzQ6MDE6MTg6MzE6YzM6ODM6NDI6Yjk6NWE6NmQ6NDc6NTk6MzU6MzMKICAgICAgICBTaWduYXR1cmUgQWxnb3JpdGhtOiBHT1NUIFIgMzQuMTAtMjAxNSB3aXRoIEdPU1QgUiAzNC4xMS0yMDE1ICg1MTIgYml0KQogICAgICAgIElzc3VlcjogQ049XHhEMlx4QjBceEQwXHg5Qlx4RDBceEEyXHhEMFx4QTJceEQwXHhBQlx4RDJceDlBIFx4RDBceDlBXHhEMFx4QTNceEQzXHg5OFx4RDBceDlCXHhEMFx4OTBceEQwXHg5RFx4RDBceDk0XHhEMFx4QUJceEQwXHhBMFx4RDBceEEzXHhEMFx4QThceEQwXHhBQiBceEQwXHg5RVx4RDBceEEwXHhEMFx4QTJceEQwXHg5MFx4RDBceDlCXHhEMFx4QUJceEQyXHg5QSAoR09TVCkgVEVTVCAyMDIyLCBDPUtaCiAgICAgICAgVmFsaWRpdHkKICAgICAgICAgICAgTm90IEJlZm9yZTogTWFyIDEwIDEwOjI2OjA1IDIwMjYgR01UCiAgICAgICAgICAgIE5vdCBBZnRlciA6IE1hciAgOSAxMDoyNjowNSAyMDI5IEdNVAogICAgICAgIFN1YmplY3Q6IENOPU9DU1AsIEM9S1osIE89XHhEMlx4QjBceEQwXHg5Qlx4RDBceEEyXHhEMFx4QTJceEQwXHhBQlx4RDJceDlBIFx4RDBceDlBXHhEMFx4QTNceEQzXHg5OFx4RDBceDlCXHhEMFx4OTBceEQwXHg5RFx4RDBceDk0XHhEMFx4QUJceEQwXHhBMFx4RDBceEEzXHhEMFx4QThceEQwXHhBQiBceEQwXHg5RVx4RDBceEEwXHhEMFx4QTJceEQwXHg5MFx4RDBceDlCXHhEMFx4QUJceEQyXHg5QQogICAgICAgIFN1YmplY3QgUHVibGljIEtleSBJbmZvOgogICAgICAgICAgICBQdWJsaWMgS2V5IEFsZ29yaXRobTogR09TVCBSIDM0LjEwLTIwMTUgd2l0aCA1MTIgYml0IG1vZHVsdXMKICAgICAgICAgICAgICAgIFB1YmxpYyBrZXk6CiAgICAgICAgICAgICAgICAgICBYOkVDRTVCQTY2Q0FGQTIwQ0ZEQzZBN0FCNEI1M0YyQ0QxMUJBOEVDQUVDMkVFN0RBNjQwNjAwRTBGRTY1RUI0MUEzQkNGMUI4QTlFRTU3NTRENzBFNzM0MkY3NDI3REFENzExRjIxQzEwMTM5MjMzMENCMzcwMTI0QkQ2NDVCRDU3CiAgICAgICAgICAgICAgICAgICBZOjg2ODIyQjRBNDdBODQzMDI4MTI4RTlDNTBDMTBFMjJBMDUxMDhFQzMxMjVENTI2NjBFQzU0QTc0RjBGODlCNEU5NkFGNTdGRTM0N0IyMzZGMTRCMEM4NTJFQUFDRUNFQzgxOTkwMjZBQkYwMTM5N0M3QURCMEE3NTk0RDkyODcyCiAgICAgICAgICAgICAgICBQYXJhbWV0ZXIgc2V0OiBpZC1Hb3N0MzQxMC0yMDE1LTUxMi1QS0lHT1ZLWi1BLVBhcmFtU2V0CiAgICAgICAgWDUwOXYzIGV4dGVuc2lvbnM6CiAgICAgICAgICAgIFg1MDl2MyBLZXkgVXNhZ2U6IGNyaXRpY2FsCiAgICAgICAgICAgICAgICBEaWdpdGFsIFNpZ25hdHVyZQogICAgICAgICAgICBPQ1NQIE5vIENoZWNrOiAKCiAgICAgICAgICAgIFg1MDl2MyBFeHRlbmRlZCBLZXkgVXNhZ2U6IAogICAgICAgICAgICAgICAgT0NTUCBTaWduaW5nCiAgICAgICAgICAgIFg1MDl2MyBTdWJqZWN0IEtleSBJZGVudGlmaWVyOiAKICAgICAgICAgICAgICAgIDFEOjI3OjY0Ojc1OjQ5OjRGOjM0OjAxOjE4OjMxOkMzOjgzOjQyOkI5OjVBOjZEOjQ3OjU5OjM1OjMzCiAgICAgICAgICAgIFg1MDl2MyBBdXRob3JpdHkgS2V5IElkZW50aWZpZXI6IAogICAgICAgICAgICAgICAga2V5aWQ6RkE6RDI6NEI6MUI6QTM6QTA6Qzk6NjE6RkU6MUM6QTg6NTA6M0U6NkE6QTI6QkI6NDU6MEQ6Qjg6QTMKCiAgICAgICAgICAgIDEuMi4zOTguMy4zLjU6IAogICAgICAgICAgICAgICAgMAouLiouLi4uLi4uCiAgICBTaWduYXR1cmUgQWxnb3JpdGhtOiBHT1NUIFIgMzQuMTAtMjAxNSB3aXRoIEdPU1QgUiAzNC4xMS0yMDE1ICg1MTIgYml0KQogICAgICAgICA3MjpmNzpiYTo0ZTplMzpiMToxYjoyYzpmNTo1NDo3Njo5ODphODpjYzoyMzpkYjpiMjpmNDoKICAgICAgICAgY2M6ZmI6ZTA6MjA6MjI6YTA6OTQ6ZTI6MDI6MWE6YmI6YzQ6ZGE6MGI6OTE6Nzg6YjE6YzY6CiAgICAgICAgIDY0OjdlOjg1OmM1OjJmOjI5OmE3OmQ5OmIxOmEwOjdjOjQ5OmVjOjNkOjI1OmM3Ojc5OjUyOgogICAgICAgICAxMTowZDpjMzpmMTo2ODo1ZjpjNDo2ODoxZDo0YjoxNTo3Mzo5NTplMDowODo4ZToxYTphMDoKICAgICAgICAgZTY6ODQ6OTE6ZmE6NWM6YmI6NDU6YjI6Mzc6NTA6NGQ6YWQ6YjY6Njk6NmQ6ZjU6MGQ6ZTc6CiAgICAgICAgIDY4OmJmOjVmOjU0OjVlOjUxOjg3OmRjOjdiOjg5OmRmOmYzOjdkOjJiOmI3OjE3OmY1OjBmOgogICAgICAgICBlMDoxMTo1Mjo2ZTplNzpkNjo0NjplYjpiNzpjZTo2ZjpiYTpiODplYjozNDoxZjowNDoyMjoKICAgICAgICAgOTY6OGUKLS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM0akNDQWtxZ0F3SUJBZ0lVSFNka2RVbFBOQUVZTWNPRFFybGFiVWRaTlRNd0RnWUtLb01PQXdvQkFRSUQKQWdVQU1GMHhUakJNQmdOVkJBTU1SZEt3MEp2UW90Q2kwS3ZTbWlEUW10Q2owNWpRbTlDUTBKM1FsTkNyMEtEUQpvOUNvMEtzZzBKN1FvTkNpMEpEUW05Q3IwcG9nS0VkUFUxUXBJRlJGVTFRZ01qQXlNakVMTUFrR0ExVUVCaE1DClMxb3dIaGNOTWpZd016RXdNVEF5TmpBMVdoY05Namt3TXpBNU1UQXlOakExV2pCYk1RMHdDd1lEVlFRRERBUlAKUTFOUU1Rc3dDUVlEVlFRR0V3SkxXakU5TURzR0ExVUVDZ3cwMHJEUW05Q2kwS0xRcTlLYUlOQ2EwS1BUbU5DYgowSkRRbmRDVTBLdlFvTkNqMEtqUXF5RFFudENnMEtMUWtOQ2IwS3ZTbWpDQnJEQWpCZ2txZ3c0RENnRUJBZ0l3CkZnWUtLb01PQXdvQkFRSUNBUVlJS29NT0F3b0JBd01EZ1lRQUJJR0FWNzFGMWtzU2NMTU1NNUlURUJ6eUVkZmEKSjNRdk5PZHdUWFhsbm9vYnp6c2F0RjdtRHc1Z1FLWjk3c0t1N0tnYjBTdy90YlI2YXR6UElQcktacnJsN0hJbwoyWlIxQ3R0NmZEa0J2Mm9DbVlIczdLenFVc2l3Rkc4amV6VCtWNitXVHB2NDhIUkt4UTVtVWwwU3c0NFFCU3JpCkVBekY2U2lCQWtPb1Iwb3Jnb2FqZ1pFd2dZNHdEZ1lEVlIwUEFRSC9CQVFEQWdlQU1BOEdDU3NHQVFVRkJ6QUIKQlFRQ0JRQXdFd1lEVlIwbEJBd3dDZ1lJS3dZQkJRVUhBd2t3SFFZRFZSME9CQllFRkIwblpIVkpUelFCR0RIRApnMEs1V20xSFdUVXpNQjhHQTFVZEl3UVlNQmFBRlByU1N4dWpvTWxoL2h5b1VENXFvcnRGRGJpak1CWUdCaXFECkRnTURCUVFNTUFvR0NDcUREZ01EQlFFQk1BNEdDaXFERGdNS0FRRUNBd0lGQUFPQmdRQnk5N3BPNDdFYkxQVlUKZHBpb3pDUGJzdlRNKytBZ0lxQ1U0Z0lhdThUYUM1RjRzY1prZm9YRkx5bW4yYkdnZkVuc1BTWEhlVklSRGNQeAphRi9FYUIxTEZYT1Y0QWlPR3FEbWhKSDZYTHRGc2pkUVRhMjJhVzMxRGVkb3YxOVVYbEdIM0h1SjMvTjlLN2NYCjlRL2dFVkp1NTlaRzY3Zk9iN3E0NnpRZkJDS1dqZz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+    }
+  ],
+  "cmsGetCertRC": "0x00000000",
+  "cmsSignerFields": [
+    {
+      "id": "0x00000801",
+      "name": "ISSUER_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000802",
+      "name": "ISSUER_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000803",
+      "name": "ISSUER_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000804",
+      "name": "ISSUER_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000805",
+      "name": "ISSUER_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000806",
+      "name": "ISSUER_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 72,
+      "text": "CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+      "printable": true
+    },
+    {
+      "id": "0x00000807",
+      "name": "SUBJECT_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000808",
+      "name": "SUBJECT_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000809",
+      "name": "SUBJECT_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080A",
+      "name": "SUBJECT_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 24,
+      "text": "CN=ТЕСТОВ ТЕСТ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080B",
+      "name": "SUBJECT_GIVENNAME",
+      "rc": "0x00000000",
+      "len": 19,
+      "text": "GN=ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080C",
+      "name": "SUBJECT_SURNAME",
+      "rc": "0x00000000",
+      "len": 15,
+      "text": "SN=ТЕСТОВ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080D",
+      "name": "SUBJECT_SERIALNUMBER",
+      "rc": "0x00000000",
+      "len": 28,
+      "text": "serialNumber=IIN123456789011",
+      "printable": true
+    },
+    {
+      "id": "0x0000080E",
+      "name": "SUBJECT_EMAIL",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080F",
+      "name": "SUBJECT_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000810",
+      "name": "SUBJECT_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000811",
+      "name": "SUBJECT_BC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000812",
+      "name": "SUBJECT_DC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000813",
+      "name": "NOTBEFORE",
+      "rc": "0x00000000",
+      "len": 36,
+      "text": "notBefore=08.05.2026 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000814",
+      "name": "NOTAFTER",
+      "rc": "0x00000000",
+      "len": 35,
+      "text": "notAfter=08.05.2027 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000815",
+      "name": "KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 54,
+      "text": "keyUsage=digitalSignature nonRepudiation keyAgreement ",
+      "printable": true
+    },
+    {
+      "id": "0x00000816",
+      "name": "EXT_KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 95,
+      "text": "extendedKeyUsage=E-mail Protection (1.3.6.1.5.5.7.3.4); 1.2.398.3.3.4.1.1 (1.2.398.3.3.4.1.1); ",
+      "printable": true
+    },
+    {
+      "id": "0x00000817",
+      "name": "AUTH_KEY_ID",
+      "rc": "0x00000000",
+      "len": 63,
+      "text": "authorityKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+      "printable": true
+    },
+    {
+      "id": "0x00000818",
+      "name": "SUBJ_KEY_ID",
+      "rc": "0x00000000",
+      "len": 61,
+      "text": "subjectKeyIdentifier=BACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x00000819",
+      "name": "CERT_SN",
+      "rc": "0x00000000",
+      "len": 64,
+      "text": "certificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x0000081A",
+      "name": "ISSUER_DN",
+      "rc": "0x00000000",
+      "len": 82,
+      "text": "CN = ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081B",
+      "name": "SUBJECT_DN",
+      "rc": "0x00000000",
+      "len": 108,
+      "text": "CN = ТЕСТОВ ТЕСТ, SN = ТЕСТОВ, serialNumber = IIN123456789011, C = KZ, GN = ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081C",
+      "name": "SIGNATURE_ALG",
+      "rc": "0x00000000",
+      "len": 93,
+      "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+      "printable": true
+    },
+    {
+      "id": "0x0000081D",
+      "name": "PUBKEY",
+      "rc": "0x00000000",
+      "len": 239,
+      "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYCd\nSqR3xv868l7jP+PlkkpniVdrXxc4U88GF2Nt4trlfIFTGoUCiwAfqLHvr+IDeMV7\nm9wwwTd4z/A/8dV/AV6JcfQtrYggZx7mz418LRKAJW7FhckuvozskdpwUM4u7rWR\nDsXNmkDhjSW0PwcN5uLNZKXpDC3V8WHwyvf3eXD/Dw==",
+      "printable": true
+    },
+    {
+      "id": "0x0000081E",
+      "name": "POLICIES_ID",
+      "rc": "0x00000000",
+      "len": 33,
+      "text": "certificatePolicies=1.2.398.3.3.2",
+      "printable": true
+    }
+  ],
+  "xmlSignRC": "0x00000000",
+  "xmlVerifyRC": "0x00000000",
+  "xmlVerifyInfo": "Signature N 1\nId = 1\ncertificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD\nsignatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)\nserialNumber=IIN123456789011\nSignature is OK\n\n",
+  "xmlSigAlgRC": "0x00000000",
+  "xmlSigAlg": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+  "xmlGetCertRC": "0x00000000",
+  "xmlSignerFields": [
+    {
+      "id": "0x00000801",
+      "name": "ISSUER_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000802",
+      "name": "ISSUER_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000803",
+      "name": "ISSUER_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000804",
+      "name": "ISSUER_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000805",
+      "name": "ISSUER_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000806",
+      "name": "ISSUER_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 72,
+      "text": "CN=ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022",
+      "printable": true
+    },
+    {
+      "id": "0x00000807",
+      "name": "SUBJECT_COUNTRYNAME",
+      "rc": "0x00000000",
+      "len": 4,
+      "text": "C=KZ",
+      "printable": true
+    },
+    {
+      "id": "0x00000808",
+      "name": "SUBJECT_SOPN",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000809",
+      "name": "SUBJECT_LOCALITYNAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080A",
+      "name": "SUBJECT_COMMONNAME",
+      "rc": "0x00000000",
+      "len": 24,
+      "text": "CN=ТЕСТОВ ТЕСТ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080B",
+      "name": "SUBJECT_GIVENNAME",
+      "rc": "0x00000000",
+      "len": 19,
+      "text": "GN=ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080C",
+      "name": "SUBJECT_SURNAME",
+      "rc": "0x00000000",
+      "len": 15,
+      "text": "SN=ТЕСТОВ",
+      "printable": true
+    },
+    {
+      "id": "0x0000080D",
+      "name": "SUBJECT_SERIALNUMBER",
+      "rc": "0x00000000",
+      "len": 28,
+      "text": "serialNumber=IIN123456789011",
+      "printable": true
+    },
+    {
+      "id": "0x0000080E",
+      "name": "SUBJECT_EMAIL",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x0000080F",
+      "name": "SUBJECT_ORG_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000810",
+      "name": "SUBJECT_ORGUNIT_NAME",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000811",
+      "name": "SUBJECT_BC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000812",
+      "name": "SUBJECT_DC",
+      "rc": "0x08F00038",
+      "len": 0,
+      "printable": false
+    },
+    {
+      "id": "0x00000813",
+      "name": "NOTBEFORE",
+      "rc": "0x00000000",
+      "len": 36,
+      "text": "notBefore=08.05.2026 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000814",
+      "name": "NOTAFTER",
+      "rc": "0x00000000",
+      "len": 35,
+      "text": "notAfter=08.05.2027 06:47:24 +00:00",
+      "printable": true
+    },
+    {
+      "id": "0x00000815",
+      "name": "KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 54,
+      "text": "keyUsage=digitalSignature nonRepudiation keyAgreement ",
+      "printable": true
+    },
+    {
+      "id": "0x00000816",
+      "name": "EXT_KEY_USAGE",
+      "rc": "0x00000000",
+      "len": 95,
+      "text": "extendedKeyUsage=E-mail Protection (1.3.6.1.5.5.7.3.4); 1.2.398.3.3.4.1.1 (1.2.398.3.3.4.1.1); ",
+      "printable": true
+    },
+    {
+      "id": "0x00000817",
+      "name": "AUTH_KEY_ID",
+      "rc": "0x00000000",
+      "len": 63,
+      "text": "authorityKeyIdentifier=FAD24B1BA3A0C961FE1CA8503E6AA2BB450DB8A3",
+      "printable": true
+    },
+    {
+      "id": "0x00000818",
+      "name": "SUBJ_KEY_ID",
+      "rc": "0x00000000",
+      "len": 61,
+      "text": "subjectKeyIdentifier=BACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x00000819",
+      "name": "CERT_SN",
+      "rc": "0x00000000",
+      "len": 64,
+      "text": "certificateSerialNumber=3ACEA55CBCDF38C861FB3F341854C53EC9ED6ECD",
+      "printable": true
+    },
+    {
+      "id": "0x0000081A",
+      "name": "ISSUER_DN",
+      "rc": "0x00000000",
+      "len": 82,
+      "text": "CN = ҰЛТТЫҚ КУӘЛАНДЫРУШЫ ОРТАЛЫҚ (GOST) TEST 2022, C = KZ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081B",
+      "name": "SUBJECT_DN",
+      "rc": "0x00000000",
+      "len": 108,
+      "text": "CN = ТЕСТОВ ТЕСТ, SN = ТЕСТОВ, serialNumber = IIN123456789011, C = KZ, GN = ТЕСТОВИЧ",
+      "printable": true
+    },
+    {
+      "id": "0x0000081C",
+      "name": "SIGNATURE_ALG",
+      "rc": "0x00000000",
+      "len": 93,
+      "text": "signatureAlgorithm=GOST R 34.10-2015 with GOST R 34.11-2015 (512 bit)(1.2.398.3.10.1.1.2.3.2)",
+      "printable": true
+    },
+    {
+      "id": "0x0000081D",
+      "name": "PUBKEY",
+      "rc": "0x00000000",
+      "len": 239,
+      "text": "MIGsMCMGCSqDDgMKAQECAjAWBgoqgw4DCgEBAgIBBggqgw4DCgEDAwOBhAAEgYCd\nSqR3xv868l7jP+PlkkpniVdrXxc4U88GF2Nt4trlfIFTGoUCiwAfqLHvr+IDeMV7\nm9wwwTd4z/A/8dV/AV6JcfQtrYggZx7mz418LRKAJW7FhckuvozskdpwUM4u7rWR\nDsXNmkDhjSW0PwcN5uLNZKXpDC3V8WHwyvf3eXD/Dw==",
+      "printable": true
+    },
+    {
+      "id": "0x0000081E",
+      "name": "POLICIES_ID",
+      "rc": "0x00000000",
+      "len": 33,
+      "text": "certificatePolicies=1.2.398.3.3.2",
+      "printable": true
+    }
+  ]
+}

@@ -17,8 +17,7 @@ import (
 // the driver reads the content from the path instead of an inline buffer. It
 // exercises the input-by-reference path end-to-end against real Kalkan.
 func TestFunctionalE2E_SignByReferenceFile(t *testing.T) {
-	pool := requirePool(t)
-	svc := core.New(pool,
+	svc := core.New(requireProvider(t),
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 		core.WithDataResolver(dataref.New(dataref.Config{AllowLocalPath: true})),

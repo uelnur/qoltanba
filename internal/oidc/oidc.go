@@ -51,10 +51,21 @@ type Provider struct {
 	cfg      Config
 	log      *slog.Logger
 	now      func() time.Time
+	// clients and codes back the browser-redirect (authorization-code) flow. With
+	// no clients registered that flow is simply unavailable; the API grant works
+	// regardless.
+	clients Clients
+	codes   *codeStore
 }
 
 // Option configures a Provider.
 type Option func(*Provider)
+
+// WithClients registers the relying parties allowed to use the browser-redirect
+// flow. Without it /oidc/authorize has nothing to authorize for.
+func WithClients(c Clients) Option {
+	return func(p *Provider) { p.clients = c }
+}
 
 // WithLogger sets the structured logger (nil-safe: the default logger is used).
 func WithLogger(l *slog.Logger) Option {
@@ -78,6 +89,7 @@ func New(v Verifier, signer *Signer, store ChallengeStore, cfg Config, opts ...O
 		cfg:      cfg.withDefaults(),
 		log:      slog.Default(),
 		now:      time.Now,
+		codes:    newCodeStore(),
 	}
 	for _, o := range opts {
 		o(p)
@@ -97,12 +109,12 @@ func (p *Provider) Challenge(ctx context.Context, req ChallengeRequest) (Challen
 	}
 	now := p.now()
 	ch := &Challenge{
-		ID:          id,
-		Nonce:       nonce,
-		ClientNonce: req.Nonce,
-		State:       req.State,
-		CreatedAt:   now,
-		ExpiresAt:   now.Add(p.cfg.ChallengeTTL),
+		ID:        id,
+		Nonce:     nonce,
+		Purpose:   challengePurpose,
+		Meta:      challengeMeta(req),
+		CreatedAt: now,
+		ExpiresAt: now.Add(p.cfg.ChallengeTTL),
 	}
 	if err := p.store.Create(ctx, ch); err != nil {
 		return ChallengeResponse{}, err
@@ -116,39 +128,81 @@ func (p *Provider) Challenge(ctx context.Context, req ChallengeRequest) (Challen
 	}, nil
 }
 
+// challengePurpose labels OIDC challenges in the shared store, and the meta keys
+// carry the relying party's values across the handshake.
+const (
+	challengePurpose = "oidc.login"
+	metaClientNonce  = "clientNonce"
+	metaState        = "state"
+)
+
+// challengeMeta keeps the relying party's nonce and state with the challenge, to
+// be echoed back when it is consumed.
+func challengeMeta(req ChallengeRequest) map[string]string {
+	meta := map[string]string{}
+	if req.Nonce != "" {
+		meta[metaClientNonce] = req.Nonce
+	}
+	if req.State != "" {
+		meta[metaState] = req.State
+	}
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
 // Verify consumes the challenge, verifies the user's detached CMS over the nonce
 // (optionally checking revocation), and mints the OIDC token set from the
 // signer's certificate-derived claims.
 func (p *Provider) Verify(ctx context.Context, req VerifyRequest) (TokenResponse, error) {
-	ch, err := p.store.Consume(ctx, req.ChallengeID)
+	claims, nonce, err := p.verifyChallengeSignature(ctx, req.ChallengeID, req.Signature)
 	if err != nil {
-		return TokenResponse{}, err // ErrChallengeNotFound | ErrChallengeUsed
+		return TokenResponse{}, err
+	}
+	return p.IssueTokens(ctx, claims, req.ClientID, nonce)
+}
+
+// VerifySignature consumes a login challenge and returns the signer's claims. It
+// is the identity half of the flow, shared by the API grant and the
+// authorization-code leg so both apply the same checks.
+func (p *Provider) VerifySignature(ctx context.Context, challengeID string, signature []byte) (core.Claims, error) {
+	claims, _, err := p.verifyChallengeSignature(ctx, challengeID, signature)
+	return claims, err
+}
+
+// verifyChallengeSignature does the work and also returns the relying party's
+// nonce recorded with the challenge.
+func (p *Provider) verifyChallengeSignature(ctx context.Context, challengeID string, signature []byte) (core.Claims, string, error) {
+	ch, err := p.store.Consume(ctx, challengeID)
+	if err != nil {
+		return core.Claims{}, "", err // ErrChallengeNotFound | ErrChallengeUsed
 	}
 	if !ch.ExpiresAt.After(p.now()) {
-		return TokenResponse{}, ErrChallengeExpired
+		return core.Claims{}, "", ErrChallengeExpired
 	}
-	if len(req.Signature) == 0 {
-		return TokenResponse{}, ErrSignatureRejected
+	if len(signature) == 0 {
+		return core.Claims{}, "", ErrSignatureRejected
 	}
 
 	out, err := p.verifier.Verify(ctx, core.VerifyInput{
 		Format:        core.FormatCMS,
-		Signature:     req.Signature,
+		Signature:     signature,
 		Data:          ch.Nonce,
 		Detached:      true,
-		InputPEM:      looksPEM(req.Signature),
+		InputPEM:      looksPEM(signature),
 		CheckCertTime: true,
 		ExtractClaims: true,
 	})
 	if err != nil {
-		return TokenResponse{}, err // hard driver/domain failure → server_error
+		return core.Claims{}, "", err // hard driver/domain failure → server_error
 	}
 	if !out.Valid || len(out.Signers) == 0 {
-		return TokenResponse{}, ErrSignatureRejected
+		return core.Claims{}, "", ErrSignatureRejected
 	}
 	signer := out.Signers[0]
 	if signer.Claims == nil || signer.Claims.Sub == "" {
-		return TokenResponse{}, ErrSignatureRejected
+		return core.Claims{}, "", ErrSignatureRejected
 	}
 
 	if p.cfg.RequireOCSP {
@@ -159,14 +213,14 @@ func (p *Provider) Verify(ctx context.Context, req VerifyRequest) (TokenResponse
 			WantOCSP: true,
 		})
 		if err != nil {
-			return TokenResponse{}, err
+			return core.Claims{}, "", err
 		}
 		if res.Status.Revoked {
-			return TokenResponse{}, ErrCertRevoked
+			return core.Claims{}, "", ErrCertRevoked
 		}
 	}
 
-	return p.IssueTokens(ctx, *signer.Claims, req.ClientID, ch.ClientNonce)
+	return *signer.Claims, ch.Meta[metaClientNonce], nil
 }
 
 // IssueTokens mints the OIDC id_token/access_token set from certificate-derived
@@ -223,11 +277,14 @@ func (p *Provider) Discovery() DiscoveryDoc {
 	return DiscoveryDoc{
 		Issuer:                           p.cfg.Issuer,
 		JWKSURI:                          base + "/oidc/jwks.json",
-		TokenEndpoint:                    base + "/oidc/verify",
+		TokenEndpoint:                    base + "/oidc/token",
+		AuthorizationEndpoint:            base + "/oidc/authorize",
 		UserinfoEndpoint:                 base + "/oidc/userinfo",
 		ChallengeEndpoint:                base + "/oidc/challenge",
-		GrantTypesSupported:              []string{"urn:qoltanba:params:grant-type:ecp"},
-		ResponseTypesSupported:           []string{"id_token", "token"},
+		VerifyEndpoint:                   base + "/oidc/verify",
+		GrantTypesSupported:              []string{"authorization_code", "urn:qoltanba:params:grant-type:ecp"},
+		ResponseTypesSupported:           []string{"code", "id_token", "token"},
+		CodeChallengeMethodsSupported:    []string{"S256"},
 		SubjectTypesSupported:            []string{"public"},
 		IDTokenSigningAlgValuesSupported: []string{"RS256"},
 		ScopesSupported:                  []string{"openid", "profile"},
@@ -259,6 +316,7 @@ func (p *Provider) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				p.codes.reap(p.now())
 				if n, err := p.store.Reap(ctx, p.now()); err != nil {
 					p.log.Warn("oidc challenge reap failed", "error", err)
 				} else if n > 0 {

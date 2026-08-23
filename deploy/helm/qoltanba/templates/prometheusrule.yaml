@@ -1,0 +1,16 @@
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRule }}
+# Prometheus Operator alerting rules. The groups come verbatim from the canonical
+# deploy/observability/prometheus/alerts.yaml (copied into files/ — keep in sync
+# via `make sync-observability`). Enable with metrics.prometheusRule=true.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "qoltanba.fullname" . }}
+  labels:
+    {{- include "qoltanba.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRuleLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+{{ .Files.Get "files/alerts.yaml" | indent 2 }}
+{{- end }}

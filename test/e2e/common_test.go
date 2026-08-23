@@ -18,6 +18,11 @@
 //	QOLTANBA_PASS          container password (default Qwerty12)
 //	QOLTANBA_CA_ROOT/NCA   trust-anchor cert files
 //	QOLTANBA_OCSP_URL / QOLTANBA_TSA_URL   test responders
+//	QOLTANBA_CRYPTO_WORKER=0                load the library in-process; the default
+//	                                        mirrors the service, which runs every
+//	                                        crypto call in child processes
+//	QOLTANBA_CRYPTO_WORKER_STANDBY=<n>      pre-warmed spare children (default 1)
+//	QOLTANBA_CRYPTO_WORKER_MAX_OPS=<n>      operations before a child is recycled
 package e2e
 
 import (
@@ -26,7 +31,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -34,12 +41,18 @@ import (
 
 	pb "github.com/uelnur/qoltanba/api/qoltanba/v1"
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/cryptoworker"
 	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/native"
+	"github.com/uelnur/qoltanba/internal/provider"
 	"github.com/uelnur/qoltanba/internal/transport/dispatch"
 	grpctransport "github.com/uelnur/qoltanba/internal/transport/grpc"
 )
+
+// envWorkerChild marks the re-executed test binary as the crypto child process,
+// so it hosts the driver instead of driving the suite.
+const envWorkerChild = "QOLTANBA_E2E_WORKER_CHILD"
 
 // sharedPool is the one Kalkan pool shared by the whole suite. It mirrors the
 // production lifecycle — the service opens its pool once and keeps it for the
@@ -49,22 +62,89 @@ import (
 // internal/native/shim.c); sharing one pool avoids that churn.
 var sharedPool *native.Pool
 
-// TestMain opens the shared pool once and closes it after the suite. When the
-// library is not configured, the pool stays nil and every test skips.
+// sharedProvider is what the suite runs against: the crypto worker (the shape the
+// service ships with) or, when the harness asks for it, the in-process pool.
+var sharedProvider provider.Provider
+
+// TestMain brings up the driver once and closes it after the suite. When the
+// library is not configured, it stays nil and every test skips.
+//
+// With the worker on, the parent deliberately opens no pool of its own: keeping
+// the library out of this process is the whole point, and the child opens it.
 func TestMain(m *testing.M) {
-	if lib := os.Getenv("QOLTANBA_LIB"); lib != "" {
+	lib := os.Getenv("QOLTANBA_LIB")
+	child := os.Getenv(envWorkerChild) != ""
+	worker := os.Getenv("QOLTANBA_CRYPTO_WORKER") != "0" && !child
+
+	switch {
+	case lib == "":
+	case worker:
+		sup, err := startCryptoWorker()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "e2e: start crypto worker: %v\n", err)
+			os.Exit(1)
+		}
+		sharedProvider = sup
+	default:
 		p, err := native.Open(native.Config{WrapperPath: lib, PoolSize: 1})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "e2e: open shared pool: %v\n", err)
 			os.Exit(1)
 		}
 		sharedPool = p
+		sharedProvider = p
 	}
 	code := m.Run()
-	if sharedPool != nil {
-		_ = sharedPool.Close()
+	if sharedProvider != nil {
+		_ = sharedProvider.Close()
 	}
 	os.Exit(code)
+}
+
+// startCryptoWorker spawns children by re-executing this test binary in child
+// mode, mirroring how the service re-executes itself.
+func startCryptoWorker() (*cryptoworker.Supervisor, error) {
+	standby, err := envInt("QOLTANBA_CRYPTO_WORKER_STANDBY", 1)
+	if err != nil {
+		return nil, err
+	}
+	maxOps, err := envInt("QOLTANBA_CRYPTO_WORKER_MAX_OPS", 0)
+	if err != nil {
+		return nil, err
+	}
+	return cryptoworker.Start(cryptoworker.Config{
+		Command:     []string{os.Args[0], "-test.run=^TestCryptoWorkerChild$"},
+		Env:         append(os.Environ(), envWorkerChild+"=1"),
+		Size:        1,
+		Standby:     standby,
+		MaxOps:      maxOps,
+		CallTimeout: 60 * time.Second,
+		Stderr:      os.Stderr,
+	})
+}
+
+// envInt reads an optional integer setting, falling back to def when unset.
+func envInt(name string, def int) (int, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s = %q: %w", name, raw, err)
+	}
+	return n, nil
+}
+
+// TestCryptoWorkerChild is not a test: it is the child process the harness
+// spawns. It serves the wire protocol on stdin/stdout over its own pool and exits
+// before the testing package can write to stdout.
+func TestCryptoWorkerChild(t *testing.T) {
+	if os.Getenv(envWorkerChild) == "" {
+		t.Skip("crypto child process; driven by TestMain")
+	}
+	_ = cryptoworker.Serve(context.Background(), os.Stdin, os.Stdout, requirePool(t))
+	os.Exit(0)
 }
 
 // requirePool returns the shared pool, skipping the test when the library is not
@@ -77,15 +157,25 @@ func requirePool(t *testing.T) *native.Pool {
 	return sharedPool
 }
 
+// requireProvider returns the provider the suite exercises, skipping the test
+// when the library is not configured.
+func requireProvider(t *testing.T) provider.Provider {
+	t.Helper()
+	if sharedProvider == nil {
+		t.Skip("QOLTANBA_LIB not set")
+	}
+	return sharedProvider
+}
+
 // newService builds the domain service over the shared pool. The returned cleanup
 // is a no-op (the pool lives for the whole suite); it is kept so callers read the
 // same open/close shape.
 func newService(t *testing.T) (*core.Service, func()) {
 	t.Helper()
-	pool := requirePool(t)
+	prov := requireProvider(t)
 	// Signing under the default strict time check anchors the signer's chain, so
 	// the test CA(s) must be in the store — supplied via the trust store.
-	svc := core.New(pool,
+	svc := core.New(prov,
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 	)

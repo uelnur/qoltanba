@@ -21,9 +21,10 @@ import (
 
 // jobSubmitEnvelope is the job-submit payload: the wrapped op and its request.
 type jobSubmitEnvelope struct {
-	Op          string          `json:"op"`
-	Request     json.RawMessage `json:"request"`
-	CallbackURL string          `json:"callbackUrl,omitempty"`
+	Op             string          `json:"op"`
+	Request        json.RawMessage `json:"request"`
+	CallbackURL    string          `json:"callbackUrl,omitempty"`
+	IdempotencyKey string          `json:"idempotencyKey,omitempty"` // dedups redelivered submits
 }
 
 type jobIDEnvelope struct {
@@ -63,7 +64,7 @@ func (p *Processor) handleJob(ctx context.Context, req Request, corrID string, o
 		if err := json.Unmarshal(req.Request, &s); err != nil {
 			return p.jobReply(corrID, req.Op, outcome, nil, &core.Error{Kind: core.KindInvalid, Op: "job-submit"}, publish)
 		}
-		v, err := p.jobs.Submit(ctx, s.Op, s.Request, s.CallbackURL)
+		v, err := p.jobs.SubmitIdempotent(ctx, s.Op, s.Request, s.CallbackURL, s.IdempotencyKey)
 		return p.jobViewReply(corrID, req.Op, outcome, v, err, publish)
 
 	case "job-status":

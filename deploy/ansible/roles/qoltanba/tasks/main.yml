@@ -1,0 +1,87 @@
+---
+- name: Require a package source
+  ansible.builtin.assert:
+    that:
+      - (qoltanba_deb_url | length > 0) or (qoltanba_deb_path | length > 0)
+    fail_msg: "Set qoltanba_deb_url or qoltanba_deb_path to the .deb/.rpm to install."
+
+- name: Stage package from the control node
+  ansible.builtin.copy:
+    src: "{{ qoltanba_deb_path }}"
+    dest: "/tmp/{{ qoltanba_deb_path | basename }}"
+    mode: "0644"
+  when: qoltanba_deb_path | length > 0
+  register: _staged_pkg
+
+- name: Download package
+  ansible.builtin.get_url:
+    url: "{{ qoltanba_deb_url }}"
+    dest: "/tmp/{{ qoltanba_deb_url | basename }}"
+    mode: "0644"
+  when: qoltanba_deb_url | length > 0
+  register: _downloaded_pkg
+
+- name: Resolve local package path
+  ansible.builtin.set_fact:
+    _pkg_path: "{{ _staged_pkg.dest | default(_downloaded_pkg.dest) }}"
+
+- name: Install package (Debian family)
+  ansible.builtin.apt:
+    deb: "{{ _pkg_path }}"
+  when: ansible_os_family == "Debian"
+  notify: restart qoltanba
+
+- name: Install package (RHEL family)
+  ansible.builtin.dnf:
+    name: "{{ _pkg_path }}"
+    disable_gpg_check: true
+  when: ansible_os_family == "RedHat"
+  notify: restart qoltanba
+
+- name: Ensure the BYOL library directory exists
+  ansible.builtin.file:
+    path: "{{ qoltanba_lib_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Push the Kalkan library (optional)
+  ansible.builtin.copy:
+    src: "{{ qoltanba_lib_src }}"
+    dest: "{{ qoltanba_lib_dir }}/{{ qoltanba_lib_file }}"
+    mode: "0644"
+  when: qoltanba_lib_src | length > 0
+  notify: restart qoltanba
+
+- name: Assert the Kalkan library is present
+  ansible.builtin.stat:
+    path: "{{ qoltanba_lib_dir }}/{{ qoltanba_lib_file }}"
+  register: _lib
+  failed_when: not _lib.stat.exists
+
+- name: Write the environment file
+  ansible.builtin.template:
+    src: qoltanba.env.j2
+    dest: /etc/qoltanba/qoltanba.env
+    mode: "0640"
+  notify: restart qoltanba
+
+- name: Write the config file (when provided)
+  ansible.builtin.copy:
+    content: "{{ qoltanba_config_yaml | to_nice_yaml }}\n"
+    dest: /etc/qoltanba/config.yaml
+    mode: "0640"
+  when: qoltanba_config_yaml | length > 0
+  notify: restart qoltanba
+
+- name: Remove the config file when not managed
+  ansible.builtin.file:
+    path: /etc/qoltanba/config.yaml
+    state: absent
+  when: qoltanba_config_yaml | length == 0
+
+- name: Enable and start the service
+  ansible.builtin.systemd:
+    name: qoltanba
+    enabled: "{{ qoltanba_service_enabled }}"
+    state: "{{ qoltanba_service_state }}"
+    daemon_reload: true

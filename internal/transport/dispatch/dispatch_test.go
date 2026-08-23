@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
 	"github.com/uelnur/qoltanba/internal/provider"
@@ -27,6 +28,34 @@ func TestHandle_CertInfo(t *testing.T) {
 	}
 	if res.Certificate.Subject.IIN != "900130300123" {
 		t.Errorf("IIN = %q", res.Certificate.Subject.IIN)
+	}
+}
+
+func TestHandle_VerifyAt(t *testing.T) {
+	f := &fake.Provider{
+		VerifyResult: provider.VerifyResult{
+			Valid:   true,
+			Signers: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\nAA\n-----END CERTIFICATE-----")},
+		},
+		Props: fake.Fields(map[string]string{
+			"NOTBEFORE": "01.01.2021 00:00:00 +00:00",
+			"NOTAFTER":  "01.01.2023 00:00:00 +00:00",
+		}),
+		ValidateResult: provider.ValidateResult{Status: provider.StatusGood},
+	}
+	svc := core.New(f, core.WithClock(func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }))
+
+	out, err := Handle(context.Background(), svc, "verify-at",
+		[]byte(`{"format":"cms","signature":"eA==","at":"2022-06-01T00:00:00Z"}`))
+	if err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	res, ok := out.(core.VerifyAtOutput)
+	if !ok {
+		t.Fatalf("output type %T", out)
+	}
+	if !res.ValidAt || !res.Determinate {
+		t.Fatalf("validAt=%v determinate=%v, want true/true", res.ValidAt, res.Determinate)
 	}
 }
 

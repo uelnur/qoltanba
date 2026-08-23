@@ -21,6 +21,9 @@ type jobSubmit struct {
 	Op          string          `json:"op"`
 	Request     json.RawMessage `json:"request"`
 	CallbackURL string          `json:"callbackUrl,omitempty"`
+	// IdempotencyKey dedups retried submits: a repeat with the same key returns the
+	// existing job. The Idempotency-Key HTTP header takes precedence when both are set.
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
 }
 
 func (s *Server) handleJobSubmit(w http.ResponseWriter, r *http.Request) {
@@ -28,9 +31,13 @@ func (s *Server) handleJobSubmit(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	v, err := s.jobs.Submit(r.Context(), req.Op, req.Request, req.CallbackURL)
+	key := req.IdempotencyKey
+	if h := r.Header.Get("Idempotency-Key"); h != "" {
+		key = h
+	}
+	v, err := s.jobs.SubmitIdempotent(r.Context(), req.Op, req.Request, req.CallbackURL, key)
 	if err != nil {
-		writeJobError(w, err)
+		writeJobError(w, r, err)
 		return
 	}
 	w.Header().Set("Location", "/jobs/"+v.ID)
@@ -40,7 +47,7 @@ func (s *Server) handleJobSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleJobGet(w http.ResponseWriter, r *http.Request) {
 	v, err := s.jobs.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
-		writeJobError(w, err)
+		writeJobError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -58,10 +65,10 @@ func (s *Server) handleJobResult(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, v)
 			return
 		}
-		writeJobError(w, jobs.ErrNotFound)
+		writeJobError(w, r, jobs.ErrNotFound)
 		return
 	case err != nil:
-		writeJobError(w, err)
+		writeJobError(w, r, err)
 		return
 	}
 	if status == jobs.StatusSucceeded {
@@ -75,18 +82,18 @@ func (s *Server) handleJobResult(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, v)
 		return
 	}
-	writeJobError(w, jobs.ErrNotFound)
+	writeJobError(w, r, jobs.ErrNotFound)
 }
 
 func (s *Server) handleJobCancel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.jobs.Cancel(r.Context(), id); err != nil {
-		writeJobError(w, err)
+		writeJobError(w, r, err)
 		return
 	}
 	v, err := s.jobs.Get(r.Context(), id)
 	if err != nil {
-		writeJobError(w, err)
+		writeJobError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, v)
@@ -94,13 +101,13 @@ func (s *Server) handleJobCancel(w http.ResponseWriter, r *http.Request) {
 
 // writeJobError maps a job manager error to an HTTP status and the standard error
 // envelope.
-func writeJobError(w http.ResponseWriter, err error) {
+func writeJobError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, jobs.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{Error: errorDetail{
 			Kind: core.KindName(core.KindInvalid), Message: "job not found"}})
 	case errors.Is(err, jobs.ErrInvalidOp):
-		writeError(w, &core.Error{Kind: core.KindInvalid, Op: "jobs"}, "unknown operation")
+		writeError(w, r, &core.Error{Kind: core.KindInvalid, Op: "jobs"}, "unknown operation")
 	case errors.Is(err, jobs.ErrTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: errorDetail{
 			Kind: core.KindName(core.KindInvalid), Message: "request too large for an inline job"}})
@@ -108,6 +115,6 @@ func writeJobError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusServiceUnavailable, errorBody{Error: errorDetail{
 			Kind: core.KindName(core.KindUnavailable), Message: "job queue full", Action: "Retry later."}})
 	default:
-		writeError(w, err, "")
+		writeError(w, r, err, "")
 	}
 }

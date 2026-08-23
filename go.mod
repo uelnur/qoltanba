@@ -3,6 +3,7 @@ module github.com/uelnur/qoltanba
 go 1.25.0
 
 require (
+	github.com/deatil/go-cryptobin v1.1.1015
 	github.com/invopop/jsonschema v0.14.0
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.1

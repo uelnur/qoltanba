@@ -21,6 +21,10 @@ type fakeProvider struct {
 	verifyResult provider.VerifyResult
 	verifyErr    error
 	lastVerify   *provider.VerifyRequest
+	// verifyFunc, when set, computes the verify result from the request (e.g. to
+	// vary by TrustedCerts across the anchor-retry). Overrides verifyResult/Err.
+	verifyFunc  func(provider.VerifyRequest) (provider.VerifyResult, error)
+	verifyCalls int
 
 	// props keyed by cert bytes (as string); default returned when absent.
 	props       provider.CertProperties
@@ -33,6 +37,8 @@ type fakeProvider struct {
 	validateResult provider.ValidateResult
 	validateErr    error
 	lastValidate   *provider.ValidateRequest
+	validateCalls  int
+	hashFunc       func(provider.HashRequest) (provider.HashResult, error)
 }
 
 func (f *fakeProvider) Capabilities() provider.Capabilities { return f.caps }
@@ -58,12 +64,20 @@ func (f *fakeProvider) SignWSSE(_ context.Context, req provider.SignWSSERequest)
 func (f *fakeProvider) VerifyCMS(_ context.Context, req provider.VerifyRequest) (provider.VerifyResult, error) {
 	r := req
 	f.lastVerify = &r
+	f.verifyCalls++
+	if f.verifyFunc != nil {
+		return f.verifyFunc(req)
+	}
 	return f.verifyResult, f.verifyErr
 }
 
 func (f *fakeProvider) VerifyXML(_ context.Context, req provider.VerifyRequest) (provider.VerifyResult, error) {
 	r := req
 	f.lastVerify = &r
+	f.verifyCalls++
+	if f.verifyFunc != nil {
+		return f.verifyFunc(req)
+	}
 	return f.verifyResult, f.verifyErr
 }
 
@@ -71,7 +85,10 @@ func (f *fakeProvider) ExportOwnerCert(_ context.Context, _ provider.KeyRef, _ p
 	return f.exportResult, f.exportErr
 }
 
-func (f *fakeProvider) Hash(_ context.Context, _ provider.HashRequest) (provider.HashResult, error) {
+func (f *fakeProvider) Hash(_ context.Context, req provider.HashRequest) (provider.HashResult, error) {
+	if f.hashFunc != nil {
+		return f.hashFunc(req)
+	}
 	return provider.HashResult{}, provider.ErrUnsupported
 }
 
@@ -87,10 +104,15 @@ func (f *fakeProvider) CertProperties(_ context.Context, cert []byte, _ provider
 func (f *fakeProvider) ValidateCert(_ context.Context, req provider.ValidateRequest) (provider.ValidateResult, error) {
 	r := req
 	f.lastValidate = &r
+	f.validateCalls++
 	return f.validateResult, f.validateErr
 }
 
 func (f *fakeProvider) Close() error { return nil }
+
+// revocationOff turns the inline revocation check off for tests that are about
+// something else — it would otherwise call the driver and overwrite lastValidate.
+func revocationOff() *bool { off := false; return &off }
 
 // staticKeySource resolves any spec to a fixed KeyRef.
 type staticKeySource struct{ ref provider.KeyRef }

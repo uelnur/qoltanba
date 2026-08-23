@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uelnur/qoltanba/internal/cms"
 	"github.com/uelnur/qoltanba/internal/provider"
 )
 
@@ -25,6 +26,10 @@ type Service struct {
 	now              func() time.Time
 	verifyOnly       bool
 	dataResolver     DataResolver
+	ocspCache        OCSPCache
+	audit            AuditSink
+	receiptSigner    ReceiptSigner
+	receiptIssuer    string
 }
 
 // Option configures a Service.
@@ -42,6 +47,22 @@ func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = 
 
 // WithVerifyOnly disables the key path and sign operations entirely.
 func WithVerifyOnly(v bool) Option { return func(s *Service) { s.verifyOnly = v } }
+
+// WithAudit records signing and verification into a tamper-evident journal.
+// Nil (the default) records nothing.
+func WithAudit(sink AuditSink) Option { return func(s *Service) { s.audit = sink } }
+
+// WithOCSPCache reuses recent revocation answers instead of asking the responder
+// again for the same certificate. It also supplies the raw response for stapling.
+// Nil (the default) checks every time.
+func WithOCSPCache(c OCSPCache) Option { return func(s *Service) { s.ocspCache = c } }
+
+// WithReceiptSigner enables signed verification receipts: the service attests to
+// its own verification outcome with issuer as the iss claim. Without it the
+// receipt flag simply yields no receipt — the verification itself is unaffected.
+func WithReceiptSigner(signer ReceiptSigner, issuer string) Option {
+	return func(s *Service) { s.receiptSigner, s.receiptIssuer = signer, issuer }
+}
 
 // WithIssuerFetcher enables AIA issuer download during chain building. Nil (the
 // default) means no network fetch — chains build only from the trusted set.
@@ -103,6 +124,9 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 	const op = "Sign"
 	if s.verifyOnly {
 		return SignOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("sign disabled in verify-only mode")}
+	}
+	if err := applyPolicy(&in); err != nil {
+		return SignOutput{}, &Error{Kind: KindInvalid, Op: op, err: err}
 	}
 	if !in.Format.Valid() {
 		return SignOutput{}, &Error{Kind: KindInvalid, Op: op, err: errors.New("unknown signature format")}
@@ -179,8 +203,12 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 		})
 	}
 	if err != nil {
-		return SignOutput{Format: in.Format, LibError: libErrorFrom(err)}, domainErr(op, err)
+		s.recordAudit(ctx, AuditEvent{Op: "sign", Subject: digestOf(in.Data), Outcome: "error"})
+		return SignOutput{Format: in.Format, LibError: libErrorFrom(ctx, err)}, domainErr(op, err)
 	}
+	// The digest of the produced signature identifies the artifact without copying
+	// it (or the content) into the journal.
+	s.recordAudit(ctx, AuditEvent{Op: "sign", Subject: digestOf(res.Signature), Outcome: "ok"})
 
 	out := SignOutput{Signature: res.Signature, Format: in.Format, CAdESLevel: "BES"}
 	if withTS {
@@ -237,11 +265,19 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 		TrustedCerts:  toProviderCerts(trusted),
 	}
 
-	var res provider.VerifyResult
-	if in.Format == FormatCMS {
-		res, err = s.prov.VerifyCMS(ctx, req)
-	} else {
-		res, err = s.prov.VerifyXML(ctx, req)
+	res, err := s.verifyContainer(ctx, in.Format, req)
+	// When verification fails only because the signer's issuing CA is not a loaded
+	// anchor (the library reports this as a cert-time/chain error), discover the
+	// missing intermediates via AIA from the returned signer certs and retry once
+	// with them added — so a real leaf whose issuing CA is reachable but not
+	// preconfigured still anchors. Only on the failure path, so the common case
+	// pays nothing.
+	if s.fetcher != nil && in.CheckCertTime && isAnchorFailure(err) && len(res.Signers) > 0 {
+		if extra := s.discoverAnchors(ctx, signerDERs(res.Signers), trusted); len(extra) > 0 {
+			trusted = append(trusted, extra...)
+			req.TrustedCerts = toProviderCerts(trusted)
+			res, err = s.verifyContainer(ctx, in.Format, req)
+		}
 	}
 
 	out := VerifyOutput{
@@ -259,16 +295,190 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 			out.Signers[i].Claims = &c
 		}
 	}
+
+	// Cert-time-anchor override. Some GOST-2015 chains make Kalkan's time-checked
+	// VerifyData reject with 0x08F00042 even though the chain is loaded and valid —
+	// its monolithic verdict is unreliable here (its own X509ValidateCertificate
+	// anchors the same chain fine, i.e. chainSignaturesVerified). When that happens
+	// and our independent verification confirms the signature — the signature math
+	// alone (VerifyData without the cert-time gate), the cryptographic chain to a
+	// trusted anchor, and every signer within its validity window — we trust that
+	// composite verdict. It is strictly stronger than the library's, never weaker:
+	// all four facts must hold. Gated on chain verification (the GOST-capable check).
+	if !out.Valid && s.verifyChain && in.CheckCertTime && isAnchorFailure(err) &&
+		s.compositeConfirms(ctx, req, in.Format, out.Signers) {
+		out.Valid = true
+		err = nil
+		for i := range out.Signers {
+			out.Signers[i].Valid = true
+		}
+		w.add("verify", "cert-time-anchor-override: library rejected the time-checked verify (GOST-2015 VerifyData quirk); signature math, cryptographic chain to a trusted anchor and validity window independently confirm the signature")
+	}
+
+	// Revocation is checked only once the signature itself holds up: contacting a
+	// responder about a container that did not verify buys nothing, and the
+	// verdict is already invalid either way.
+	if out.Valid && in.RevocationRequested() {
+		ocsp := s.checkRevocation(ctx, &out, in, trusted, &w)
+		if in.Archive {
+			s.attachArchive(&out, in, ocsp, &w)
+		}
+	}
+
 	out.Warnings = w.list()
 
 	if err != nil {
 		if isSoftVerifyFailure(err) {
-			out.LibError = libErrorFrom(err)
+			out.LibError = libErrorFrom(ctx, err)
+			s.attachSynthesis(ctx, &out, in)
 			return out, nil
 		}
 		return out, domainErr(op, err)
 	}
+	s.attachSynthesis(ctx, &out, in)
 	return out, nil
+}
+
+// checkRevocation fills in each signer's revocation status and returns the raw
+// OCSP responses, which archiving reuses as its evidence. A revoked signer makes
+// the whole verification invalid: the signature math still holds, but the key it
+// was made with has been repudiated, and a caller reading `valid` must not have
+// to also remember to read a separate field to learn that.
+//
+// A check that could not be completed leaves the status indeterminate rather
+// than "not revoked" — the library reports an unreachable responder as a soft
+// failure with Revoked false, which is the same shape as a clean answer.
+func (s *Service) checkRevocation(ctx context.Context, out *VerifyOutput, in VerifyInput, trusted []TrustedCert, w *warnings) [][]byte {
+	method := in.RevocationMethod
+	if method == "" {
+		method = MethodOCSP
+	}
+	var responses [][]byte
+	for i := range out.Signers {
+		field := fmt.Sprintf("signers[%d].revocation", i)
+		cert := out.Signers[i].Certificate
+		if len(cert.PEM) == 0 {
+			w.add(field, "no certificate to check revocation for")
+			continue
+		}
+		res, err := s.Validate(ctx, ValidateInput{
+			Cert:         cert.PEM,
+			Format:       EncodingPEM,
+			Method:       method,
+			ResponderURL: in.ResponderURL,
+			WantOCSP:     in.Archive,
+			TrustedCerts: trusted,
+		})
+		if err != nil {
+			w.addErr(field, err)
+			out.Signers[i].Revocation = &RevocationStatus{Method: method}
+			continue
+		}
+		status := res.Status
+		out.Signers[i].Revocation = &status
+		switch {
+		case !status.Determinate:
+			w.add(field, "revocation status could not be established")
+		case status.Revoked:
+			out.Valid = false
+			out.Signers[i].Valid = false
+		}
+		switch {
+		case len(res.OCSPResponse) > 0:
+			responses = append(responses, res.OCSPResponse)
+		case in.Archive:
+			// The chain is still worth embedding, but an archive without the
+			// revocation proof loses exactly the part that expires with the
+			// responder — so say so rather than quietly shipping a thinner archive.
+			w.add(field, "responder returned no reusable response to embed")
+		}
+	}
+	return responses
+}
+
+// attachArchive embeds this verification's evidence into the container. The
+// responses are the ones the revocation check just obtained, so the archive and
+// the verdict rest on the same evidence — the reason archiving is worth doing
+// here rather than in a second pass that re-asks the responder.
+func (s *Service) attachArchive(out *VerifyOutput, in VerifyInput, ocsp [][]byte, w *warnings) {
+	if in.Format != FormatCMS {
+		w.add("archive", "long-term validation evidence can only be embedded into CMS")
+		return
+	}
+	evidence := cms.Evidence{OCSPResponses: ocsp}
+	for _, signer := range out.Signers {
+		// The chain travels with the signature: an issuer certificate that is easy
+		// to fetch today may not be fetchable at all when the archive is opened.
+		for _, c := range signer.Chain {
+			if der := toDER(c.PEM, EncodingPEM); len(der) > 0 {
+				evidence.Certificates = append(evidence.Certificates, der)
+			}
+		}
+	}
+	// The archived container comes back in the encoding the caller sent.
+	archived, err := embedEvidence(in.Signature, in.InputPEM, in.InputPEM, evidence)
+	if err != nil {
+		w.addErr("archive", err)
+		return
+	}
+	out.Archive = &archived
+}
+
+// attachSynthesis adds the requested plain-language views of a completed
+// verification. Both are pure synthesis over the result — no extra crypto, no
+// network — so they are equally available on every transport and inside batches.
+func (s *Service) attachSynthesis(ctx context.Context, out *VerifyOutput, in VerifyInput) {
+	now := s.now()
+	if in.Explain {
+		out.Explanation = buildDiagnosis(*out, in.CheckCertTime, s.verifyChain, now)
+	}
+	if in.Report || in.Receipt {
+		out.Report = buildReport(*out, in.CheckCertTime, s.verifyChain, in.Signature, out.Content, now)
+	}
+	if in.Receipt {
+		token, err := s.issueReceipt(out.Report, now)
+		if err != nil {
+			out.Warnings = append(out.Warnings, Warning{Field: "receipt", Reason: err.Error()})
+		}
+		out.Receipt = token
+	}
+	// The journal records the digest of what was checked, never the content: an
+	// audit trail must not become a copy of every document that passed through.
+	if s.audit != nil {
+		ev := AuditEvent{Op: "verify", Subject: digestOf(in.Signature), Outcome: "invalid"}
+		if out.Valid {
+			ev.Outcome = "valid"
+		}
+		if len(out.Signers) > 0 {
+			subj := out.Signers[0].Certificate.Subject
+			ev.Signer = firstNonEmptyString(subj.IIN, subj.BIN, subj.CommonName)
+		}
+		if out.LibError != nil {
+			ev.Detail = out.LibError.Key
+		}
+		s.audit.Record(ctx, ev)
+	}
+	// The report was only built to sign; drop it unless the caller asked for it.
+	if !in.Report {
+		out.Report = nil
+	}
+}
+
+// recordAudit reports an operation to the journal when one is configured.
+func (s *Service) recordAudit(ctx context.Context, ev AuditEvent) {
+	if s.audit != nil {
+		s.audit.Record(ctx, ev)
+	}
+}
+
+// firstNonEmptyString returns the first non-empty value.
+func firstNonEmptyString(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // Extract recovers the original content from an attached signature.
@@ -290,7 +500,7 @@ func (s *Service) Extract(ctx context.Context, in ExtractInput) (ExtractOutput, 
 		return out, domainErr(op, err)
 	}
 	if err != nil {
-		out.LibError = libErrorFrom(err)
+		out.LibError = libErrorFrom(ctx, err)
 	}
 	return out, nil
 }
@@ -325,7 +535,7 @@ func (s *Service) CertInfo(ctx context.Context, in CertInfoInput) (CertInfoOutpu
 	}
 	cert := parseCertificate(props, toDER(certBytes, format), "", &w)
 
-	out := CertInfoOutput{Certificate: cert, Warnings: w.list()}
+	out := CertInfoOutput{Certificate: cert, Algorithm: algorithmInfo(cert), Warnings: w.list()}
 	if in.ExtractClaims {
 		c := ClaimsFromCertificate(cert)
 		out.Claims = &c
@@ -359,6 +569,14 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 	var w warnings
 	certDER := toDER(in.Cert, in.Format)
 
+	// Anchor the certificate: discover its issuing CAs via AIA (when enabled) and
+	// add them to the trusted set, so a real leaf whose intermediate is reachable
+	// but not preconfigured can be validated rather than failing to anchor.
+	trusted := s.mergedTrusted(in.TrustedCerts)
+	if s.fetcher != nil {
+		trusted = append(trusted, s.discoverAnchors(ctx, [][]byte{certDER}, trusted)...)
+	}
+
 	// Resolve the effective method and any CRL material, applying the CRL fail
 	// policy. effMethod may switch CRL→OCSP on a soft failure.
 	effMethod := method
@@ -391,6 +609,15 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 		// library path handles the absent CRL).
 	}
 
+	// A cached OCSP answer skips the native call entirely — that is what spares the
+	// responder. Only the OCSP path is cacheable: a CRL check is answered from
+	// material the caller or the CRL layer already holds.
+	if effMethod == MethodOCSP && s.ocspCache != nil {
+		if answer, ok := s.ocspCache.Lookup(certDER, path); ok {
+			return s.cachedValidateOutput(in, effMethod, checkTime, answer, w), nil
+		}
+	}
+
 	if effMethod == MethodCRL && len(crlBytes) > 0 {
 		p, cleanup, werr := writeTempCRL(crlBytes)
 		if werr != nil {
@@ -407,14 +634,16 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 		Path:         path,
 		CheckTime:    checkTime,
 		WantOCSP:     wantOCSP,
-		TrustedCerts: toProviderCerts(s.mergedTrusted(in.TrustedCerts)),
+		TrustedCerts: toProviderCerts(trusted),
 	})
 
 	checked := checkTime
 	status := RevocationStatus{
-		Method:    effMethod,
-		Revoked:   res.Status == provider.StatusRevoked,
-		CheckedAt: &checked,
+		Method:  effMethod,
+		Revoked: res.Status == provider.StatusRevoked,
+		// An unknown status is not "not revoked": the responder did not say.
+		Determinate: res.Status != provider.StatusUnknown,
+		CheckedAt:   &checked,
 	}
 	// Enrich with structured fields parsed from the response/CRL (best-effort).
 	if effMethod == MethodOCSP {
@@ -435,14 +664,55 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 	}
 	if err != nil {
 		if isSoftVerifyFailure(err) {
-			out.Status.LibError = libErrorFrom(err)
+			// The library reports an unreachable responder as a soft failure with
+			// Revoked false — the same shape as a clean answer, so the status has to
+			// be marked undetermined explicitly.
+			out.Status.LibError = libErrorFrom(ctx, err)
+			out.Status.Determinate = false
 			out.Warnings = w.list()
 			return out, nil
 		}
 		return out, domainErr(op, err)
 	}
+	// Only a clean answer is worth caching: a failed check would otherwise pin its
+	// own failure for the whole TTL.
+	if effMethod == MethodOCSP && s.ocspCache != nil {
+		s.ocspCache.Store(certDER, path, OCSPAnswer{
+			Revoked:        status.Revoked,
+			Reason:         status.Reason,
+			RevocationTime: status.RevocationTime,
+			ThisUpdate:     status.ThisUpdate,
+			NextUpdate:     status.NextUpdate,
+			ProducedAt:     status.ProducedAt,
+			Response:       res.OCSPResponse,
+		})
+	}
 	out.Warnings = w.list()
 	return out, nil
+}
+
+// cachedValidateOutput renders a cache hit as a normal validation result. The
+// verdict and its freshness fields come from the responder's own answer; only
+// CheckedAt is now, because that is when this caller was told.
+func (s *Service) cachedValidateOutput(in ValidateInput, method ValidationMethod, checkTime time.Time, a OCSPAnswer, w warnings) ValidateOutput {
+	checked := checkTime
+	out := ValidateOutput{Status: RevocationStatus{
+		Method: method,
+		// Only clean answers are cached, so a hit is always a determined one.
+		Determinate:    true,
+		Revoked:        a.Revoked,
+		Reason:         a.Reason,
+		RevocationTime: a.RevocationTime,
+		CheckedAt:      &checked,
+		ThisUpdate:     a.ThisUpdate,
+		NextUpdate:     a.NextUpdate,
+		ProducedAt:     a.ProducedAt,
+	}}
+	if in.WantOCSP {
+		out.OCSPResponse = a.Response
+	}
+	out.Warnings = w.list()
+	return out
 }
 
 // crlReason names why a managed CRL is unusable, for warnings and hard-fail
@@ -496,21 +766,46 @@ func (s *Service) buildSigners(ctx context.Context, res provider.VerifyResult, f
 			sig.SignatureAlgorithm = sigAlgName(si.SignatureAlgorithmOID)
 			if si.Timestamp != nil {
 				sig.Timestamp = timestampFromCMS(si.Timestamp)
-				sig.CAdESLevel = "T"
+				// CAdES-T claims a genuine timestamp *over this signature*, so both
+				// halves have to hold: the imprint binds the token to this signature
+				// (a token can otherwise be lifted from another container unchanged),
+				// and the TSA actually signed the token (an imprint alone proves only
+				// that someone built a structure naming this signature).
+				imprint, inote := s.verifyTimestampImprint(ctx, si)
+				sig.Timestamp.ImprintVerified, sig.Timestamp.ImprintNote = imprint, inote
+				signed, snote := s.verifyTimestampSignature(ctx, si.Timestamp, trusted)
+				sig.Timestamp.SignatureVerified, sig.Timestamp.SignatureNote = signed, snote
+				switch {
+				case imprint != nil && *imprint && signed != nil && *signed:
+					sig.CAdESLevel = "T"
+				default:
+					w.add(fmt.Sprintf("signers[%d].timestamp", i),
+						timestampWarning(firstNonEmptyString(inote, snote)))
+				}
 			}
 		}
 		if sig.SignatureAlgorithm == "" {
 			sig.SignatureAlgorithm = cert.SignatureAlgorithm
 		}
 		// Fallback: Kalkan's genTime for the first signer when no CMS token parsed.
+		// It is a time, not a token — there is nothing to check the imprint against,
+		// so the timestamp is reported without claiming CAdES-T for it.
 		if sig.Timestamp == nil && i == 0 && !res.Timestamp.IsZero() {
 			t := res.Timestamp.UTC()
-			sig.Timestamp = &Timestamp{GenTime: &t}
-			sig.CAdESLevel = "T"
+			sig.Timestamp = &Timestamp{GenTime: &t,
+				ImprintNote: "only the library's genTime was available; the token itself could not be read or checked"}
 		}
 		signers = append(signers, sig)
 	}
 	return signers
+}
+
+// timestampWarning renders why a timestamp was not accepted as CAdES-T.
+func timestampWarning(note string) string {
+	if note == "" {
+		note = "the token's message imprint could not be checked"
+	}
+	return "timestamp present but not accepted as CAdES-T: " + note
 }
 
 // cryptoVerifyChain asks Kalkan to build and cryptographically validate the
@@ -535,6 +830,90 @@ func (s *Service) cryptoVerifyChain(ctx context.Context, leafPEM []byte, chain [
 		TrustedCerts: trusted,
 	})
 	return err == nil && res.RawCode == 0
+}
+
+// verifyContainer dispatches to the CMS or XML verify per format.
+func (s *Service) verifyContainer(ctx context.Context, format SignatureFormat, req provider.VerifyRequest) (provider.VerifyResult, error) {
+	if format == FormatCMS {
+		return s.prov.VerifyCMS(ctx, req)
+	}
+	return s.prov.VerifyXML(ctx, req)
+}
+
+// isAnchorFailure reports whether a verify error is the kind a missing issuing-CA
+// anchor produces: the library surfaces an absent trusted CA as a cert-time or
+// chain error (0x08F00042 and kin), not a distinct code, so a retry with the
+// discovered intermediate can turn it into success.
+func isAnchorFailure(err error) bool {
+	return errors.Is(err, provider.ErrCertTimeInvalid) ||
+		errors.Is(err, provider.ErrChainInvalid) ||
+		errors.Is(err, provider.ErrCARequired)
+}
+
+// signerDERs converts PEM signer certificates to DER for chain building.
+func signerDERs(pemCerts [][]byte) [][]byte {
+	out := make([][]byte, 0, len(pemCerts))
+	for _, p := range pemCerts {
+		if der := toDER(p, EncodingPEM); len(der) > 0 {
+			out = append(out, der)
+		}
+	}
+	return out
+}
+
+// discoverAnchors builds each leaf's chain via AIA issuer fetch and returns the CA
+// nodes not already in trusted, as trusted certs (a self-issued node is a root,
+// otherwise an intermediate). These are the issuing CAs the library must load to
+// anchor a chain whose intermediate is reachable but not preconfigured. Requires a
+// fetcher; returns nil otherwise.
+func (s *Service) discoverAnchors(ctx context.Context, leavesDER [][]byte, trusted []TrustedCert) []TrustedCert {
+	if s.fetcher == nil {
+		return nil
+	}
+	have := make(map[string]bool, len(trusted))
+	for _, tc := range trusted {
+		have[string(toDER(tc.Cert, EncodingPEM))] = true
+	}
+	var extra []TrustedCert
+	for _, der := range leavesDER {
+		chain, _, _ := buildChain(ctx, Certificate{}, der, trusted, s.fetcher)
+		for _, node := range chain[1:] { // CA nodes above the leaf
+			key := string(toDER(node.PEM, EncodingPEM))
+			if have[key] {
+				continue
+			}
+			have[key] = true
+			extra = append(extra, TrustedCert{Cert: node.PEM, Intermediate: !nodeIsRoot(node.PEM)})
+		}
+	}
+	return extra
+}
+
+// compositeConfirms independently confirms a signature the library rejected only
+// on the cert-time/anchor gate: every signer must be cryptographically chained to a
+// trusted anchor (chainSignaturesVerified + trustAnchorFound) and within its
+// validity window at now, and the signature math must verify on its own — a repeat
+// verify with the cert-time gate off. All must hold; any miss returns false.
+func (s *Service) compositeConfirms(ctx context.Context, req provider.VerifyRequest, format SignatureFormat, signers []Signer) bool {
+	if len(signers) == 0 {
+		return false
+	}
+	now := s.now()
+	for i := range signers {
+		if !signers[i].ChainSignaturesVerified || !signers[i].TrustAnchorFound {
+			return false
+		}
+		c := signers[i].Certificate
+		if c.NotBefore == nil || c.NotAfter == nil || now.Before(*c.NotBefore) || now.After(*c.NotAfter) {
+			return false
+		}
+	}
+	// Confirm the signature math with the cert-time gate off (the gate is exactly
+	// what misfired; the rest of the verify is unchanged).
+	sigReq := req
+	sigReq.CheckCertTime = false
+	res, err := s.verifyContainer(ctx, format, sigReq)
+	return err == nil && res.Valid
 }
 
 // resolveKey resolves in through the KeySource, erroring clearly when a key is

@@ -24,7 +24,10 @@ import (
 	"errors"
 	"time"
 
+	"strings"
+
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/idempotency"
 	"github.com/uelnur/qoltanba/internal/jobs"
 	"github.com/uelnur/qoltanba/internal/metrics"
 	"github.com/uelnur/qoltanba/internal/transport/dispatch"
@@ -38,6 +41,13 @@ type Request struct {
 	Op            string          `json:"op"`
 	CorrelationID string          `json:"correlationId,omitempty"`
 	Request       json.RawMessage `json:"request"`
+	// IdempotencyKey dedups at-least-once redelivery: a single (non-batch) op with
+	// the same key replays the first reply instead of re-executing. Requires a
+	// configured cache (WithIdempotency); batch ops stream and are not deduped.
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
+	// Locale renders the reply's error message/action in this language (ru|kk|en).
+	// The stable error key never changes with it.
+	Locale string `json:"locale,omitempty"`
 }
 
 // Reply is the JSON envelope a consumer publishes back. Exactly one of Result or
@@ -71,8 +81,9 @@ type PublishFunc func(corrID string, reply []byte) error
 // service (and, when wired, the async-job manager).
 type Processor struct {
 	svc  *core.Service
-	jobs *jobs.Manager     // nil disables the job-* envelope ops
-	rec  *metrics.Recorder // may be nil (metrics off)
+	jobs *jobs.Manager      // nil disables the job-* envelope ops
+	rec  *metrics.Recorder  // may be nil (metrics off)
+	idem *idempotency.Cache // nil disables at-least-once dedup
 }
 
 // Option configures a Processor.
@@ -80,6 +91,9 @@ type Option func(*Processor)
 
 // WithJobs enables the job-* envelope operations backed by the given manager.
 func WithJobs(m *jobs.Manager) Option { return func(p *Processor) { p.jobs = m } }
+
+// WithIdempotency enables dedup of redelivered single ops via the given cache.
+func WithIdempotency(c *idempotency.Cache) Option { return func(p *Processor) { p.idem = c } }
 
 // NewProcessor builds a Processor over the domain service. rec may be nil.
 func NewProcessor(svc *core.Service, rec *metrics.Recorder, opts ...Option) *Processor {
@@ -115,6 +129,12 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string,
 		corrID = metaCorrID
 	}
 
+	// The reply speaks the language the request asked for; the stable error key is
+	// unaffected, so a machine consumer is not disturbed by it.
+	if req.Locale != "" {
+		ctx = core.ContextWithLocale(ctx, req.Locale)
+	}
+
 	if isJobOp(req.Op) {
 		return p.handleJob(ctx, req, corrID, &outcome, publish)
 	}
@@ -124,6 +144,25 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string,
 		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: &ReplyError{
 			Kind: core.KindName(core.KindInvalid), Message: "unknown operation " + strconvQuote(req.Op),
 		}}))
+	}
+
+	// Idempotent single ops: replay the first reply on a redelivery instead of
+	// re-executing. Batch ops stream and are excluded. The cached value is the op
+	// result only — the correlation id is re-applied fresh so a redelivery with a
+	// new id still routes correctly.
+	if p.idem != nil && req.IdempotencyKey != "" && !strings.HasSuffix(req.Op, "-batch") {
+		result, _, derr := p.idem.Do(ctx, req.Op+"\x00"+req.IdempotencyKey, func() ([]byte, error) {
+			out, herr := dispatch.Handle(ctx, p.svc, req.Op, req.Request)
+			if herr != nil {
+				return nil, herr // never cache a failure
+			}
+			return json.Marshal(out)
+		})
+		if derr != nil {
+			outcome = outcomeForKind(derr)
+			return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(ctx, derr)}))
+		}
+		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Result: result}))
 	}
 
 	// Stream each op output: one reply for a single op, one per item plus a
@@ -149,7 +188,7 @@ func (p *Processor) Process(ctx context.Context, body []byte, metaCorrID string,
 	}
 	if err != nil {
 		outcome = outcomeForKind(err)
-		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(err)}))
+		return publish(corrID, encodeReply(Reply{CorrelationID: corrID, Op: req.Op, Error: errorFrom(ctx, err)}))
 	}
 	return nil
 }
@@ -175,13 +214,13 @@ func encodeReply(r Reply) []byte {
 }
 
 // errorFrom maps a domain error to the reply error envelope.
-func errorFrom(err error) *ReplyError {
+func errorFrom(ctx context.Context, err error) *ReplyError {
 	kind := core.KindInternal
 	var de *core.Error
 	if errors.As(err, &de) {
 		kind = de.Kind
 	}
-	exp := core.Explain(err)
+	exp := core.ExplainIn(ctx, err)
 	msg := exp.Message
 	if msg == "" {
 		msg = err.Error()

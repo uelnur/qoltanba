@@ -12,8 +12,7 @@ import (
 )
 
 func TestFunctionalE2E_OCSPStructured(t *testing.T) {
-	pool := requirePool(t)
-	svc := core.New(pool,
+	svc := core.New(requireProvider(t),
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 	)
@@ -46,8 +45,7 @@ func TestFunctionalE2E_RevokedViaOCSP(t *testing.T) {
 	if ocspURL == "" {
 		t.Skip("QOLTANBA_OCSP_URL not set")
 	}
-	pool := requirePool(t)
-	svc := core.New(pool,
+	svc := core.New(requireProvider(t),
 		core.WithKeySource(keysource.New(keysource.WithInline(true))),
 		core.WithTrustStore(loadEnvTrust(t)),
 	)

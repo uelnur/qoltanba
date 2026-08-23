@@ -1,0 +1,7 @@
+---
+- name: restart qoltanba
+  ansible.builtin.systemd:
+    name: qoltanba
+    state: restarted
+    daemon_reload: true
+  when: qoltanba_service_state == "started"

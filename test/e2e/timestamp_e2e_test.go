@@ -41,9 +41,21 @@ func TestFunctionalE2E_TSP(t *testing.T) {
 	if ts.GenTime == nil {
 		t.Error("expected TSP genTime")
 	}
+	// The imprint check is what makes CAdES-T a claim about *this* signature
+	// rather than about an attribute that happens to be attached. This is also the
+	// only place the digest choice is exercised against a real NUC TSA token, so
+	// the note is logged: a failure here means the imprint digest we recompute is
+	// not the one the responder used.
+	if ts.ImprintVerified == nil || !*ts.ImprintVerified {
+		t.Errorf("timestamp imprint not verified against the signature (note: %q)", ts.ImprintNote)
+	}
 	if out.Signers[0].CAdESLevel != "T" {
 		t.Errorf("cadesLevel = %q, want T", out.Signers[0].CAdESLevel)
 	}
-	t.Logf("TSP: genTime=%v serial=%q policy=%q hashAlg=%q tsa=%q",
-		ts.GenTime, ts.SerialNumber, ts.Policy, ts.HashAlgorithm, ts.TSA)
+	if ts.SignatureVerified == nil || !*ts.SignatureVerified {
+		t.Errorf("the TSA signature over the token did not verify (note: %q)", ts.SignatureNote)
+	}
+	t.Logf("TSP: genTime=%v serial=%q policy=%q hashAlg=%q tsa=%q imprintVerified=%v/%q signatureVerified=%v/%q",
+		ts.GenTime, ts.SerialNumber, ts.Policy, ts.HashAlgorithm, ts.TSA,
+		ts.ImprintVerified, ts.ImprintNote, ts.SignatureVerified, ts.SignatureNote)
 }

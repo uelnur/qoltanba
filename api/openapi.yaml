@@ -9,6 +9,93 @@ components:
             $ref: '#/components/schemas/ErrorEnvelope'
       description: Hard failure envelope (friendly message from the error catalog)
   schemas:
+    AlgorithmInfo:
+      properties:
+        advice:
+          type: string
+        generation:
+          type: string
+        keyAlgorithm:
+          type: string
+        signatureOid:
+          type: string
+      required:
+      - generation
+      type: object
+    ArchiveEvidence:
+      properties:
+        certificates:
+          type: integer
+        crls:
+          type: integer
+        ocspResponses:
+          type: integer
+      required:
+      - ocspResponses
+      - crls
+      - certificates
+      type: object
+    ArchiveRequest:
+      properties:
+        allowRevoked:
+          type: boolean
+        data:
+          contentEncoding: base64
+          type: string
+        detached:
+          type: boolean
+        inputPem:
+          type: boolean
+        outputPem:
+          type: boolean
+        responderUrl:
+          type: string
+        signature:
+          contentEncoding: base64
+          type: string
+        trustedCerts:
+          items:
+            $ref: '#/components/schemas/TrustedCert'
+          type: array
+      required:
+      - signature
+      type: object
+    ArchiveResponse:
+      properties:
+        embedded:
+          $ref: '#/components/schemas/ArchiveEvidence'
+        level:
+          enum:
+          - LT
+          type: string
+        signature:
+          contentEncoding: base64
+          type: string
+        warnings:
+          items:
+            $ref: '#/components/schemas/Warning'
+          type: array
+      required:
+      - signature
+      - embedded
+      - level
+      type: object
+    AuditVerifyResult:
+      properties:
+        brokenAt:
+          type: integer
+        entries:
+          type: integer
+        head:
+          type: string
+        intact:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - entries
+      - intact
+      type: object
     BatchItemError:
       properties:
         action:
@@ -102,6 +189,8 @@ components:
       type: object
     CertInfoResponse:
       properties:
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmInfo'
         certificate:
           $ref: '#/components/schemas/Certificate'
         chain:
@@ -118,6 +207,7 @@ components:
           type: array
       required:
       - certificate
+      - algorithm
       type: object
     CertValidateBatchItem:
       properties:
@@ -240,6 +330,65 @@ components:
       - subject
       - issuer
       type: object
+    ChallengeConfirmRequest:
+      properties:
+        challengeId:
+          type: string
+        checkRevocation:
+          type: boolean
+        signature:
+          contentEncoding: base64
+          type: string
+      required:
+      - challengeId
+      - signature
+      type: object
+    ChallengeConfirmResponse:
+      properties:
+        certificate:
+          $ref: '#/components/schemas/Certificate'
+        confirmed:
+          type: boolean
+        confirmedAt:
+          format: date-time
+          type: string
+        meta:
+          type: object
+        purpose:
+          type: string
+        revoked:
+          type: boolean
+        signer:
+          $ref: '#/components/schemas/Claims'
+      required:
+      - confirmed
+      - confirmedAt
+      type: object
+    ChallengeIssueRequest:
+      properties:
+        meta:
+          type: object
+        purpose:
+          type: string
+      type: object
+    ChallengeIssueResponse:
+      properties:
+        alg:
+          type: string
+        challengeId:
+          type: string
+        data:
+          type: string
+        expiresIn:
+          type: integer
+        purpose:
+          type: string
+      required:
+      - challengeId
+      - data
+      - alg
+      - expiresIn
+      type: object
     Claims:
       properties:
         bin:
@@ -274,6 +423,42 @@ components:
           type: array
         sub:
           type: string
+      type: object
+    Diagnosis:
+      properties:
+        steps:
+          items:
+            $ref: '#/components/schemas/DiagnosisStep'
+          type: array
+        summary:
+          type: string
+        valid:
+          type: boolean
+      required:
+      - valid
+      - summary
+      - steps
+      type: object
+    DiagnosisStep:
+      properties:
+        action:
+          type: string
+        status:
+          enum:
+          - pass
+          - fail
+          - warn
+          - skipped
+          - unknown
+          type: string
+        step:
+          type: string
+        summary:
+          type: string
+      required:
+      - step
+      - status
+      - summary
       type: object
     Document:
       properties:
@@ -494,6 +679,125 @@ components:
       required:
       - code
       type: object
+    MultisignCreateRequest:
+      properties:
+        container:
+          contentEncoding: base64
+          type: string
+        detached:
+          type: boolean
+        document:
+          contentEncoding: base64
+          type: string
+        format:
+          enum:
+          - cms
+          - xml
+          type: string
+        minSigners:
+          type: integer
+        required:
+          items:
+            $ref: '#/components/schemas/MultisignRequirement'
+          type: array
+        subject:
+          type: string
+        ttlSeconds:
+          type: integer
+      type: object
+    MultisignRequirement:
+      properties:
+        bin:
+          type: string
+        iin:
+          type: string
+        label:
+          type: string
+        role:
+          type: string
+      type: object
+    MultisignSession:
+      properties:
+        collected:
+          items:
+            $ref: '#/components/schemas/MultisignSignature'
+          type: array
+        container:
+          contentEncoding: base64
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        detached:
+          type: boolean
+        document:
+          contentEncoding: base64
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        format:
+          enum:
+          - cms
+          - xml
+          type: string
+        id:
+          type: string
+        minSigners:
+          type: integer
+        required:
+          items:
+            $ref: '#/components/schemas/MultisignRequirement'
+          type: array
+        status:
+          enum:
+          - pending
+          - complete
+          - expired
+          type: string
+        subject:
+          type: string
+      required:
+      - id
+      - status
+      - format
+      - detached
+      - collected
+      - createdAt
+      - expiresAt
+      type: object
+    MultisignSignature:
+      properties:
+        bin:
+          type: string
+        iin:
+          type: string
+        name:
+          type: string
+        roles:
+          items:
+            type: string
+          type: array
+        satisfies:
+          type: integer
+        signedAt:
+          format: date-time
+          type: string
+      required:
+      - signedAt
+      - satisfies
+      type: object
+    MultisignSubmitRequest:
+      description: The container as it stands after a participant co-signed it elsewhere.
+        The service verifies it and counts the new signer; it never signs here.
+      properties:
+        container:
+          description: base64 co-signed container
+          format: byte
+          type: string
+      required:
+      - container
+      type: object
     OAuthError:
       description: OAuth2/OIDC error response.
       properties:
@@ -537,9 +841,15 @@ components:
       type: object
     OIDCDiscovery:
       properties:
+        authorization_endpoint:
+          type: string
         challenge_endpoint:
           type: string
         claims_supported:
+          items:
+            type: string
+          type: array
+        code_challenge_methods_supported:
           items:
             type: string
           type: array
@@ -570,6 +880,8 @@ components:
         token_endpoint:
           type: string
         userinfo_endpoint:
+          type: string
+        verify_endpoint:
           type: string
       required:
       - issuer
@@ -632,6 +944,51 @@ components:
           type: string
       required:
       - path
+      type: object
+    PointInTimeVerdict:
+      properties:
+        at:
+          format: date-time
+          type: string
+        determinate:
+          type: boolean
+        method:
+          enum:
+          - ocsp
+          - crl
+          type: string
+        notAfter:
+          format: date-time
+          type: string
+        notBefore:
+          format: date-time
+          type: string
+        notRevokedAt:
+          type: boolean
+        reasons:
+          items:
+            type: string
+          type: array
+        revocationReason:
+          type: string
+        revocationTime:
+          format: date-time
+          type: string
+        revokedAsOfAt:
+          type: boolean
+        signatureValid:
+          type: boolean
+        validAt:
+          type: boolean
+        withinValidity:
+          type: boolean
+      required:
+      - at
+      - validAt
+      - determinate
+      - signatureValid
+      - withinValidity
+      - notRevokedAt
       type: object
     QRCreateRequest:
       properties:
@@ -735,11 +1092,220 @@ components:
           - expired
           type: string
       type: object
+    RegistryItemRequest:
+      properties:
+        archive:
+          type: boolean
+        checkCertTime:
+          type: boolean
+        claims:
+          type: boolean
+        data:
+          contentEncoding: base64
+          type: string
+        dataPath:
+          type: string
+        dataUrl:
+          type: string
+        detached:
+          type: boolean
+        explain:
+          type: boolean
+        extractContent:
+          type: boolean
+        format:
+          enum:
+          - cms
+          - xml
+          - wsse
+          type: string
+        inputPem:
+          type: boolean
+        receipt:
+          type: boolean
+        ref:
+          type: string
+        report:
+          type: boolean
+        responderUrl:
+          type: string
+        revocationCheck:
+          type: boolean
+        revocationMethod:
+          type: string
+        signature:
+          contentEncoding: base64
+          type: string
+        trustedCerts:
+          items:
+            $ref: '#/components/schemas/TrustedCert'
+          type: array
+      required:
+      - format
+      - signature
+      type: object
+    RegistryResponse:
+      properties:
+        checkedAt:
+          format: date-time
+          type: string
+        failed:
+          type: integer
+        indeterminate:
+          type: integer
+        invalid:
+          type: integer
+        rows:
+          items:
+            $ref: '#/components/schemas/RegistryRow'
+          type: array
+        total:
+          type: integer
+        valid:
+          type: integer
+      required:
+      - checkedAt
+      - total
+      - valid
+      - invalid
+      - indeterminate
+      - failed
+      - rows
+      type: object
+    RegistryRow:
+      properties:
+        document:
+          $ref: '#/components/schemas/ReportDocument'
+        error:
+          $ref: '#/components/schemas/BatchItemError'
+        index:
+          type: integer
+        reason:
+          type: string
+        ref:
+          type: string
+        signedAt:
+          format: date-time
+          type: string
+        signers:
+          items:
+            $ref: '#/components/schemas/RegistrySigner'
+          type: array
+        summary:
+          type: string
+        verdict:
+          enum:
+          - valid
+          - invalid
+          - indeterminate
+          type: string
+      required:
+      - index
+      - verdict
+      - document
+      type: object
+    RegistrySigner:
+      properties:
+        bin:
+          type: string
+        iin:
+          type: string
+        name:
+          type: string
+        organization:
+          type: string
+      type: object
+    ReportCertificate:
+      properties:
+        expired:
+          type: boolean
+        issuer:
+          type: string
+        notAfter:
+          format: date-time
+          type: string
+        notBefore:
+          format: date-time
+          type: string
+        serialNumber:
+          type: string
+      type: object
+    ReportChain:
+      properties:
+        anchoredInTrust:
+          type: boolean
+        certificatesInChain:
+          type: integer
+        complete:
+          type: boolean
+        signaturesVerified:
+          type: boolean
+      required:
+      - complete
+      - anchoredInTrust
+      - signaturesVerified
+      type: object
+    ReportDocument:
+      properties:
+        contentBytes:
+          type: integer
+        contentSha256:
+          type: string
+        detached:
+          type: boolean
+        format:
+          type: string
+        signatureSha256:
+          type: string
+      required:
+      - detached
+      type: object
+    ReportSigner:
+      properties:
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmInfo'
+        bin:
+          type: string
+        cadesLevel:
+          type: string
+        certificate:
+          $ref: '#/components/schemas/ReportCertificate'
+        chain:
+          $ref: '#/components/schemas/ReportChain'
+        iin:
+          type: string
+        name:
+          type: string
+        organization:
+          type: string
+        ownerType:
+          type: string
+        roles:
+          items:
+            type: string
+          type: array
+        signatureAlgorithm:
+          type: string
+        signedAt:
+          format: date-time
+          type: string
+        signedAtSource:
+          type: string
+        valid:
+          type: boolean
+      required:
+      - valid
+      - algorithm
+      - certificate
+      - chain
+      type: object
     RevocationStatus:
       properties:
         checkedAt:
           format: date-time
           type: string
+        determinate:
+          type: boolean
         libError:
           $ref: '#/components/schemas/LibError'
         method:
@@ -765,6 +1331,25 @@ components:
           type: string
       required:
       - revoked
+      - determinate
+      type: object
+    SandboxSignRequest:
+      description: 'Bytes to sign with the operator''s demo key. Certificate-time
+        checking is off: a demo container is usually expired or issued by a test CA.'
+      properties:
+        data:
+          description: base64 content to sign
+          format: byte
+          type: string
+        format:
+          description: default cms
+          enum:
+          - cms
+          - xml
+          - wsse
+          type: string
+      required:
+      - data
       type: object
     SignBatchItem:
       properties:
@@ -848,6 +1433,8 @@ components:
           type: string
         parentNode:
           type: string
+        policy:
+          type: string
         tsaUrl:
           type: string
         withTimestamp:
@@ -878,6 +1465,67 @@ components:
         timestamp:
           $ref: '#/components/schemas/Timestamp'
       type: object
+    SignedQRIssueRequest:
+      properties:
+        data:
+          type: object
+        pngSize:
+          type: integer
+        subject:
+          type: string
+        ttlSeconds:
+          type: integer
+      type: object
+    SignedQRIssueResponse:
+      properties:
+        bytes:
+          type: integer
+        expiresAt:
+          format: date-time
+          type: string
+        issuedAt:
+          format: date-time
+          type: string
+        payload:
+          type: string
+        qr:
+          type: string
+      required:
+      - payload
+      - qr
+      - bytes
+      - issuedAt
+      - expiresAt
+      type: object
+    SignedQRVerifyRequest:
+      description: A scanned QR payload (the compact JWS the code encodes).
+      properties:
+        payload:
+          type: string
+      required:
+      - payload
+      type: object
+    SignedQRVerifyResult:
+      properties:
+        data:
+          type: object
+        expiresAt:
+          format: date-time
+          type: string
+        issuedAt:
+          format: date-time
+          type: string
+        issuer:
+          type: string
+        reason:
+          type: string
+        subject:
+          type: string
+        valid:
+          type: boolean
+      required:
+      - valid
+      type: object
     Signer:
       properties:
         cadesLevel:
@@ -897,6 +1545,8 @@ components:
           type: boolean
         claims:
           $ref: '#/components/schemas/Claims'
+        revocation:
+          $ref: '#/components/schemas/RevocationStatus'
         signatureAlgorithm:
           type: string
         signingTime:
@@ -916,6 +1566,16 @@ components:
       - chainComplete
       - trustAnchorFound
       - chainSignaturesVerified
+      type: object
+    SignerAt:
+      properties:
+        signer:
+          $ref: '#/components/schemas/Signer'
+        verdict:
+          $ref: '#/components/schemas/PointInTimeVerdict'
+      required:
+      - signer
+      - verdict
       type: object
     Subject:
       properties:
@@ -964,10 +1624,18 @@ components:
           type: string
         hashAlgorithm:
           type: string
+        imprintNote:
+          type: string
+        imprintVerified:
+          type: boolean
         policy:
           type: string
         serialNumber:
           type: string
+        signatureNote:
+          type: string
+        signatureVerified:
+          type: boolean
         tsa:
           type: string
       type: object
@@ -1041,6 +1709,134 @@ components:
       required:
       - status
       type: object
+    VerificationReport:
+      properties:
+        checkedAt:
+          format: date-time
+          type: string
+        document:
+          $ref: '#/components/schemas/ReportDocument'
+        signers:
+          items:
+            $ref: '#/components/schemas/ReportSigner'
+          type: array
+        steps:
+          items:
+            $ref: '#/components/schemas/DiagnosisStep'
+          type: array
+        summary:
+          type: string
+        verdict:
+          enum:
+          - valid
+          - invalid
+          - indeterminate
+          type: string
+        warnings:
+          items:
+            type: string
+          type: array
+      required:
+      - verdict
+      - summary
+      - checkedAt
+      - document
+      type: object
+    VerifyAtRequest:
+      properties:
+        archive:
+          type: boolean
+        at:
+          format: date-time
+          type: string
+        checkCertTime:
+          type: boolean
+        claims:
+          type: boolean
+        crl:
+          contentEncoding: base64
+          type: string
+        data:
+          contentEncoding: base64
+          type: string
+        dataPath:
+          type: string
+        dataUrl:
+          type: string
+        detached:
+          type: boolean
+        explain:
+          type: boolean
+        extractContent:
+          type: boolean
+        format:
+          enum:
+          - cms
+          - xml
+          - wsse
+          type: string
+        inputPem:
+          type: boolean
+        method:
+          enum:
+          - ocsp
+          - crl
+          type: string
+        receipt:
+          type: boolean
+        report:
+          type: boolean
+        responderUrl:
+          type: string
+        revocationCheck:
+          type: boolean
+        revocationMethod:
+          type: string
+        signature:
+          contentEncoding: base64
+          type: string
+        trustedCerts:
+          items:
+            $ref: '#/components/schemas/TrustedCert'
+          type: array
+      required:
+      - format
+      - signature
+      - at
+      type: object
+    VerifyAtResponse:
+      properties:
+        at:
+          format: date-time
+          type: string
+        detached:
+          type: boolean
+        determinate:
+          type: boolean
+        format:
+          enum:
+          - cms
+          - xml
+          - wsse
+          type: string
+        libError:
+          $ref: '#/components/schemas/LibError'
+        signers:
+          items:
+            $ref: '#/components/schemas/SignerAt'
+          type: array
+        validAt:
+          type: boolean
+        warnings:
+          items:
+            $ref: '#/components/schemas/Warning'
+          type: array
+      required:
+      - at
+      - validAt
+      - determinate
+      - detached
+      type: object
     VerifyBatchItem:
       properties:
         error:
@@ -1089,8 +1885,30 @@ components:
         total:
           type: integer
       type: object
+    VerifyRegistryRequest:
+      description: A set of documents to check, each optionally labeled with the caller's
+        own reference.
+      properties:
+        concurrency:
+          description: max items in parallel (0 = driver pool size)
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/RegistryItemRequest'
+          type: array
+        policy:
+          description: error policy (default continue-on-error)
+          enum:
+          - continue-on-error
+          - fail-fast
+          type: string
+      required:
+      - items
+      type: object
     VerifyRequest:
       properties:
+        archive:
+          type: boolean
         checkCertTime:
           type: boolean
         claims:
@@ -1104,6 +1922,8 @@ components:
           type: string
         detached:
           type: boolean
+        explain:
+          type: boolean
         extractContent:
           type: boolean
         format:
@@ -1114,6 +1934,16 @@ components:
           type: string
         inputPem:
           type: boolean
+        receipt:
+          type: boolean
+        report:
+          type: boolean
+        responderUrl:
+          type: string
+        revocationCheck:
+          type: boolean
+        revocationMethod:
+          type: string
         signature:
           contentEncoding: base64
           type: string
@@ -1127,11 +1957,15 @@ components:
       type: object
     VerifyResponse:
       properties:
+        archive:
+          $ref: '#/components/schemas/ArchiveResponse'
         content:
           contentEncoding: base64
           type: string
         detached:
           type: boolean
+        explanation:
+          $ref: '#/components/schemas/Diagnosis'
         format:
           enum:
           - cms
@@ -1140,6 +1974,10 @@ components:
           type: string
         libError:
           $ref: '#/components/schemas/LibError'
+        receipt:
+          type: string
+        report:
+          $ref: '#/components/schemas/VerificationReport'
         signers:
           items:
             $ref: '#/components/schemas/Signer'
@@ -1168,9 +2006,8 @@ info:
   description: REST/JSON transport for the qoltanba digital-signature service (RK
     / Kalkan). One call handles one item. Binary fields are base64-encoded strings;
     times are RFC 3339. All request and response keys are lowerCamelCase. Generated
-    from the Go types — do not edit by hand.
-  license:
-    name: Proprietary Kalkan library is BYOL; this service is separate.
+    from the Go types — do not edit by hand. The proprietary Kalkan library is bring-your-own
+    (BYOL) and is not part of this service.
   title: qoltanba REST API
   version: v1
 openapi: 3.1.0
@@ -1188,9 +2025,80 @@ paths:
       summary: OpenID Connect discovery document
       tags:
       - oidc
+  /audit/export:
+    get:
+      operationId: auditExport
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+          description: The journal, one signed entry per line
+        "206":
+          description: Partial content (range request)
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Stream the journal as NDJSON for a SIEM (supports range requests and
+        conditional fetches)
+      tags:
+      - audit
+  /audit/verify:
+    get:
+      operationId: auditVerify
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditVerifyResult'
+          description: Chain intact
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditVerifyResult'
+          description: Chain broken — brokenAt names the first altered entry
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Walk the journal's hash chain and report whether — and where — it was
+        altered
+      tags:
+      - audit
   /cert/info:
     post:
       operationId: certInfo
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1204,6 +2112,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/CertInfoResponse'
           description: Parsed certificate plus optional chain and claims
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1217,6 +2133,38 @@ paths:
   /cert/info/batch:
     post:
       operationId: certInfoBatch
+      parameters:
+      - description: 'stream results as NDJSON instead of one aggregated object (same
+          as Accept: application/x-ndjson)'
+        in: query
+        name: stream
+        required: false
+        schema:
+          enum:
+          - "1"
+          - "true"
+          - "yes"
+          type: string
+      - description: application/x-ndjson streams per-item results as they complete
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1229,7 +2177,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CertInfoBatchResponse'
+            application/x-ndjson:
+              schema:
+                description: 'one JSON object per line: each result tagged with its
+                  index, then a final {total, succeeded, failed} summary line'
+                type: string
           description: Per-item results in request order, plus a summary
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1242,6 +2203,21 @@ paths:
   /cert/validate:
     post:
       operationId: certValidate
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1255,6 +2231,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidateResponse'
           description: Revocation-status outcome
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1267,6 +2251,38 @@ paths:
   /cert/validate/batch:
     post:
       operationId: certValidateBatch
+      parameters:
+      - description: 'stream results as NDJSON instead of one aggregated object (same
+          as Accept: application/x-ndjson)'
+        in: query
+        name: stream
+        required: false
+        schema:
+          enum:
+          - "1"
+          - "true"
+          - "yes"
+          type: string
+      - description: application/x-ndjson streams per-item results as they complete
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1279,7 +2295,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CertValidateBatchResponse'
+            application/x-ndjson:
+              schema:
+                description: 'one JSON object per line: each result tagged with its
+                  index, then a final {total, succeeded, failed} summary line'
+                type: string
           description: Per-item results in request order, plus a summary
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1289,9 +2318,106 @@ paths:
       summary: Check revocation for many certificates
       tags:
       - batch
+  /challenge:
+    post:
+      operationId: challengeIssue
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeIssueRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeIssueResponse'
+          description: Nonce to sign as a detached CMS
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Issue a single-use nonce bound to a purpose (the anti-replay handshake
+        as a standalone primitive)
+      tags:
+      - challenge
+  /challenge/confirm:
+    post:
+      operationId: challengeConfirm
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeConfirmRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeConfirmResponse'
+          description: Who signed the challenge, and for what
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Confirm a challenge with the user's detached signature and report who
+        signed it
+      tags:
+      - challenge
+  /console:
+    get:
+      operationId: console
+      responses:
+        "200":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: The console page (self-contained, no external resources)
+      summary: 'Built-in test console: pick an operation, edit the body, see the raw
+        response (off by default)'
+      tags:
+      - sandbox
   /extract:
     post:
       operationId: extract
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1305,6 +2431,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExtractResponse'
           description: Recovered content
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1317,6 +2451,38 @@ paths:
   /extract/batch:
     post:
       operationId: extractBatch
+      parameters:
+      - description: 'stream results as NDJSON instead of one aggregated object (same
+          as Accept: application/x-ndjson)'
+        in: query
+        name: stream
+        required: false
+        schema:
+          enum:
+          - "1"
+          - "true"
+          - "yes"
+          type: string
+      - description: application/x-ndjson streams per-item results as they complete
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1329,7 +2495,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExtractBatchResponse'
+            application/x-ndjson:
+              schema:
+                description: 'one JSON object per line: each result tagged with its
+                  index, then a final {total, succeeded, failed} summary line'
+                type: string
           description: Per-item results in request order, plus a summary
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1351,6 +2530,14 @@ paths:
   /jobs:
     post:
       operationId: submitJob
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1384,6 +2571,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1403,6 +2597,13 @@ paths:
         in: path
         name: id
         required: true
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
         schema:
           type: string
       responses:
@@ -1427,6 +2628,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: The operation output (shape depends on the job's op)
@@ -1447,6 +2655,20 @@ paths:
       summary: Job result — the operation output once the job succeeded
       tags:
       - jobs
+  /jwks.json:
+    get:
+      operationId: serviceJWKS
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCJWKS'
+          description: Public signing keys
+      summary: Public keys the service signs with — verification receipts, signed-document
+        QR and OIDC tokens (served even when OIDC is off)
+      tags:
+      - oidc
   /metrics:
     get:
       operationId: metrics
@@ -1456,6 +2678,260 @@ paths:
       summary: Prometheus metrics
       tags:
       - observability
+  /multisign/sessions:
+    post:
+      operationId: multisignCreate
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MultisignCreateRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultisignSession'
+          description: Session opened
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: Open a session for a document that needs several signatures
+      tags:
+      - multisign
+  /multisign/sessions/{id}:
+    delete:
+      operationId: multisignCancel
+      parameters:
+      - description: session id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Session canceled (no body)
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: Cancel a session
+      tags:
+      - multisign
+    get:
+      operationId: multisignGet
+      parameters:
+      - description: session id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultisignSession'
+          description: Session view
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: 'Session state: who has signed, who is still owed, and the container
+        as it stands'
+      tags:
+      - multisign
+  /multisign/sessions/{id}/signatures:
+    post:
+      operationId: multisignSubmit
+      parameters:
+      - description: session id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MultisignSubmitRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultisignSession'
+          description: Session after counting the new signer
+        "400":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+      summary: Submit the container after a participant co-signed it
+      tags:
+      - multisign
+  /oidc/authorize:
+    get:
+      operationId: oidcAuthorize
+      parameters:
+      - description: registered client id
+        in: query
+        name: client_id
+        required: false
+        schema:
+          type: string
+      - description: must match one registered for the client
+        in: query
+        name: redirect_uri
+        required: false
+        schema:
+          type: string
+      - description: code
+        in: query
+        name: response_type
+        required: false
+        schema:
+          type: string
+      - description: openid plus any extra scopes
+        in: query
+        name: scope
+        required: false
+        schema:
+          type: string
+      - description: opaque value echoed back to the client
+        in: query
+        name: state
+        required: false
+        schema:
+          type: string
+      - description: bound into the id_token
+        in: query
+        name: nonce
+        required: false
+        schema:
+          type: string
+      - description: PKCE challenge (required for public clients)
+        in: query
+        name: code_challenge
+        required: false
+        schema:
+          type: string
+      - description: S256 (plain is refused for public clients)
+        in: query
+        name: code_challenge_method
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: Hosted login page (NCALayer widget, plus the eGov QR option
+            when the QR orchestrator is on)
+        "400":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: Client or redirect_uri rejected — rendered here rather than
+            redirected
+      summary: 'Authorization endpoint: renders the hosted login page that collects
+        a signature (authorization code + PKCE)'
+      tags:
+      - oidc
+    post:
+      operationId: oidcAuthorizeSubmit
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              description: The authorize parameters as posted back by the login page,
+                plus the collected signature.
+              properties:
+                challengeId:
+                  description: id of the challenge the page was issued
+                  type: string
+                client_id:
+                  type: string
+                code_challenge:
+                  type: string
+                code_challenge_method:
+                  type: string
+                nonce:
+                  type: string
+                redirect_uri:
+                  type: string
+                response_type:
+                  type: string
+                scope:
+                  type: string
+                signature:
+                  description: detached CMS over the challenge nonce
+                  type: string
+                state:
+                  type: string
+              required:
+              - challengeId
+              - signature
+              type: object
+        required: true
+      responses:
+        "303":
+          description: Redirect to redirect_uri with code and state
+        "400":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: Authorization refused (bad client, redirect_uri or signature)
+      summary: Submit the collected signature and redirect back to the relying party
+        with an authorization code
+      tags:
+      - oidc
   /oidc/challenge:
     post:
       operationId: oidcChallenge
@@ -1492,6 +2968,60 @@ paths:
                 $ref: '#/components/schemas/OIDCJWKS'
           description: Public signing keys
       summary: JSON Web Key Set for token verification
+      tags:
+      - oidc
+  /oidc/token:
+    post:
+      operationId: oidcToken
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                client_id:
+                  description: or HTTP Basic
+                  type: string
+                client_secret:
+                  description: confidential clients only
+                  type: string
+                code:
+                  description: single-use, 60 s
+                  type: string
+                code_verifier:
+                  description: PKCE verifier
+                  type: string
+                grant_type:
+                  enum:
+                  - authorization_code
+                  type: string
+                redirect_uri:
+                  type: string
+              required:
+              - grant_type
+              - code
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCTokenResponse'
+          description: Token set (id_token, access_token)
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+          description: OAuth2 error
+      summary: 'Token endpoint: exchange an authorization code for tokens (client
+        credentials in the body or HTTP Basic)'
       tags:
       - oidc
   /oidc/userinfo:
@@ -1549,6 +3079,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: Data-to-sign (profile-specific)
@@ -1569,6 +3106,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: Signature accepted
@@ -1581,9 +3125,85 @@ paths:
       summary: 'App-facing: eGov Mobile returns the signature'
       tags:
       - qr
+  /qr/documents:
+    post:
+      operationId: signedQRIssue
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignedQRIssueRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedQRIssueResponse'
+          description: Compact JWS payload plus a rendered PNG
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Issue a QR carrying a short statement signed with the service key (verifiable
+        offline, no ЭЦП needed to check it)
+      tags:
+      - signed-qr
+  /qr/documents/verify:
+    post:
+      operationId: signedQRVerify
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignedQRVerifyRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedQRVerifyResult'
+          description: Verification result (a forged or expired code is valid=false,
+            still HTTP 200)
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Check a scanned document QR against the service key
+      tags:
+      - signed-qr
   /qr/sessions:
     post:
       operationId: qrCreate
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1615,6 +3235,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -1640,9 +3267,58 @@ paths:
       summary: Readiness — library loaded and self-tested
       tags:
       - observability
+  /sandbox/sign:
+    post:
+      operationId: sandboxSign
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxSignRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignResponse'
+          description: Signature produced with the demo key
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Sign with the operator's demo key, so the service can be evaluated
+        without an ЭЦП of one's own (off unless a sandbox key is configured)
+      tags:
+      - sandbox
   /sign:
     post:
       operationId: sign
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1656,6 +3332,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/SignResponse'
           description: Signature produced (check libError for a crypto-core failure)
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1668,6 +3352,21 @@ paths:
   /sign/add:
     post:
       operationId: signAdd
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1681,6 +3380,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/SignResponse'
           description: Signature produced
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1690,9 +3397,91 @@ paths:
       summary: Co-sign — add a signer to an already-signed container
       tags:
       - signature
+  /sign/archive:
+    post:
+      operationId: archive
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveResponse'
+          description: Container with evidence embedded (an unreachable responder
+            is a warning, not a failure)
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: Embed long-term validation evidence (CAdES-LT) into an existing signature,
+        so it stays verifiable after the certificate expires
+      tags:
+      - signature
   /sign/batch:
     post:
       operationId: signBatch
+      parameters:
+      - description: 'stream results as NDJSON instead of one aggregated object (same
+          as Accept: application/x-ndjson)'
+        in: query
+        name: stream
+        required: false
+        schema:
+          enum:
+          - "1"
+          - "true"
+          - "yes"
+          type: string
+      - description: application/x-ndjson streams per-item results as they complete
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1705,7 +3494,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SignBatchResponse'
+            application/x-ndjson:
+              schema:
+                description: 'one JSON object per line: each result tagged with its
+                  index, then a final {total, succeeded, failed} summary line'
+                type: string
           description: Per-item results in request order, plus a summary
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1727,6 +3529,28 @@ paths:
   /verify:
     post:
       operationId: verify
+      parameters:
+      - description: text/html returns the verification card as a page instead of
+          JSON (implies report=true)
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1739,8 +3563,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VerifyResponse'
+            text/html:
+              schema:
+                description: the verification card, self-contained (no external CSS
+                  or fonts) so it can be saved or printed as an audit artifact
+                type: string
           description: Verification outcome (an invalid signature is valid=false +
             libError, still HTTP 200)
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1750,9 +3587,92 @@ paths:
       summary: Verify a signature and extract everything available
       tags:
       - signature
+  /verify/at:
+    post:
+      operationId: verifyAt
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAtRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyAtResponse'
+          description: Point-in-time outcome per signer (validAt + determinate; a
+            not-valid-then signature is validAt=false, still HTTP 200)
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: 'Historical (point-in-time) verify: was the signature valid at a past
+        instant, reconstructing certificate validity and revocation status as of that
+        time'
+      tags:
+      - signature
   /verify/batch:
     post:
       operationId: verifyBatch
+      parameters:
+      - description: 'stream results as NDJSON instead of one aggregated object (same
+          as Accept: application/x-ndjson)'
+        in: query
+        name: stream
+        required: false
+        schema:
+          enum:
+          - "1"
+          - "true"
+          - "yes"
+          type: string
+      - description: application/x-ndjson streams per-item results as they complete
+        in: header
+        name: Accept
+        required: false
+        schema:
+          type: string
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -1765,7 +3685,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VerifyBatchResponse'
+            application/x-ndjson:
+              schema:
+                description: 'one JSON object per line: each result tagged with its
+                  index, then a final {total, succeeded, failed} summary line'
+                type: string
           description: Per-item results in request order, plus a summary
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
         "400":
           $ref: '#/components/responses/Error'
         "500":
@@ -1773,6 +3706,107 @@ paths:
         "503":
           $ref: '#/components/responses/Error'
       summary: Verify many signatures
+      tags:
+      - batch
+  /verify/portal:
+    get:
+      operationId: verifyPortal
+      responses:
+        "200":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: The upload page
+      summary: Upload form for checking a signature (off by default — it accepts uploads
+        from anyone who can reach it)
+      tags:
+      - portal
+    post:
+      operationId: verifyPortalSubmit
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                document:
+                  description: the original file — only a detached signature needs
+                    it
+                  format: binary
+                  type: string
+                signature:
+                  description: the signed container (.p7s, .cms, .xml); format is
+                    detected from the bytes
+                  format: binary
+                  type: string
+              required:
+              - signature
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: The verification card for the uploaded container
+        "400":
+          content:
+            text/html:
+              schema:
+                type: string
+          description: Nothing to check, or the check could not be run — the page
+            says which
+      summary: Check an uploaded container and render the verification card
+      tags:
+      - portal
+  /verify/registry:
+    post:
+      operationId: verifyRegistry
+      parameters:
+      - description: preferred language for error messages (ru, kk; anything else
+          renders English)
+        in: header
+        name: Accept-Language
+        required: false
+        schema:
+          type: string
+      - description: replay the first successful response for this key instead of
+          re-executing, so a retry does not produce a second signature
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRegistryRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryResponse'
+          description: Register over the whole set
+          headers:
+            Idempotency-Replayed:
+              description: present as true when this response was replayed from an
+                earlier identical call
+              schema:
+                enum:
+                - "true"
+                type: string
+        "400":
+          $ref: '#/components/responses/Error'
+        "500":
+          $ref: '#/components/responses/Error'
+        "503":
+          $ref: '#/components/responses/Error'
+      summary: 'Verify a set of documents and return the auditor''s register: counts
+        plus one row per document with its verdict, signers and first failing check'
       tags:
       - batch
 servers:
@@ -1787,9 +3821,23 @@ tags:
   name: batch
 - description: Async jobs for large/slow work (submit, poll, cancel)
   name: jobs
-- description: 'Login with ЭЦП: OpenID Connect discovery, challenge/verify, tokens'
+- description: 'Login with ЭЦП: OpenID Connect discovery, challenge/verify, hosted
+    login, tokens'
   name: oidc
 - description: eGov Mobile QR signing/authorization sessions
   name: qr
+- description: 'Standalone challenge–response: a single-use nonce, signed and confirmed'
+  name: challenge
+- description: Sessions collecting several signatures on one document
+  name: multisign
+- description: Short statements signed with the service key and carried in a QR
+  name: signed-qr
+- description: Tamper-evident journal of what was signed and verified
+  name: audit
+- description: Human-facing verification page (HTML, off by default)
+  name: portal
+- description: 'Evaluation aids: demo signing key and the built-in test console (off
+    by default)'
+  name: sandbox
 - description: Health, status, metrics
   name: observability

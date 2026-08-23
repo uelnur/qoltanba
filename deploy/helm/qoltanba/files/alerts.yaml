@@ -1,0 +1,111 @@
+# Prometheus alerting rules for qoltanba.
+#
+# Every rule fires on a metric the service actually exports (see internal/metrics):
+#   qoltanba_requests_total{transport,op,outcome}      counter
+#   qoltanba_request_duration_seconds{transport,op}    histogram
+#   qoltanba_pool_workers{state=busy|idle}             gauge (only when a pool is bound)
+#   qoltanba_trust_anchors                             gauge
+#   qoltanba_crl_cache_total{result=hit|miss}          counter
+# plus the standard up / go_* / process_* series.
+#
+# Use as a Prometheus rule_files entry, or render into a PrometheusRule via the
+# Helm chart (metrics.prometheusRule=true). Tune thresholds/for to your SLOs.
+#
+# NOT covered — needs a dedicated metric the service does not yet emit:
+#   * certificate-expiry ("signer/service cert expires soon")
+#   * direct OCSP/CRL responder reachability
+# The QoltanbaValidationErrorSurge rule below is a *proxy* for revocation-path
+# trouble via the server-error rate on cert-validate ops, not a true up/down probe.
+groups:
+  - name: qoltanba.availability
+    rules:
+      - alert: QoltanbaTargetDown
+        expr: up{job=~"qoltanba.*"} == 0
+        for: 2m
+        labels: { severity: critical, service: qoltanba }
+        annotations:
+          summary: "qoltanba target {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job {{ $labels.job }}) for 2m. Check the pod/process, /readyz and the metrics port."
+
+  - name: qoltanba.traffic
+    rules:
+      - alert: QoltanbaHighServerErrorRatio
+        expr: |
+          sum by (transport) (rate(qoltanba_requests_total{outcome=~"server_error|internal|unknown|unavailable|dataloss|deadlineexceeded|resourceexhausted"}[10m]))
+            /
+          clamp_min(sum by (transport) (rate(qoltanba_requests_total[10m])), 0.001)
+            > 0.05
+        for: 10m
+        labels: { severity: warning, service: qoltanba }
+        annotations:
+          summary: "High server-error ratio on {{ $labels.transport }} ({{ $value | humanizePercentage }})"
+          description: "More than 5% of {{ $labels.transport }} operations returned a server-side fault over 10m. Inspect logs and /statusz (self-test, pool, trust)."
+
+      - alert: QoltanbaCriticalServerErrorRatio
+        expr: |
+          sum by (transport) (rate(qoltanba_requests_total{outcome=~"server_error|internal|unknown|unavailable|dataloss|deadlineexceeded|resourceexhausted"}[10m]))
+            /
+          clamp_min(sum by (transport) (rate(qoltanba_requests_total[10m])), 0.001)
+            > 0.20
+        for: 5m
+        labels: { severity: critical, service: qoltanba }
+        annotations:
+          summary: "Critical server-error ratio on {{ $labels.transport }} ({{ $value | humanizePercentage }})"
+          description: "Over 20% of {{ $labels.transport }} operations are failing server-side over 10m. Likely a library/self-test/trust-store fault."
+
+      - alert: QoltanbaHighLatencyP99
+        expr: |
+          histogram_quantile(0.99, sum by (le, transport, op) (rate(qoltanba_request_duration_seconds_bucket[10m]))) > 5
+        for: 10m
+        labels: { severity: warning, service: qoltanba }
+        annotations:
+          summary: "p99 latency high for {{ $labels.op }} on {{ $labels.transport }} ({{ $value | humanizeDuration }})"
+          description: "99th-percentile latency for {{ $labels.transport }}/{{ $labels.op }} exceeded 5s for 10m. Check pool saturation and OCSP/CRL/TSA network calls."
+
+      - alert: QoltanbaValidationErrorSurge
+        expr: |
+          sum (rate(qoltanba_requests_total{op=~"cert.validate|certvalidate|cert-validate", outcome=~"server_error|internal|unknown|unavailable|dataloss|deadlineexceeded|resourceexhausted"}[10m])) > 0
+          and
+          sum (rate(qoltanba_requests_total{op=~"cert.validate|certvalidate|cert-validate", outcome=~"server_error|internal|unknown|unavailable|dataloss|deadlineexceeded|resourceexhausted"}[10m]))
+            /
+          clamp_min(sum (rate(qoltanba_requests_total{op=~"cert.validate|certvalidate|cert-validate"}[10m])), 0.001)
+            > 0.10
+        for: 10m
+        labels: { severity: warning, service: qoltanba, subsystem: revocation }
+        annotations:
+          summary: "Revocation checks failing ({{ $value | humanizePercentage }} of cert-validate ops)"
+          description: "A proxy for OCSP/CRL responder trouble: >10% of cert-validate operations failed server-side over 10m. Verify pki.gov.kz reachability, proxy config and the CRL cache."
+
+  - name: qoltanba.pool
+    rules:
+      - alert: QoltanbaPoolSaturated
+        expr: qoltanba_pool_workers{state="idle"} == 0
+        for: 5m
+        labels: { severity: warning, service: qoltanba }
+        annotations:
+          summary: "Kalkan worker pool saturated on {{ $labels.instance }}"
+          description: "No idle Kalkan workers for 5m — requests queue behind the pool. Raise the pool size (QOLTANBA_WORKERS) or scale out."
+
+  - name: qoltanba.pki
+    rules:
+      - alert: QoltanbaNoTrustAnchors
+        expr: qoltanba_trust_anchors == 0
+        for: 15m
+        labels: { severity: warning, service: qoltanba, subsystem: trust }
+        annotations:
+          summary: "No trust anchors loaded on {{ $labels.instance }}"
+          description: "The trust store is empty for 15m — strict chain verification (CheckCertTime/verify-chain) and anchored verifies will fail. Check trust.use-rk-registry / trust.ca-dir and the refresher (/statusz.trustRefresh)."
+
+      - alert: QoltanbaCRLCacheMissSurge
+        expr: |
+          sum(rate(qoltanba_crl_cache_total{result="hit"}[15m]))
+            /
+          clamp_min(sum(rate(qoltanba_crl_cache_total[15m])), 0.001)
+            < 0.5
+          and
+          sum(rate(qoltanba_crl_cache_total[15m])) > 0.05
+        for: 15m
+        labels: { severity: warning, service: qoltanba, subsystem: revocation }
+        annotations:
+          summary: "CRL cache hit ratio low ({{ $value | humanizePercentage }})"
+          description: "CRL cache is missing more than half of lookups over 15m with non-trivial traffic — a refresh or distribution-point reachability problem. Revocation may be falling back to OCSP."

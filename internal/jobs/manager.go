@@ -73,7 +73,24 @@ type Manager struct {
 
 	baseCtx context.Context
 	started sync.Once
+
+	// Idempotency-key dedup (node-local, best-effort): a repeat submit with the
+	// same key returns the existing job instead of enqueuing a duplicate. Bounded
+	// by idemMax with oldest-eviction; stale entries (reaped jobs) are pruned lazily
+	// on lookup. Not shared across instances.
+	idemMu   sync.Mutex
+	idemKeys map[string]idemRef
 }
+
+// idemRef maps an idempotency key to the job it created and when.
+type idemRef struct {
+	id string
+	at time.Time
+}
+
+// idemMax bounds the idempotency-key map so distinct keys cannot grow it without
+// limit; the oldest mapping is evicted past this (dedup is best-effort).
+const idemMax = 8192
 
 // Option configures a Manager.
 type Option func(*Manager)
@@ -91,12 +108,13 @@ func WithClock(now func() time.Time) Option { return func(m *Manager) { m.now = 
 // operation name at submit time.
 func New(store Store, exec Executor, validOp OpValidator, cfg Config, opts ...Option) *Manager {
 	m := &Manager{
-		store:   store,
-		exec:    exec,
-		validOp: validOp,
-		cfg:     cfg.withDefaults(),
-		log:     slog.Default(),
-		now:     time.Now,
+		store:    store,
+		exec:     exec,
+		validOp:  validOp,
+		cfg:      cfg.withDefaults(),
+		log:      slog.Default(),
+		now:      time.Now,
+		idemKeys: make(map[string]idemRef),
 	}
 	for _, o := range opts {
 		o(m)
@@ -145,6 +163,54 @@ func (m *Manager) Close() error { return m.store.Close() }
 // Submit validates and enqueues a job, returning its client-safe view. It never
 // blocks: a full queue returns ErrBusy (backpressure). callbackURL is optional.
 func (m *Manager) Submit(ctx context.Context, op string, request json.RawMessage, callbackURL string) (View, error) {
+	return m.submit(ctx, op, request, callbackURL)
+}
+
+// SubmitIdempotent is Submit with an idempotency key: a repeat submit carrying the
+// same non-empty key returns the already-created job instead of enqueuing a
+// duplicate — so a client retry or an at-least-once redelivery does not double the
+// work. Dedup is node-local and best-effort (see idemKeys). An empty key behaves
+// exactly like Submit.
+func (m *Manager) SubmitIdempotent(ctx context.Context, op string, request json.RawMessage, callbackURL, idempotencyKey string) (View, error) {
+	if idempotencyKey == "" {
+		return m.submit(ctx, op, request, callbackURL)
+	}
+	// Hold the lock across the check-and-create so concurrent duplicates serialize
+	// onto one job (submit is non-blocking, so the critical section stays short).
+	m.idemMu.Lock()
+	defer m.idemMu.Unlock()
+	if ref, ok := m.idemKeys[idempotencyKey]; ok {
+		if j, err := m.store.Get(ctx, ref.id); err == nil {
+			return j.View(), nil
+		}
+		delete(m.idemKeys, idempotencyKey) // job reaped/deleted: drop stale mapping
+	}
+	v, err := m.submit(ctx, op, request, callbackURL)
+	if err != nil {
+		return v, err
+	}
+	m.rememberKeyLocked(idempotencyKey, v.ID)
+	return v, nil
+}
+
+// rememberKeyLocked records key→id, evicting the oldest mapping when at capacity.
+// Caller holds idemMu.
+func (m *Manager) rememberKeyLocked(key, id string) {
+	if len(m.idemKeys) >= idemMax {
+		var oldestKey string
+		var oldest time.Time
+		for k, ref := range m.idemKeys {
+			if oldestKey == "" || ref.at.Before(oldest) {
+				oldestKey, oldest = k, ref.at
+			}
+		}
+		delete(m.idemKeys, oldestKey)
+	}
+	m.idemKeys[key] = idemRef{id: id, at: m.now()}
+}
+
+// submit validates and enqueues a job.
+func (m *Manager) submit(ctx context.Context, op string, request json.RawMessage, callbackURL string) (View, error) {
 	if !m.validOp(op) {
 		return View{}, ErrInvalidOp
 	}

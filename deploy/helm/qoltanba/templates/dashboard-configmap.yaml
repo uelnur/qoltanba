@@ -1,0 +1,16 @@
+{{- if and .Values.metrics.enabled .Values.metrics.dashboardConfigMap }}
+# Grafana dashboard as a ConfigMap. With the Grafana sidecar (grafana.io/dashboard
+# provider) the label makes it auto-load. The JSON is the canonical
+# deploy/observability dashboard copied into files/ (keep in sync via
+# `make sync-observability`). Enable with metrics.dashboardConfigMap=true.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qoltanba.fullname" . }}-dashboard
+  labels:
+    {{- include "qoltanba.labels" . | nindent 4 }}
+    {{ .Values.metrics.dashboardSidecarLabel | default "grafana_dashboard" }}: "1"
+data:
+  qoltanba-overview.json: |-
+{{ .Files.Get "files/qoltanba-overview.json" | indent 4 }}
+{{- end }}

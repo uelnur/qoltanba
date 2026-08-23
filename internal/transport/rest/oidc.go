@@ -24,6 +24,12 @@ func (s *Server) handleOIDCJWKS(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.oidc.JWKS())
 }
 
+// handleJWKS publishes the service signing key for consumers verifying
+// service-signed statements (receipts, tokens).
+func (s *Server) handleJWKS(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.jwks())
+}
+
 func (s *Server) handleOIDCChallenge(w http.ResponseWriter, r *http.Request) {
 	var req oidc.ChallengeRequest
 	if !decode(w, r, &req) {

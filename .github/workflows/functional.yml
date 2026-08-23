@@ -62,20 +62,30 @@ jobs:
           echo "DOCKER_CONFIG=$cfg" >> "$GITHUB_ENV"
 
       # run.sh builds the linux/amd64 image and runs the qoltanba_functional tests
-      # against the mounted library (Docker required on the host).
+      # against the mounted library (Docker required on the host). Crypto runs in
+      # child processes here, as it does in the service — the containment for the
+      # library's memory leak and its revoked-OCSP corruption. Measured: it removes
+      # that crash entirely (0 in 200 suite runs, against 27 in 240 without it).
       #
-      # Retry: the proprietary Kalkan library intermittently double-frees its
-      # process-global libxml2/OpenSSL state under a diverse mix of operations,
-      # aborting a later native call (typically kc_verify_xml) with SIGABRT. It is
-      # a real library defect, not a test fault — reproducible at a low rate even
-      # on a single long-lived pool (see the e2e shared-pool harness). Until the
-      # vendor fixes it, retry so a rare abort does not red a green suite; a real
-      # regression fails all attempts. Tracked for vendor escalation.
+      # Retry is kept as a backstop: the library still aborts on rarer paths, and
+      # a real regression fails all three attempts anyway.
       - name: Run functional tests
         run: |
           for attempt in 1 2 3; do
             if test/functional/run.sh; then exit 0; fi
-            echo "::warning::functional attempt $attempt failed (likely the Kalkan native flake); retrying"
+            echo "::warning::functional attempt $attempt failed (likely a Kalkan native flake); retrying"
+          done
+          exit 1
+
+      # Keep the in-process path covered: it is what runs when an operator sets
+      # crypto-worker.enabled=false, and it is where the library defects show up,
+      # so a change in their rate stays visible. Retries are wider because this
+      # path carries the known ~10% abort rate.
+      - name: Run functional tests (in-process library)
+        run: |
+          for attempt in 1 2 3 4; do
+            if QOLTANBA_CRYPTO_WORKER=0 test/functional/run.sh; then exit 0; fi
+            echo "::warning::in-process attempt $attempt failed (the known Kalkan revoked-OCSP flake); retrying"
           done
           exit 1
 

@@ -9,12 +9,14 @@ package dto
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
 )
 
 // SignRequest is the wire shape of a sign call.
 type SignRequest struct {
+	Policy            string       `json:"policy,omitempty"` // ETSI profile: cades-b|cades-t|xades-b|xades-t
 	Format            string       `json:"format"`
 	Data              []byte       `json:"data"`
 	DataPath          string       `json:"dataPath,omitempty"` // by-reference: local file path (gated)
@@ -34,11 +36,18 @@ type SignRequest struct {
 
 // ToCore converts to the domain input, validating the format.
 func (r SignRequest) ToCore() (core.SignInput, error) {
-	f, err := parseFormat(r.Format)
-	if err != nil {
-		return core.SignInput{}, err
+	// A named policy supplies the format, so an empty format is valid then; the
+	// domain rejects a policy that contradicts an explicit one.
+	var f core.SignatureFormat
+	if r.Format != "" || r.Policy == "" {
+		parsed, err := parseFormat(r.Format)
+		if err != nil {
+			return core.SignInput{}, err
+		}
+		f = parsed
 	}
 	return core.SignInput{
+		Policy:            core.SignaturePolicy(r.Policy),
 		Format:            f,
 		Data:              r.Data,
 		DataRef:           core.DataRef{Path: r.DataPath, URL: r.DataURL},
@@ -67,8 +76,17 @@ type VerifyRequest struct {
 	InputPEM       bool               `json:"inputPem,omitempty"`
 	CheckCertTime  bool               `json:"checkCertTime,omitempty"`
 	ExtractContent bool               `json:"extractContent,omitempty"`
-	Claims         bool               `json:"claims,omitempty"` // add OIDC claims per signer
+	Claims         bool               `json:"claims,omitempty"`  // add OIDC claims per signer
+	Explain        bool               `json:"explain,omitempty"` // add a "why (in)valid" diagnosis
+	Report         bool               `json:"report,omitempty"`  // add the human-facing verification card
+	Receipt        bool               `json:"receipt,omitempty"` // add the service-signed attestation of the outcome
 	TrustedCerts   []core.TrustedCert `json:"trustedCerts,omitempty"`
+	// RevocationCheck is a pointer so an absent field means the default (on)
+	// rather than false — omitting it must not silently disable the check.
+	RevocationCheck  *bool  `json:"revocationCheck,omitempty"`
+	RevocationMethod string `json:"revocationMethod,omitempty"` // ocsp|crl (default ocsp)
+	ResponderURL     string `json:"responderUrl,omitempty"`     // override the OCSP responder
+	Archive          bool   `json:"archive,omitempty"`          // embed this verification's evidence (CAdES-LT)
 }
 
 // ToCore converts to the domain input.
@@ -87,7 +105,84 @@ func (r VerifyRequest) ToCore() (core.VerifyInput, error) {
 		CheckCertTime:  r.CheckCertTime,
 		ExtractContent: r.ExtractContent,
 		ExtractClaims:  r.Claims,
+		Explain:        r.Explain,
+		Report:         r.Report,
+		Receipt:        r.Receipt,
 		TrustedCerts:   r.TrustedCerts,
+
+		RevocationCheck:  r.RevocationCheck,
+		RevocationMethod: core.ValidationMethod(r.RevocationMethod),
+		ResponderURL:     r.ResponderURL,
+		Archive:          r.Archive,
+	}, nil
+}
+
+// RegistryItemRequest is one document in a registry request: a normal verify plus
+// an optional caller label echoed back in the register row, so the register maps
+// onto the caller's own inventory (file name, document id).
+type RegistryItemRequest struct {
+	Ref string `json:"ref,omitempty"`
+	VerifyRequest
+}
+
+// RegistryItemToCore maps a registry item to its domain form.
+func RegistryItemToCore(r RegistryItemRequest) (core.RegistryItem, error) {
+	in, err := r.ToCore()
+	if err != nil {
+		return core.RegistryItem{}, err
+	}
+	return core.RegistryItem{Ref: r.Ref, Verify: in}, nil
+}
+
+// ArchiveRequest asks for long-term validation evidence to be embedded into a
+// signature, so it stays verifiable after its certificate expires and the CA's
+// responders go away.
+type ArchiveRequest struct {
+	Signature    []byte             `json:"signature"`
+	InputPEM     bool               `json:"inputPem,omitempty"`
+	Data         []byte             `json:"data,omitempty"`
+	Detached     bool               `json:"detached,omitempty"`
+	ResponderURL string             `json:"responderUrl,omitempty"`
+	OutputPEM    bool               `json:"outputPem,omitempty"`
+	TrustedCerts []core.TrustedCert `json:"trustedCerts,omitempty"`
+	// AllowRevoked archives a signature whose signer is revoked. Off by default:
+	// reporting "archived" for a repudiated signature files evidence of the wrong
+	// thing.
+	AllowRevoked bool `json:"allowRevoked,omitempty"`
+}
+
+// ToCore converts to the domain input.
+func (r ArchiveRequest) ToCore() core.ArchiveInput {
+	return core.ArchiveInput{
+		Signature: r.Signature, InputPEM: r.InputPEM, Data: r.Data, Detached: r.Detached,
+		ResponderURL: r.ResponderURL, OutputPEM: r.OutputPEM, TrustedCerts: r.TrustedCerts,
+		AllowRevoked: r.AllowRevoked,
+	}
+}
+
+// VerifyAtRequest is the wire shape of a point-in-time (historical) verify call:
+// a standard verify plus the instant to evaluate validity at and the revocation
+// source used to reconstruct past status.
+type VerifyAtRequest struct {
+	VerifyRequest
+	At           time.Time `json:"at"`               // required: the past instant (RFC3339)
+	Method       string    `json:"method,omitempty"` // ocsp|crl (default ocsp)
+	CRL          []byte    `json:"crl,omitempty"`    // inline archived CRL for method=crl
+	ResponderURL string    `json:"responderUrl,omitempty"`
+}
+
+// ToCore converts to the domain input.
+func (r VerifyAtRequest) ToCore() (core.VerifyAtInput, error) {
+	base, err := r.VerifyRequest.ToCore()
+	if err != nil {
+		return core.VerifyAtInput{}, err
+	}
+	return core.VerifyAtInput{
+		VerifyInput:  base,
+		At:           r.At,
+		Method:       parseMethod(r.Method),
+		CRL:          r.CRL,
+		ResponderURL: r.ResponderURL,
 	}, nil
 }
 
