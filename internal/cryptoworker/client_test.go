@@ -150,8 +150,13 @@ func TestSupervisorRecyclesOnOpBudget(t *testing.T) {
 }
 
 // TestSupervisorRecyclesOnMemoryBudget drives the memory trigger directly: with a
-// 1-byte budget every measured call retires its child, which is what bounds RSS in
-// production.
+// 1-byte budget the first measured call retires its child, which is what bounds
+// RSS in production.
+//
+// The measurement is throttled — /proc is read once every rssCheckEvery
+// operations, not on each one — so the budget cannot fire before that many have
+// run. The loop drives enough of them; asserting on a single call would be
+// asserting that the throttle does not exist.
 func TestSupervisorRecyclesOnMemoryBudget(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("memory budget reads /proc")
@@ -161,9 +166,11 @@ func TestSupervisorRecyclesOnMemoryBudget(t *testing.T) {
 	cfg.MaxRSSBytes = 1
 	sup := startHelper(t, cfg)
 
-	signOnce(t, sup)
+	for i := 0; i < rssCheckEvery; i++ {
+		signOnce(t, sup)
+	}
 	if got := sup.WorkerStats().Recycles; got == 0 {
-		t.Error("memory budget did not retire the child")
+		t.Errorf("memory budget did not retire the child after %d operations", rssCheckEvery)
 	}
 }
 
