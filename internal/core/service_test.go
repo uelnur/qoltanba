@@ -297,7 +297,7 @@ func TestVerify_ChainVerificationDisabled(t *testing.T) {
 func TestValidate_RevokedMapping(t *testing.T) {
 	f := &fakeProvider{validateResult: provider.ValidateResult{Status: provider.StatusRevoked, Info: "revoked"}}
 	s := newTestService(f)
-	out, err := s.Validate(context.Background(), ValidateInput{Cert: []byte("c"), Method: MethodOCSP})
+	out, err := s.Validate(context.Background(), ValidateInput{Cert: []byte("c"), Method: MethodOCSP, ResponderURL: "http://ocsp.test.example/"})
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}

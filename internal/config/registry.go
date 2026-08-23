@@ -94,6 +94,7 @@ func registry() []entry {
 		{key: "nats.reply-subject", flag: "nats-reply-subject", env: "NATS_REPLY_SUBJECT", kind: kindString, def: "", usage: "fallback reply subject (empty defers to each message's reply-to)"},
 		{key: "nats.durable", flag: "nats-durable", env: "NATS_DURABLE", kind: kindString, def: "qoltanba", usage: "NATS JetStream durable consumer name"},
 		{key: "keys.allow-inline", flag: "keys-allow-inline", env: "KEYS_ALLOW_INLINE", kind: kindBool, def: false, usage: "accept inline PKCS#12 in requests (TLS/local only)"},
+		{key: "sign.tsa-url", flag: "sign-tsa-url", env: "SIGN_TSA_URL", kind: kindString, def: "", usage: "TSA used when a request names none; empty keeps the library default (the production responder, which will not stamp a test certificate)"},
 		{key: "sign.default-timestamp", flag: "sign-default-timestamp", env: "SIGN_DEFAULT_TIMESTAMP", kind: kindBool, def: false, usage: "add a TSA timestamp by default when a sign request does not specify"},
 		{key: "trust.ca-dir", flag: "trust-ca-dir", env: "TRUST_CA_DIR", kind: kindString, def: "", usage: "directory of trusted CA PEM files"},
 		{key: "trust.fetch-aia", flag: "trust-fetch-aia", env: "TRUST_FETCH_AIA", kind: kindBool, def: false, usage: "download missing issuers via AIA during chain building"},

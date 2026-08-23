@@ -1,6 +1,7 @@
 package native
 
 import (
+	"path/filepath"
 	"regexp"
 
 	"github.com/uelnur/qoltanba/internal/provider"
@@ -51,10 +52,18 @@ func detectCaps(inst kalkanInstance, cfg Config) provider.Capabilities {
 var versionRe = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
 
 // versionFromPath extracts the version from the wrapper file name
-// (e.g. libkalkancryptwr-64.so.2.0.13 -> "2.0.13"). The C-API has no version call.
+// (e.g. libkalkancryptwr-64.so.2.0.13 -> "2.0.13"). The C-API has no version
+// call. Deployments usually point at the unversioned symlink, whose own name
+// carries no version, so the link is resolved first — the version is in the file
+// it points at.
 func versionFromPath(path string) string {
 	if m := versionRe.FindString(path); m != "" {
 		return m
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		if m := versionRe.FindString(resolved); m != "" {
+			return m
+		}
 	}
 	return "unknown"
 }

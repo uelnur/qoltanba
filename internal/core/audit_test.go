@@ -14,7 +14,14 @@ func (r *recordingSink) Record(_ context.Context, ev AuditEvent) { r.events = ap
 
 func TestAuditRecordsVerifyOutcome(t *testing.T) {
 	sink := &recordingSink{}
-	prov := &fakeProvider{verifyResult: provider.VerifyResult{Valid: true}}
+	// A valid verification always names its signer — a verdict without one is
+	// refused by the domain, so the fake has to produce a certificate.
+	prov := &fakeProvider{
+		verifyResult: provider.VerifyResult{Valid: true,
+			Signers: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\nAA\n-----END CERTIFICATE-----")}},
+		props:          fields(map[string]string{"SUBJECT_COMMONNAME": "X"}),
+		validateResult: provider.ValidateResult{Status: provider.StatusGood},
+	}
 	svc := New(prov, WithAudit(sink))
 
 	if _, err := svc.Verify(context.Background(), VerifyInput{

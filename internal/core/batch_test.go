@@ -32,7 +32,9 @@ func (p *batchProv) ValidateCert(_ context.Context, req provider.ValidateRequest
 func validateItems(certs ...string) []ValidateInput {
 	in := make([]ValidateInput, len(certs))
 	for i, c := range certs {
-		in[i] = ValidateInput{Cert: []byte(c), Format: EncodingDER}
+		// The stub certificates carry no AIA, so the responder is named explicitly;
+		// otherwise the check never reaches the driver these tests are about.
+		in[i] = ValidateInput{Cert: []byte(c), Format: EncodingDER, ResponderURL: "http://ocsp.test.example/"}
 	}
 	return in
 }

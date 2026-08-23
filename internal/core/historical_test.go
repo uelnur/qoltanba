@@ -60,12 +60,14 @@ func revokedOCSP(t *testing.T, revTime time.Time, reason int) []byte {
 func TestRevocationAt(t *testing.T) {
 	revTime := time.Date(2022, 6, 1, 0, 0, 0, 0, time.UTC)
 	cert := Certificate{PEM: []byte("-----BEGIN CERTIFICATE-----\nAA\n-----END CERTIFICATE-----")}
+	// The stub certificate carries no AIA, so the responder is named explicitly.
+	viaResponder := VerifyAtInput{ResponderURL: "http://ocsp.test.example/"}
 
 	t.Run("good-now-was-good-before", func(t *testing.T) {
 		f := &fakeProvider{validateResult: provider.ValidateResult{Status: provider.StatusGood}}
 		s := New(f)
 		var v PointInTimeVerdict
-		notRevoked, det := s.revocationAt(context.Background(), cert, revTime, VerifyAtInput{}, &v)
+		notRevoked, det := s.revocationAt(context.Background(), cert, revTime, viaResponder, &v)
 		if !notRevoked || !det {
 			t.Fatalf("notRevoked=%v determinate=%v, want true/true", notRevoked, det)
 		}
@@ -78,7 +80,7 @@ func TestRevocationAt(t *testing.T) {
 		s := New(f)
 		var v PointInTimeVerdict
 		at := revTime.Add(24 * time.Hour) // after revocation
-		notRevoked, det := s.revocationAt(context.Background(), cert, at, VerifyAtInput{}, &v)
+		notRevoked, det := s.revocationAt(context.Background(), cert, at, viaResponder, &v)
 		if notRevoked || !det {
 			t.Fatalf("notRevoked=%v determinate=%v, want false/true", notRevoked, det)
 		}
@@ -94,7 +96,7 @@ func TestRevocationAt(t *testing.T) {
 		s := New(f)
 		var v PointInTimeVerdict
 		at := revTime.Add(-24 * time.Hour) // before revocation
-		notRevoked, det := s.revocationAt(context.Background(), cert, at, VerifyAtInput{}, &v)
+		notRevoked, det := s.revocationAt(context.Background(), cert, at, viaResponder, &v)
 		if !notRevoked || !det {
 			t.Fatalf("notRevoked=%v determinate=%v, want true/true", notRevoked, det)
 		}
@@ -108,7 +110,7 @@ func TestRevocationAt(t *testing.T) {
 		f := &fakeProvider{validateResult: provider.ValidateResult{Status: provider.StatusRevoked}}
 		s := New(f)
 		var v PointInTimeVerdict
-		notRevoked, det := s.revocationAt(context.Background(), cert, revTime, VerifyAtInput{}, &v)
+		notRevoked, det := s.revocationAt(context.Background(), cert, revTime, viaResponder, &v)
 		if notRevoked || det {
 			t.Fatalf("notRevoked=%v determinate=%v, want false/false", notRevoked, det)
 		}
@@ -121,7 +123,7 @@ func TestRevocationAt(t *testing.T) {
 		}}
 		s := New(f)
 		var v PointInTimeVerdict
-		s.revocationAt(context.Background(), cert, revTime.Add(time.Hour), VerifyAtInput{}, &v)
+		s.revocationAt(context.Background(), cert, revTime.Add(time.Hour), viaResponder, &v)
 		if v.RevocationReason != "certificateHold" {
 			t.Fatalf("reason = %q, want certificateHold", v.RevocationReason)
 		}
@@ -133,7 +135,7 @@ func TestRevocationAt(t *testing.T) {
 	t.Run("no-certificate-is-indeterminate", func(t *testing.T) {
 		s := New(&fakeProvider{})
 		var v PointInTimeVerdict
-		notRevoked, det := s.revocationAt(context.Background(), Certificate{}, revTime, VerifyAtInput{}, &v)
+		notRevoked, det := s.revocationAt(context.Background(), Certificate{}, revTime, viaResponder, &v)
 		if !notRevoked || det {
 			t.Fatalf("notRevoked=%v determinate=%v, want true/false", notRevoked, det)
 		}

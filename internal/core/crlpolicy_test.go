@@ -22,6 +22,9 @@ func TestValidate_SoftFailFallsBackToOCSP(t *testing.T) {
 
 	out, err := s.Validate(context.Background(), ValidateInput{
 		Cert: []byte("cert"), Format: EncodingDER, Method: MethodCRL,
+		// The fallback lands on OCSP, which now needs a responder: the blob above is
+		// not a parseable certificate, so there is no AIA to read one from.
+		ResponderURL: "http://ocsp.test.example/",
 	})
 	if err != nil {
 		t.Fatalf("validate: %v", err)
