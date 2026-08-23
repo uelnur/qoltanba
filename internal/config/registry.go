@@ -108,6 +108,7 @@ func registry() []entry {
 		{key: "trust.ocsp-cache-ttl", flag: "trust-ocsp-cache-ttl", env: "TRUST_OCSP_CACHE_TTL", kind: kindString, def: "10m", usage: "freshness bound for an OCSP answer without nextUpdate, as a Go duration"},
 		{key: "trust.ocsp-cache-max-entries", flag: "trust-ocsp-cache-max-entries", env: "TRUST_OCSP_CACHE_MAX_ENTRIES", kind: kindInt, def: 0, usage: "cap on cached OCSP answers (0 = default 4096)"},
 		{key: "trust.crl-cache-max-mb", flag: "trust-crl-cache-max-mb", env: "TRUST_CRL_CACHE_MAX_MB", kind: kindInt, def: 0, usage: "cap on total cached CRL bytes in MiB (0 = default 256)"},
+		{key: "trust.tsa-policies", flag: "trust-tsa-policies", env: "TRUST_TSA_POLICIES", kind: kindStringSlice, def: []string{}, usage: "TSA policy OIDs accepted for CAdES-T (e.g. 1.2.398.3.3.2.6.4); empty enforces none"},
 		{key: "trust.crl-fail-policy", flag: "trust-crl-fail-policy", env: "TRUST_CRL_FAIL_POLICY", kind: kindString, def: "soft", usage: "CRL fail policy when a managed CRL is unreliable: soft (fall back to OCSP) | hard (fail closed)"},
 		{key: "log.level", flag: "log-level", env: "LOG_LEVEL", kind: kindString, def: "info", usage: "log level: debug|info|warn|error"},
 		{key: "log.format", flag: "log-format", env: "LOG_FORMAT", kind: kindString, def: "text", usage: "log format: text|json"},

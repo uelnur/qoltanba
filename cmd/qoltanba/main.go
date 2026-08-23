@@ -1032,6 +1032,9 @@ func buildService(cfg config.Config, log *slog.Logger, rec *metrics.Recorder, si
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))
 	}
+	if len(cfg.Trust.TSAPolicies) > 0 {
+		opts = append(opts, core.WithTSAPolicies(cfg.Trust.TSAPolicies))
+	}
 	// A typed nil would satisfy the port interface and panic on use, so the signer
 	// is only wired when it actually exists.
 	if cfg.Receipts.Enabled && signer != nil {

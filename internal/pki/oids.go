@@ -213,6 +213,32 @@ func DigestOIDForSignOID(signOID string) string {
 	}
 }
 
+// Политики TSA (метки времени): базовая арка и её дети из официального реестра.
+const (
+	TSAPolicyArc      = "1.2.398.3.3.2.6"
+	TSAPolicyGOST     = "1.2.398.3.3.2.6.1" // TSA_GOST_POLICY (ГОСТ 34.310-2004)
+	TSAPolicyRSA      = "1.2.398.3.3.2.6.2" // TSA_RSA_POLICY (RSA-SHA256)
+	TSAPolicyGOSTGT   = "1.2.398.3.3.2.6.3" // TSA_GOSTGT_POLICY
+	TSAPolicyGOST2015 = "1.2.398.3.3.2.6.4" // TSA_GOST2015_POLICY (по умолчанию у НУЦ)
+)
+
+// tsaPolicyByOID — короткие имена политик TSA. Реестр даёт длинные описания;
+// здесь имена, которыми политики называют в SDK и документации.
+var tsaPolicyByOID = map[string]string{
+	TSAPolicyGOST:     "TSA_GOST_POLICY",
+	TSAPolicyRSA:      "TSA_RSA_POLICY",
+	TSAPolicyGOSTGT:   "TSA_GOSTGT_POLICY",
+	TSAPolicyGOST2015: "TSA_GOST2015_POLICY",
+}
+
+// TSAPolicyName возвращает имя политики TSA по OID (пусто, если не из реестра).
+func TSAPolicyName(oid string) string { return tsaPolicyByOID[oid] }
+
+// IsTSAPolicy сообщает, принадлежит ли OID арке политик TSA НУЦ.
+func IsTSAPolicy(oid string) bool {
+	return oid == TSAPolicyArc || strings.HasPrefix(oid, TSAPolicyArc+".")
+}
+
 // hash OID → человекочитаемое имя (для TSP; таблица TSPAlgorithms + kalkan ГОСТ).
 var hashNameByOID = map[string]string{
 	"1.2.840.113549.2.5":     "MD5",

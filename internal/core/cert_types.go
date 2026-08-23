@@ -109,4 +109,12 @@ type Timestamp struct {
 	// Nil when it could not be established; SignatureNote then says why.
 	SignatureVerified *bool  `json:"signatureVerified,omitempty"`
 	SignatureNote     string `json:"signatureNote,omitempty"`
+	// PolicyName is the registry name of the TSA policy the token was issued
+	// under, when the OID is one of the NUC policies.
+	PolicyName string `json:"policyName,omitempty"`
+	// PolicyAccepted reports the policy against the operator's allow-list. Nil
+	// when no list is configured — the service does not invent which policies an
+	// operator is willing to rely on. PolicyNote says what was decided and why.
+	PolicyAccepted *bool  `json:"policyAccepted,omitempty"`
+	PolicyNote     string `json:"policyNote,omitempty"`
 }

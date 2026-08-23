@@ -1630,6 +1630,12 @@ components:
           type: boolean
         policy:
           type: string
+        policyAccepted:
+          type: boolean
+        policyName:
+          type: string
+        policyNote:
+          type: string
         serialNumber:
           type: string
         signatureNote:

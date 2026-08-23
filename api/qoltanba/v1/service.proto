@@ -342,6 +342,13 @@ message Timestamp {
   // could not be checked. cades_level is "T" only when both facts hold.
   optional bool signature_verified = 9;
   string signature_note = 10;
+  // policy_name is the registry name of the TSA policy (when the OID is one of
+  // the NUC policies). policy_accepted judges it against the operator's
+  // allow-list and is unset when none is configured — the service does not
+  // invent which policies an operator relies on.
+  string policy_name = 11;
+  optional bool policy_accepted = 12;
+  string policy_note = 13;
 }
 
 message Signer {

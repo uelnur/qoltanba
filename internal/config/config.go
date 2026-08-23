@@ -22,6 +22,8 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/uelnur/qoltanba/internal/pki"
 )
 
 // envPrefix is prepended to every environment variable name.
@@ -404,6 +406,11 @@ type TrustConfig struct {
 	// OCSPCacheMaxEntries bounds the cache; 0 = default (4096).
 	OCSPCacheMaxEntries int    `koanf:"ocsp-cache-max-entries"`
 	CRLFailPolicy       string `koanf:"crl-fail-policy"` // soft (fall back to OCSP) | hard (fail closed) when CRL is unreliable
+	// TSAPolicies restricts which TSA policy OIDs a timestamp may be issued under
+	// to count as CAdES-T. Empty enforces nothing: every NUC policy chains to the
+	// same anchors, so the choice between them is an operator's call about
+	// acceptable algorithms.
+	TSAPolicies []string `koanf:"tsa-policies"`
 }
 
 // JobsConfig configures the async-job subsystem (REST /jobs endpoints). It is
@@ -750,6 +757,11 @@ func (l *Loaded) Validate() error {
 	if raw := strings.TrimSpace(c.Trust.RefreshInterval); raw != "" && raw != "0" && raw != "off" {
 		if _, err := time.ParseDuration(raw); err != nil {
 			errs = append(errs, "trust.refresh-interval must be a Go duration (e.g. 24h), empty, 0 or off")
+		}
+	}
+	for _, p := range c.Trust.TSAPolicies {
+		if !pki.IsTSAPolicy(strings.TrimSpace(p)) {
+			errs = append(errs, "trust.tsa-policies: "+p+" is not a NUC TSA policy OID (arc "+pki.TSAPolicyArc+")")
 		}
 	}
 	switch strings.TrimSpace(c.Trust.CRLFailPolicy) {

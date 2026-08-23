@@ -30,6 +30,7 @@ type Service struct {
 	audit            AuditSink
 	receiptSigner    ReceiptSigner
 	receiptIssuer    string
+	tsaPolicies      []string
 }
 
 // Option configures a Service.
@@ -63,6 +64,12 @@ func WithOCSPCache(c OCSPCache) Option { return func(s *Service) { s.ocspCache =
 func WithReceiptSigner(signer ReceiptSigner, issuer string) Option {
 	return func(s *Service) { s.receiptSigner, s.receiptIssuer = signer, issuer }
 }
+
+// WithTSAPolicies restricts which TSA policies a timestamp may be issued under
+// for it to count as CAdES-T. Empty (the default) enforces nothing: every NUC
+// policy chains to the same anchors, so choosing between them is an operator's
+// call about acceptable algorithms, not a fact the service can derive.
+func WithTSAPolicies(oids []string) Option { return func(s *Service) { s.tsaPolicies = oids } }
 
 // WithIssuerFetcher enables AIA issuer download during chain building. Nil (the
 // default) means no network fetch — chains build only from the trusted set.
@@ -775,12 +782,21 @@ func (s *Service) buildSigners(ctx context.Context, res provider.VerifyResult, f
 				sig.Timestamp.ImprintVerified, sig.Timestamp.ImprintNote = imprint, inote
 				signed, snote := s.verifyTimestampSignature(ctx, si.Timestamp, trusted)
 				sig.Timestamp.SignatureVerified, sig.Timestamp.SignatureNote = signed, snote
+				pname, paccepted, pnote := s.checkTimestampPolicy(sig.Timestamp.Policy)
+				sig.Timestamp.PolicyName = pname
+				sig.Timestamp.PolicyAccepted, sig.Timestamp.PolicyNote = paccepted, pnote
+				// A policy verdict only blocks when the operator asked for one; an
+				// absent allow-list leaves paccepted nil and changes nothing.
+				policyRefused := paccepted != nil && !*paccepted
 				switch {
-				case imprint != nil && *imprint && signed != nil && *signed:
+				case imprint != nil && *imprint && signed != nil && *signed && !policyRefused:
 					sig.CAdESLevel = "T"
 				default:
-					w.add(fmt.Sprintf("signers[%d].timestamp", i),
-						timestampWarning(firstNonEmptyString(inote, snote)))
+					note := firstNonEmptyString(inote, snote)
+					if policyRefused {
+						note = pnote
+					}
+					w.add(fmt.Sprintf("signers[%d].timestamp", i), timestampWarning(note))
 				}
 			}
 		}

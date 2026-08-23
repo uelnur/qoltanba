@@ -304,6 +304,7 @@ func timestampPB(t *core.Timestamp) *pb.Timestamp {
 		Tsa: t.TSA, HashAlgorithm: t.HashAlgorithm, Hash: t.Hash,
 		ImprintVerified: t.ImprintVerified, ImprintNote: t.ImprintNote,
 		SignatureVerified: t.SignatureVerified, SignatureNote: t.SignatureNote,
+		PolicyName: t.PolicyName, PolicyAccepted: t.PolicyAccepted, PolicyNote: t.PolicyNote,
 	}
 }
 

@@ -2591,8 +2591,15 @@ type Timestamp struct {
 	// could not be checked. cades_level is "T" only when both facts hold.
 	SignatureVerified *bool  `protobuf:"varint,9,opt,name=signature_verified,json=signatureVerified,proto3,oneof" json:"signature_verified,omitempty"`
 	SignatureNote     string `protobuf:"bytes,10,opt,name=signature_note,json=signatureNote,proto3" json:"signature_note,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// policy_name is the registry name of the TSA policy (when the OID is one of
+	// the NUC policies). policy_accepted judges it against the operator's
+	// allow-list and is unset when none is configured — the service does not
+	// invent which policies an operator relies on.
+	PolicyName     string `protobuf:"bytes,11,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
+	PolicyAccepted *bool  `protobuf:"varint,12,opt,name=policy_accepted,json=policyAccepted,proto3,oneof" json:"policy_accepted,omitempty"`
+	PolicyNote     string `protobuf:"bytes,13,opt,name=policy_note,json=policyNote,proto3" json:"policy_note,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Timestamp) Reset() {
@@ -2691,6 +2698,27 @@ func (x *Timestamp) GetSignatureVerified() bool {
 func (x *Timestamp) GetSignatureNote() string {
 	if x != nil {
 		return x.SignatureNote
+	}
+	return ""
+}
+
+func (x *Timestamp) GetPolicyName() string {
+	if x != nil {
+		return x.PolicyName
+	}
+	return ""
+}
+
+func (x *Timestamp) GetPolicyAccepted() bool {
+	if x != nil && x.PolicyAccepted != nil {
+		return *x.PolicyAccepted
+	}
+	return false
+}
+
+func (x *Timestamp) GetPolicyNote() string {
+	if x != nil {
+		return x.PolicyNote
 	}
 	return ""
 }
@@ -4743,7 +4771,7 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\tocsp_urls\x18\x13 \x03(\tR\bocspUrls\x12\x19\n" +
 	"\bcrl_urls\x18\x14 \x03(\tR\acrlUrls\x12\x13\n" +
 	"\x05is_ca\x18\x15 \x01(\bR\x04isCa\x12\x10\n" +
-	"\x03pem\x18\x16 \x01(\fR\x03pem\"\x8a\x03\n" +
+	"\x03pem\x18\x16 \x01(\fR\x03pem\"\x8e\x04\n" +
 	"\tTimestamp\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\tR\fserialNumber\x12\x19\n" +
 	"\bgen_time\x18\x02 \x01(\tR\agenTime\x12\x16\n" +
@@ -4755,9 +4783,15 @@ const file_api_qoltanba_v1_service_proto_rawDesc = "" +
 	"\fimprint_note\x18\b \x01(\tR\vimprintNote\x122\n" +
 	"\x12signature_verified\x18\t \x01(\bH\x01R\x11signatureVerified\x88\x01\x01\x12%\n" +
 	"\x0esignature_note\x18\n" +
-	" \x01(\tR\rsignatureNoteB\x13\n" +
+	" \x01(\tR\rsignatureNote\x12\x1f\n" +
+	"\vpolicy_name\x18\v \x01(\tR\n" +
+	"policyName\x12,\n" +
+	"\x0fpolicy_accepted\x18\f \x01(\bH\x02R\x0epolicyAccepted\x88\x01\x01\x12\x1f\n" +
+	"\vpolicy_note\x18\r \x01(\tR\n" +
+	"policyNoteB\x13\n" +
 	"\x11_imprint_verifiedB\x15\n" +
-	"\x13_signature_verified\"\xd3\x04\n" +
+	"\x13_signature_verifiedB\x12\n" +
+	"\x10_policy_accepted\"\xd3\x04\n" +
 	"\x06Signer\x12:\n" +
 	"\vcertificate\x18\x01 \x01(\v2\x18.qoltanba.v1.CertificateR\vcertificate\x12.\n" +
 	"\x05chain\x18\x02 \x03(\v2\x18.qoltanba.v1.CertificateR\x05chain\x12\x14\n" +

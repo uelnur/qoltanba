@@ -67,6 +67,10 @@
 | `1.2.398.3.3.2.6.3` | TSA_GOSTGT_POLICY | GOST GT |
 | `1.2.398.3.3.2.6.4` | **TSA_GOST2015_POLICY** (по умолчанию) | GOST 34.311-2015 |
 
+Константы и `pki.TSAPolicyName`/`pki.IsTSAPolicy` — в `internal/pki/oids.go`; какие
+политики принимать для CAdES-T, задаёт оператор (`trust.tsa-policies`, пусто = не
+навязываем) — см. [`features/signature-service/signing-verify.md`](features/signature-service/signing-verify.md).
+
 ---
 
 ## Соответствия алгоритмов

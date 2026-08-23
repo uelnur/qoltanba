@@ -69,9 +69,10 @@
   (`timestamp.imprintVerified` / `signatureVerified` + note). Замерено на боевом TSA:
   imprint под ГОСТ-2015 — Streebog-512, которого Kalkan не умеет, поэтому этот дайджест
   считается в Go (Apache-2.0-зависимость; оговорка к границе — в
-  [`architecture.md`](architecture.md)). **Осталось:** доверие к самому TSA как политика
-  (проверяем подпись и цепочку к якорю, но не сверяем политику TSA со списком
-  допустимых).
+  [`architecture.md`](architecture.md)). ✅ **Политика TSA закрыта**: `trust.tsa-policies`
+  (список OID, пусто = не навязываем — все политики НУЦ цепляются к одним якорям, так
+  что выбор между ними это правило оператора об алгоритмах, а не выводимый факт);
+  политика вне списка не даёт `T`, отдаётся как `policyName`/`policyAccepted`/`policyNote`.
 - **Отчёт/карточка проверки.** ✅ JSON-слой реализован: флаг `report` в verify →
   `VerifyOutput.Report` (`internal/core/report.go`) — трёхзначный вердикт
   `valid|invalid|indeterminate` (непроведённая проверка ≠ провалившаяся),

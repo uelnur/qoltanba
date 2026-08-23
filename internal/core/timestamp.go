@@ -156,3 +156,42 @@ func (s *Service) verifyTimestampSignature(ctx context.Context, ts *cms.Timestam
 		return nil, "the TSA signature could not be checked: " + err.Error()
 	}
 }
+
+// checkTimestampPolicy judges the token's TSA policy against the operator's
+// allow-list. Which policies an operator is willing to rely on is their rule, not
+// ours — every NUC policy chains to the same anchors, so the difference between
+// them is about accepted algorithms, not about trust. With no list configured the
+// policy is reported and named, and nothing is enforced; with one, a policy
+// outside it is refused and the timestamp does not reach CAdES-T.
+func (s *Service) checkTimestampPolicy(policy string) (name string, accepted *bool, note string) {
+	name = pki.TSAPolicyName(policy)
+	if len(s.tsaPolicies) == 0 {
+		switch {
+		case policy == "":
+			return name, nil, "the token names no policy; none is enforced"
+		case name == "":
+			return name, nil, "policy is outside the NUC TSA arc; no allow-list is configured, so nothing is enforced"
+		default:
+			return name, nil, "no policy allow-list is configured, so nothing is enforced"
+		}
+	}
+	for _, allowed := range s.tsaPolicies {
+		if allowed == policy {
+			yes := true
+			return name, &yes, ""
+		}
+	}
+	no := false
+	return name, &no, "policy " + policyLabel(policy, name) + " is not in the configured allow-list"
+}
+
+// policyLabel renders a policy for a message: its name when known, else the OID.
+func policyLabel(oid, name string) string {
+	if name != "" {
+		return name + " (" + oid + ")"
+	}
+	if oid == "" {
+		return "(none)"
+	}
+	return oid
+}
