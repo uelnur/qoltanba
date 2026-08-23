@@ -381,6 +381,11 @@ type KeysConfig struct {
 // SignConfig configures signing defaults.
 type SignConfig struct {
 	DefaultTimestamp bool `koanf:"default-timestamp"`
+	// TSAURL is the timestamp authority used when a request does not name one.
+	// Empty leaves the library's built-in default, which is the production
+	// responder — it will not stamp a test certificate, so a test environment has
+	// to set this.
+	TSAURL string `koanf:"tsa-url"`
 }
 
 // TrustConfig configures the trust store and chain building.

@@ -122,14 +122,52 @@ func (p *Pool) SignCMS(ctx context.Context, req provider.SignRequest) (provider.
 		if req.Path != "" {
 			data = []byte(req.Path)
 		}
+		// The CMS signature is always produced as PEM: the library only fills the
+		// output buffer for KC_OUT_PEM and answers an empty or truncated blob at
+		// rc==0 for anything else. A caller asking for DER gets the wrapper taken
+		// off here, where the quirk belongs.
 		sig, err := inst.signData(alias, signCMSFlags(req), data, req.ExistingSignature)
 		if err != nil {
 			return err
+		}
+		if len(sig) == 0 {
+			// Success with nothing in the buffer is how the library reports a
+			// combination it cannot do (a timestamp with the certificate-time check
+			// off, most often). Reporting it as a signature would hand the caller an
+			// empty container with cadesLevel set.
+			return emptyOutputErr("SignCMS", req.WithTimestamp && !req.CheckCertTime)
+		}
+		if !req.OutPEM {
+			der, derr := pemToDER(sig)
+			if derr != nil {
+				return derr
+			}
+			sig = der
 		}
 		out = sig
 		return nil
 	})
 	return provider.SignResult{Signature: out}, err
+}
+
+// emptyOutputErr renders "the library succeeded and produced nothing" with the
+// combination that most often causes it, when the request used it.
+func emptyOutputErr(op string, timestampWithoutCertTime bool) error {
+	detail := "the library reported success but wrote no output"
+	if timestampWithoutCertTime {
+		detail = "the library reported success but wrote no output; a timestamp together with a disabled certificate-time check is not supported"
+	}
+	return provider.NewNativeError(op, 0, detail, provider.ErrEmptyOutput)
+}
+
+// pemToDER strips the PEM wrapper the CMS signing path always produces.
+func pemToDER(sig []byte) ([]byte, error) {
+	block, _ := pem.Decode(sig)
+	if block == nil {
+		return nil, provider.NewNativeError("SignCMS", 0,
+			"the signature came back in an unexpected encoding (not PEM)", provider.ErrCMSFormat)
+	}
+	return block.Bytes, nil
 }
 
 func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provider.VerifyResult, error) {
@@ -157,10 +195,7 @@ func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provi
 		res.SignerCert = vo.cert
 		// All signers (multi-signature): walk 1-based sigId via KC_GetCertFromCMS
 		// until no more certificates come back.
-		certFlags := kcOutPEM
-		if req.InputPEM {
-			certFlags |= kcInPEM
-		}
+		certFlags := kcOutPEM | cmsInputFlag(req.InputPEM)
 		for sigID := 1; sigID <= 64; sigID++ {
 			cert, crc := inst.certFromCMS(req.Signature, sigID, certFlags)
 			if crc != kcrOK || len(cert) == 0 {
@@ -176,11 +211,7 @@ func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provi
 			}
 			res.SignerCert = res.Signers[idx]
 		}
-		inFlag := 0
-		if req.InputPEM {
-			inFlag = kcInPEM
-		}
-		if t, rc := inst.timeFromSig(req.Signature, inFlag, 0); rc == kcrOK {
+		if t, rc := inst.timeFromSig(req.Signature, cmsInputFlag(req.InputPEM), 0); rc == kcrOK {
 			res.Timestamp = t
 		}
 		if vo.code != kcrOK {
@@ -468,9 +499,9 @@ func signCMSFlags(req provider.SignRequest) int {
 	if req.InputPEM {
 		flags |= kcInPEM
 	}
-	if req.OutPEM {
-		flags |= kcOutPEM
-	}
+	// Always PEM out: see SignCMS — the library produces a usable CMS only with
+	// this flag, and DER is derived from it afterwards.
+	flags |= kcOutPEM
 	if req.Detached {
 		flags |= kcDetachedData
 	}
@@ -488,9 +519,7 @@ func signCMSFlags(req provider.SignRequest) int {
 
 func verifyCMSFlags(req provider.VerifyRequest) int {
 	flags := kcSignCMS
-	if req.InputPEM {
-		flags |= kcInPEM
-	}
+	flags |= cmsInputFlag(req.InputPEM)
 	if req.OutPEM {
 		flags |= kcOutPEM
 	}
@@ -504,6 +533,17 @@ func verifyCMSFlags(req provider.VerifyRequest) int {
 		flags |= kcInFile
 	}
 	return flags
+}
+
+// cmsInputFlag names the container's encoding explicitly. Leaving it unset used
+// to look harmless because VerifyData copes, but the certificate walk
+// (KC_GetCertFromCMS) then refuses a DER container and the verification came
+// back valid with no signers at all.
+func cmsInputFlag(inputPEM bool) int {
+	if inputPEM {
+		return kcInPEM
+	}
+	return kcInDER
 }
 
 // hashFlags maps an algorithm name to a native KC_HASH_* flag (HashData selects

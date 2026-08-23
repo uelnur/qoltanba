@@ -49,7 +49,14 @@ func (c *collector) only(t *testing.T) (Reply, string) {
 }
 
 func TestProcess_Success(t *testing.T) {
-	f := &fake.Provider{VerifyResult: provider.VerifyResult{Valid: true}}
+	// A valid verification names its signer; the domain refuses a verdict without
+	// one, so the fake produces a certificate.
+	f := &fake.Provider{
+		VerifyResult: provider.VerifyResult{Valid: true,
+			Signers: [][]byte{[]byte("-----BEGIN CERTIFICATE-----\nAA\n-----END CERTIFICATE-----")}},
+		Props:          fake.Fields(map[string]string{"SUBJECT_COMMONNAME": "X"}),
+		ValidateResult: provider.ValidateResult{Status: provider.StatusGood},
+	}
 	p := NewProcessor(core.New(f), nil)
 
 	body := `{"op":"verify","correlationId":"abc","request":{"format":"cms","signature":"eA=="}}`

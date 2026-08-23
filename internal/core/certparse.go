@@ -247,3 +247,20 @@ func mergeUnique(base, add []string) []string {
 	}
 	return base
 }
+
+// ocspURLFromCert returns the OCSP responder the issuer published in the
+// certificate's AIA extension, or "" when it names none. Only http(s) is
+// accepted: OCSP is an HTTP protocol, and an unexpected scheme in a certificate
+// is not something to hand to the library as a path.
+func ocspURLFromCert(der []byte) string {
+	c, err := x509.ParseCertificate(der)
+	if err != nil || c == nil {
+		return ""
+	}
+	for _, u := range c.OCSPServer {
+		if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+			return u
+		}
+	}
+	return ""
+}

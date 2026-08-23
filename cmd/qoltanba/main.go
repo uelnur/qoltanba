@@ -1032,6 +1032,9 @@ func buildService(cfg config.Config, log *slog.Logger, rec *metrics.Recorder, si
 	if cfg.Trust.VerifyChain {
 		opts = append(opts, core.WithChainVerification(true))
 	}
+	if cfg.Sign.TSAURL != "" {
+		opts = append(opts, core.WithDefaultTSAURL(cfg.Sign.TSAURL))
+	}
 	if len(cfg.Trust.TSAPolicies) > 0 {
 		opts = append(opts, core.WithTSAPolicies(cfg.Trust.TSAPolicies))
 	}

@@ -52,6 +52,9 @@ func makeCert(t *testing.T, cn string, parent *testCert, isCA bool) testCert {
 		tmpl.BasicConstraintsValid = true
 	} else {
 		tmpl.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment
+		// A real leaf publishes the responder that can answer for it; revocation
+		// checks resolve the URL from here rather than guessing.
+		tmpl.OCSPServer = []string{"http://ocsp.test.example/"}
 	}
 	signer, signerKey, signerPub := tmpl, key, any(&key.PublicKey)
 	if parent != nil {

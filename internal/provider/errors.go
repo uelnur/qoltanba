@@ -30,6 +30,10 @@ var (
 	ErrXMLParse           = errors.New("provider: XML parse error")
 	ErrCMSFormat          = errors.New("provider: unknown CMS format")
 	ErrInvalidParam       = errors.New("provider: invalid parameter")
+	// ErrEmptyOutput is the library reporting success while producing nothing.
+	// Kalkan does this instead of failing for several unsupported combinations,
+	// so the length has to be checked, not only the return code.
+	ErrEmptyOutput = errors.New("provider: the library reported success but produced no output")
 )
 
 // NativeError wraps a raw Kalkan return code for cases without a dedicated

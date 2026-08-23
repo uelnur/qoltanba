@@ -23,6 +23,7 @@ type Service struct {
 	crlFailPolicy    CRLFailPolicy
 	verifyChain      bool
 	defaultTimestamp bool
+	defaultTSAURL    string
 	now              func() time.Time
 	verifyOnly       bool
 	dataResolver     DataResolver
@@ -101,6 +102,11 @@ func WithCRLFailPolicy(p CRLFailPolicy) Option { return func(s *Service) { s.crl
 // request does not specify (SignInput.WithTimestamp == nil). Off by default.
 func WithDefaultTimestamp(v bool) Option { return func(s *Service) { s.defaultTimestamp = v } }
 
+// WithDefaultTSAURL sets the timestamp authority used when a request names none.
+// Empty leaves the library's built-in default, which is the production responder
+// and will not stamp a test certificate.
+func WithDefaultTSAURL(u string) Option { return func(s *Service) { s.defaultTSAURL = u } }
+
 // WithDataResolver enables by-reference payloads (DataRef path/URL): the resolver
 // turns a reference into a local path the driver reads directly (KC_IN_FILE). Nil
 // (the default) means only inline data is accepted.
@@ -162,6 +168,10 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 	if in.WithTimestamp != nil {
 		withTS = *in.WithTimestamp
 	}
+	tsaURL := in.TSAURL
+	if tsaURL == "" {
+		tsaURL = s.defaultTSAURL
+	}
 
 	// The library anchors the signer's chain only when the time check is on, so
 	// the CA(s) are loaded just for that path — a permissive sign needs no store.
@@ -182,7 +192,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			OutPEM:            in.OutputPEM,
 			CheckCertTime:     !in.NoCheckCertTime,
 			WithTimestamp:     withTS,
-			TSAURL:            in.TSAURL,
+			TSAURL:            tsaURL,
 			ExistingSignature: in.ExistingSignature,
 			TrustedCerts:      trusted,
 		})
@@ -192,7 +202,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			XML:           in.Data,
 			CheckCertTime: !in.NoCheckCertTime,
 			WithTimestamp: withTS,
-			TSAURL:        in.TSAURL,
+			TSAURL:        tsaURL,
 			NodeID:        in.NodeID,
 			ParentNode:    in.ParentNode,
 			ParentNS:      in.ParentNS,
@@ -205,7 +215,7 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 			NodeID:        in.NodeID,
 			CheckCertTime: !in.NoCheckCertTime,
 			WithTimestamp: withTS,
-			TSAURL:        in.TSAURL,
+			TSAURL:        tsaURL,
 			TrustedCerts:  trusted,
 		})
 	}
@@ -330,6 +340,15 @@ func (s *Service) Verify(ctx context.Context, in VerifyInput) (VerifyOutput, err
 		if in.Archive {
 			s.attachArchive(&out, in, ocsp, &w)
 		}
+	}
+
+	// A verdict with no signer names nobody. The library can return "the maths
+	// held" while the signer walk yields nothing (a container encoding it verifies
+	// but cannot enumerate), and "valid" without a single signer is worse than a
+	// refusal for a caller that reads only that field.
+	if out.Valid && len(out.Signers) == 0 {
+		out.Valid = false
+		w.add("verify", "the signature verified but no signer could be identified; a verdict that names nobody is not a verdict")
 	}
 
 	out.Warnings = w.list()
@@ -614,6 +633,25 @@ func (s *Service) Validate(ctx context.Context, in ValidateInput) (ValidateOutpu
 		}
 		// s.crl == nil and no inline CRL: leave crlBytes empty, as before (the
 		// library path handles the absent CRL).
+	}
+
+	// An OCSP check with no responder named falls through to the library's
+	// built-in default, which is the production responder: it knows nothing about
+	// a certificate from a test CA, and the caller gets a failure that reads as
+	// "not revoked" unless they look at determinate. The responder the issuer
+	// published in the certificate's AIA is the one that can answer for it.
+	if effMethod == MethodOCSP && path == "" {
+		path = ocspURLFromCert(certDER)
+		if path == "" {
+			// Guessing the responder is what made this silent in the first place, so
+			// a certificate that names none leaves the status undetermined.
+			w.add("revocation", "the certificate publishes no OCSP responder (AIA); pass responderUrl to name one")
+			checked := checkTime
+			return ValidateOutput{
+				Status:   RevocationStatus{Method: effMethod, CheckedAt: &checked},
+				Warnings: w.list(),
+			}, nil
+		}
 	}
 
 	// A cached OCSP answer skips the native call entirely — that is what spares the

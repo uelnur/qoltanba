@@ -268,7 +268,9 @@ func (in *instance) verifyData(alias string, flags int, data, sign []byte, inCer
 		res.verify = trimNul(C.GoBytes(outVer, vl))
 	}
 	if dl > 0 && int(dl) < cap {
-		res.data = trimNul(C.GoBytes(outData, dl))
+		// The recovered content is the caller's own bytes and may be binary
+		// (a PDF, a ZIP): trimming at the first NUL would silently truncate it.
+		res.data = C.GoBytes(outData, dl)
 	}
 	// Parse the certificate only on success with a valid length; otherwise the
 	// library can crash on garbage (SIGSEGV).
