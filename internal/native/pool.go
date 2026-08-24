@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -130,45 +132,60 @@ func (p *Pool) SignCMS(ctx context.Context, req provider.SignRequest) (provider.
 		if err != nil {
 			return err
 		}
-		if len(sig) == 0 {
-			// Success with nothing in the buffer is how the library reports a
-			// combination it cannot do (a timestamp with the certificate-time check
-			// off, most often). Reporting it as a signature would hand the caller an
-			// empty container with cadesLevel set.
-			return emptyOutputErr("SignCMS", req.WithTimestamp && !req.CheckCertTime)
+		// The buffer is checked by shape, not by length. For a combination it
+		// cannot do the library reports success and leaves the buffer as it found
+		// it, so what comes back is whatever was on the stack — sometimes nothing,
+		// sometimes a handful of bytes. A length threshold would pass the second
+		// case, and the length is not ours to predict; a container, on the other
+		// hand, always starts with the PEM armor, because that is the encoding
+		// this path always asks for.
+		der, derr := signedCMSFromPEM(sig)
+		if derr != nil {
+			return emptyOutputErr("SignCMS", req.WithTimestamp && !req.CheckCertTime, derr)
 		}
-		if !req.OutPEM {
-			der, derr := pemToDER(sig)
-			if derr != nil {
-				return derr
-			}
-			sig = der
+		if req.OutPEM {
+			out = sig
+		} else {
+			out = der
 		}
-		out = sig
 		return nil
 	})
 	return provider.SignResult{Signature: out}, err
 }
 
-// emptyOutputErr renders "the library succeeded and produced nothing" with the
-// combination that most often causes it, when the request used it.
-func emptyOutputErr(op string, timestampWithoutCertTime bool) error {
-	detail := "the library reported success but wrote no output"
+// emptyOutputErr renders "the library reported success but did not produce a
+// container", naming the combination that most often causes it when the request
+// used it, and what actually came back.
+func emptyOutputErr(op string, timestampWithoutCertTime bool, cause error) error {
+	detail := "the library reported success but produced no container: " + cause.Error()
 	if timestampWithoutCertTime {
-		detail = "the library reported success but wrote no output; a timestamp together with a disabled certificate-time check is not supported"
+		detail += "; a timestamp together with a disabled certificate-time check is not supported"
 	}
 	return provider.NewNativeError(op, 0, detail, provider.ErrEmptyOutput)
 }
 
-// pemToDER strips the PEM wrapper the CMS signing path always produces.
-func pemToDER(sig []byte) ([]byte, error) {
+// signedCMSFromPEM checks that the buffer holds a PEM-armored CMS and returns
+// its DER. The signing path always asks for PEM, so anything else means the
+// library left the buffer untouched rather than writing a container.
+func signedCMSFromPEM(sig []byte) ([]byte, error) {
+	if len(sig) == 0 {
+		return nil, errors.New("the output buffer is empty")
+	}
 	block, _ := pem.Decode(sig)
 	if block == nil {
-		return nil, provider.NewNativeError("SignCMS", 0,
-			"the signature came back in an unexpected encoding (not PEM)", provider.ErrCMSFormat)
+		return nil, fmt.Errorf("the output buffer holds no PEM block (% x…)", sig[:min(len(sig), 8)])
+	}
+	// A CMS ContentInfo is an ASN.1 SEQUENCE; anything else is not a container,
+	// whatever the armour around it said.
+	if len(block.Bytes) == 0 || block.Bytes[0] != asn1SequenceTag {
+		return nil, errors.New("the PEM block does not hold an ASN.1 SEQUENCE")
 	}
 	return block.Bytes, nil
 }
+
+// asn1SequenceTag is the universal, constructed SEQUENCE tag every CMS
+// ContentInfo starts with.
+const asn1SequenceTag = 0x30
 
 func (p *Pool) VerifyCMS(ctx context.Context, req provider.VerifyRequest) (provider.VerifyResult, error) {
 	if !p.caps.VerifyCMS {

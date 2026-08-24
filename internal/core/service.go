@@ -180,44 +180,16 @@ func (s *Service) Sign(ctx context.Context, in SignInput) (SignOutput, error) {
 		trusted = toProviderCerts(s.mergedTrusted(in.TrustedCerts))
 	}
 
-	var res provider.SignResult
-	switch in.Format {
-	case FormatCMS:
-		res, err = s.prov.SignCMS(ctx, provider.SignRequest{
-			Key:               handle.Ref,
-			Data:              in.Data,
-			Path:              dataPath,
-			Detached:          in.Detached,
-			InputPEM:          in.InputPEM,
-			OutPEM:            in.OutputPEM,
-			CheckCertTime:     !in.NoCheckCertTime,
-			WithTimestamp:     withTS,
-			TSAURL:            tsaURL,
-			ExistingSignature: in.ExistingSignature,
-			TrustedCerts:      trusted,
-		})
-	case FormatXML:
-		res, err = s.prov.SignXML(ctx, provider.SignXMLRequest{
-			Key:           handle.Ref,
-			XML:           in.Data,
-			CheckCertTime: !in.NoCheckCertTime,
-			WithTimestamp: withTS,
-			TSAURL:        tsaURL,
-			NodeID:        in.NodeID,
-			ParentNode:    in.ParentNode,
-			ParentNS:      in.ParentNS,
-			TrustedCerts:  trusted,
-		})
-	case FormatWSSE:
-		res, err = s.prov.SignWSSE(ctx, provider.SignWSSERequest{
-			Key:           handle.Ref,
-			XML:           in.Data,
-			NodeID:        in.NodeID,
-			CheckCertTime: !in.NoCheckCertTime,
-			WithTimestamp: withTS,
-			TSAURL:        tsaURL,
-			TrustedCerts:  trusted,
-		})
+	res, err := s.signWith(ctx, in, handle, withTS, tsaURL, dataPath, trusted)
+	// The library anchors the signer's chain against the loaded CAs, and reports a
+	// missing issuing CA as a cert-time error. Verification recovers from that by
+	// pulling the issuer out of the certificate's AIA and retrying; signing had no
+	// such recovery, so a deployment whose trust store held the root but not the
+	// intermediate could verify a signature it could not produce.
+	if !in.NoCheckCertTime && isAnchorFailure(err) {
+		if own := s.signerChainAnchors(ctx, handle, in.TrustedCerts); len(own) > 0 {
+			res, err = s.signWith(ctx, in, handle, withTS, tsaURL, dataPath, own)
+		}
 	}
 	if err != nil {
 		s.recordAudit(ctx, AuditEvent{Op: "sign", Subject: digestOf(in.Data), Outcome: "error"})
@@ -250,6 +222,81 @@ func firstTimestamp(signature []byte) *Timestamp {
 		}
 	}
 	return nil
+}
+
+// signWith runs one signing attempt against the given trust set. It exists so the
+// attempt can be repeated with anchors discovered after a first failure, without
+// duplicating the per-format dispatch.
+func (s *Service) signWith(ctx context.Context, in SignInput, handle KeyHandle, withTS bool,
+	tsaURL, dataPath string, trusted []provider.TrustedCert) (provider.SignResult, error) {
+	switch in.Format {
+	case FormatCMS:
+		return s.prov.SignCMS(ctx, provider.SignRequest{
+			Key:               handle.Ref,
+			Data:              in.Data,
+			Path:              dataPath,
+			Detached:          in.Detached,
+			InputPEM:          in.InputPEM,
+			OutPEM:            in.OutputPEM,
+			CheckCertTime:     !in.NoCheckCertTime,
+			WithTimestamp:     withTS,
+			TSAURL:            tsaURL,
+			ExistingSignature: in.ExistingSignature,
+			TrustedCerts:      trusted,
+		})
+	case FormatXML:
+		return s.prov.SignXML(ctx, provider.SignXMLRequest{
+			Key:           handle.Ref,
+			XML:           in.Data,
+			CheckCertTime: !in.NoCheckCertTime,
+			WithTimestamp: withTS,
+			TSAURL:        tsaURL,
+			NodeID:        in.NodeID,
+			ParentNode:    in.ParentNode,
+			ParentNS:      in.ParentNS,
+			TrustedCerts:  trusted,
+		})
+	case FormatWSSE:
+		return s.prov.SignWSSE(ctx, provider.SignWSSERequest{
+			Key:           handle.Ref,
+			XML:           in.Data,
+			NodeID:        in.NodeID,
+			CheckCertTime: !in.NoCheckCertTime,
+			WithTimestamp: withTS,
+			TSAURL:        tsaURL,
+			TrustedCerts:  trusted,
+		})
+	}
+	return provider.SignResult{}, nil
+}
+
+// signerChainAnchors resolves the signer's own chain — from the trust store and,
+// when enabled, the issuers its certificate points at — and returns just that
+// chain to sign against.
+//
+// Only the signer's chain, deliberately. The library resolves a chain from the
+// certificates loaded into its store in load order, and an unrelated CA loaded
+// ahead of the right one makes it give up: measured against 2.0.13, a single
+// foreign root in front of the signer's own issuer fails the sign with
+// 0x08F00042, while the same certificates with the signer's chain first succeed
+// at any store size. So a large trust store is not merely wasteful here, it is
+// the thing that breaks signing — which is what enabling the RK CA registry did.
+func (s *Service) signerChainAnchors(ctx context.Context, handle KeyHandle, extra []TrustedCert) []provider.TrustedCert {
+	exp, err := s.prov.ExportOwnerCert(ctx, handle.Ref, provider.CertPEM)
+	if err != nil || len(exp.Cert) == 0 {
+		return nil
+	}
+	leafDER := toDER(exp.Cert, EncodingPEM)
+	trusted := s.mergedTrusted(extra)
+	chain, _, _ := buildChain(ctx, Certificate{}, leafDER, trusted, s.fetcher)
+	var anchors []TrustedCert
+	for _, node := range chain[1:] { // CA nodes above the leaf
+		anchors = append(anchors, TrustedCert{Cert: node.PEM, Intermediate: !nodeIsRoot(node.PEM)})
+	}
+	if len(anchors) == 0 {
+		return nil
+	}
+	return toProviderCerts(anchors)
 }
 
 // Verify checks a signature and extracts signers, content and validity. An
@@ -562,6 +609,18 @@ func (s *Service) CertInfo(ctx context.Context, in CertInfoInput) (CertInfoOutpu
 	cert := parseCertificate(props, toDER(certBytes, format), "", &w)
 
 	out := CertInfoOutput{Certificate: cert, Algorithm: algorithmInfo(cert), Warnings: w.list()}
+	if in.BuildChain {
+		// The request asked for the chain and used to get an empty one: the flag was
+		// declared, documented and never read.
+		chain, complete, anchored := buildChain(ctx, cert, toDER(certBytes, format), s.mergedTrusted(in.TrustedCerts), s.fetcher)
+		out.Chain = chain
+		if !complete {
+			w.add("chain", "the chain could not be built up to a self-issued root")
+		} else if !anchored {
+			w.add("chain", "the chain is complete but does not end in a configured trust anchor")
+		}
+		out.Warnings = w.list()
+	}
 	if in.ExtractClaims {
 		c := ClaimsFromCertificate(cert)
 		out.Claims = &c

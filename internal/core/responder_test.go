@@ -102,3 +102,32 @@ func TestVerify_ValidWithoutSignersIsRefused(t *testing.T) {
 		t.Error("the refusal must say why")
 	}
 }
+
+// TestCertInfo_BuildsChainWhenAsked covers a flag that was declared in the
+// contract, documented, exposed over gRPC — and never read, so every caller that
+// asked for the chain got an empty one back.
+func TestCertInfo_BuildsChainWhenAsked(t *testing.T) {
+	root := makeCert(t, "Root", nil, true)
+	leaf := makeCert(t, "Leaf", &root, false)
+	prov := &fakeProvider{props: fields(map[string]string{"SUBJECT_COMMONNAME": "Leaf"})}
+	svc := New(prov, WithTrustStore(staticTrust{[]TrustedCert{{Cert: root.pem}}}))
+
+	out, err := svc.CertInfo(context.Background(), CertInfoInput{
+		Cert: leaf.pem, Format: EncodingPEM, BuildChain: true,
+	})
+	if err != nil {
+		t.Fatalf("CertInfo: %v", err)
+	}
+	if len(out.Chain) != 2 {
+		t.Fatalf("chain = %d nodes, want the leaf and its issuer: %+v", len(out.Chain), out.Warnings)
+	}
+
+	// Without the flag the chain stays absent — the work is not done unasked.
+	plain, err := svc.CertInfo(context.Background(), CertInfoInput{Cert: leaf.pem, Format: EncodingPEM})
+	if err != nil {
+		t.Fatalf("CertInfo: %v", err)
+	}
+	if len(plain.Chain) != 0 {
+		t.Errorf("chain = %d nodes without buildChain, want none", len(plain.Chain))
+	}
+}

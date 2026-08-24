@@ -46,10 +46,13 @@ func CACertificates() []CACertRef { return caRegistryData().Certificates }
 func RootCRLs() []string { return caRegistryData().RootCrls }
 
 // CACertificatesFor фильтрует CA по продакшн/тест (test=false → только боевые).
-func CACertificatesFor(test bool) []CACertRef {
+func CACertificatesFor(includeTest bool) []CACertRef {
 	var out []CACertRef
 	for _, c := range caRegistryData().Certificates {
-		if c.Test == test {
+		// Тестовые якоря именно ДОБАВЛЯЮТСЯ: стенд, который их включает, обычно
+		// проверяет и боевые подписи, а «только тестовые» молча лишало бы его
+		// доверия ко всему настоящему.
+		if !c.Test || includeTest {
 			out = append(out, c)
 		}
 	}

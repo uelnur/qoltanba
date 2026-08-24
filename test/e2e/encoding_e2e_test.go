@@ -5,12 +5,21 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/uelnur/qoltanba/internal/core"
+	"github.com/uelnur/qoltanba/internal/keysource"
 	"github.com/uelnur/qoltanba/internal/provider"
 )
 
@@ -93,6 +102,48 @@ func TestFunctionalE2E_VerifyDERInput(t *testing.T) {
 			t.Errorf("verify %s: valid=%v signers=%d, want valid with one signer",
 				c.name, out.Valid, len(out.Signers))
 		}
+	}
+}
+
+// TestFunctionalE2E_SignAgainstALargeTrustStore pins the anchor-order defect. The
+// library resolves a chain from its store in load order and gives up when an
+// unrelated CA is loaded ahead of the right one, so a deployment that enabled the
+// RK CA registry could not sign at all — measured: one foreign root in front of
+// the signer's issuer fails, the same certificates with the signer's chain first
+// succeed at any store size.
+func TestFunctionalE2E_SignAgainstALargeTrustStore(t *testing.T) {
+	svc, closer := newServiceWithNoise(t)
+	defer closer()
+
+	out, err := svc.Sign(context.Background(), core.SignInput{
+		Format: core.FormatCMS, Data: []byte("noisy-store"), Key: testKey(t),
+		Detached: true, OutputPEM: true,
+	})
+	if err != nil {
+		t.Fatalf("sign against a store holding unrelated anchors: %v (lib %+v)", err, out.LibError)
+	}
+	if len(out.Signature) < 1000 {
+		t.Fatalf("container is %d bytes", len(out.Signature))
+	}
+}
+
+// TestFunctionalE2E_CertInfoBuildsChain covers the flag that was declared,
+// documented and never read: the chain came back empty however it was asked for.
+func TestFunctionalE2E_CertInfoBuildsChain(t *testing.T) {
+	svc, closer := newService(t)
+	defer closer()
+
+	out, err := svc.CertInfo(context.Background(), core.CertInfoInput{
+		Key: testKey(t), BuildChain: true,
+	})
+	if err != nil {
+		t.Fatalf("cert info: %v", err)
+	}
+	if len(out.Chain) < 2 {
+		t.Fatalf("chain has %d nodes, want the leaf and at least its issuer: %+v", len(out.Chain), out.Warnings)
+	}
+	if out.Chain[0].Subject.CommonName != out.Certificate.Subject.CommonName {
+		t.Errorf("the chain must start at the certificate asked about, got %q", out.Chain[0].Subject.CommonName)
 	}
 }
 
@@ -198,4 +249,53 @@ func TestFunctionalE2E_RevocationUsesCertificateAIA(t *testing.T) {
 	if out.Status.Revoked {
 		t.Errorf("the valid test key came back revoked: %+v", out.Status)
 	}
+}
+
+// newServiceWithNoise builds the service with the signer's own CAs plus a batch
+// of unrelated anchors ahead of them, reproducing what a trust store filled from
+// the RK CA registry looks like.
+func newServiceWithNoise(t *testing.T) (*core.Service, func()) {
+	t.Helper()
+	prov := requireProvider(t)
+	own := loadEnvTrust(t)
+	noisy := &noisyTrust{own: own}
+	svc := core.New(prov,
+		core.WithKeySource(keysource.New(keysource.WithInline(true))),
+		core.WithTrustStore(noisy),
+	)
+	return svc, func() {}
+}
+
+// noisyTrust returns unrelated anchors first and the real ones last.
+type noisyTrust struct{ own core.TrustStore }
+
+func (n *noisyTrust) Anchors() []core.TrustedCert {
+	return append(unrelatedAnchors(), n.own.Anchors()...)
+}
+
+// unrelatedAnchors are self-signed certificates that have nothing to do with the
+// signer — the shape of a registry-filled store.
+func unrelatedAnchors() []core.TrustedCert {
+	out := make([]core.TrustedCert, 0, 4)
+	for i := 0; i < 4; i++ {
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return out
+		}
+		tmpl := &x509.Certificate{
+			SerialNumber:          big.NewInt(int64(i + 1)),
+			Subject:               pkix.Name{CommonName: fmt.Sprintf("Unrelated CA %d", i)},
+			NotBefore:             time.Unix(1_600_000_000, 0),
+			NotAfter:              time.Unix(1_900_000_000, 0),
+			IsCA:                  true,
+			KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+			BasicConstraintsValid: true,
+		}
+		der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+		if err != nil {
+			return out
+		}
+		out = append(out, core.TrustedCert{Cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})})
+	}
+	return out
 }
