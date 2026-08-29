@@ -29,11 +29,11 @@ jobs:
       matrix:
         lang: [php, python, typescript, csharp, java, go, ruby, kotlin, dart, rust]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # tags: the SDK version comes from git describe
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -53,7 +53,7 @@ jobs:
       - name: Package
         run: tar -czf qoltanba-sdk-${{ matrix.lang }}.tar.gz -C dist/sdk ${{ matrix.lang }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdk-${{ matrix.lang }}
           path: qoltanba-sdk-${{ matrix.lang }}.tar.gz
@@ -72,7 +72,7 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sdk-typescript
       - name: Publish
@@ -95,10 +95,10 @@ jobs:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sdk-python
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - name: Publish
